@@ -1,26 +1,130 @@
 "use client";
 
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Download, ChevronLeft, Calendar, FileText, AlertTriangle, TrendingDown, Users } from "lucide-react";
+import { Download, ChevronLeft, Calendar, FileText, AlertTriangle, TrendingDown, Users, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-export default function ReportPage() {
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+interface AgentReport {
+  id: string;
+  name: string;
+  role: string;
+  starting_morale: number;
+  ending_morale: number;
+  peak_stress: number;
+  has_resigned: boolean;
+  resigned_week: number | null;
+  status: string;
+  status_label: string;
+}
+
+interface Report {
+  simulation_id: string;
+  company_name: string;
+  crisis_name: string;
+  total_rounds: number;
+  completed_rounds: number;
+  executive_summary: string;
+  critical_finding: string;
+  agent_reports: AgentReport[];
+  productivity_drop: number;
+  recommendations: string[];
+}
+
+function ReportContent() {
+  const searchParams = useSearchParams();
+  const simId = searchParams.get("id");
+  const [report, setReport] = useState<Report | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!simId) {
+      setError("No simulation ID provided.");
+      setLoading(false);
+      return;
+    }
+
+    fetch(`${API_BASE}/api/simulation/${simId}/report`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load report");
+        return res.json();
+      })
+      .then((data) => {
+        setReport(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to load report:", err);
+        setError("Failed to load report. Make sure the backend is running.");
+        setLoading(false);
+      });
+  }, [simId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+          <p className="text-muted-foreground">Generating report with AI insights...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !report) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <AlertTriangle className="w-8 h-8 text-destructive mx-auto" />
+          <p className="text-muted-foreground">{error || "Report not found."}</p>
+          <Link href="/setup">
+            <Button variant="outline">Back to Setup</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Failed": return "bg-red-500/10 text-red-500 border-none";
+      case "Critical": return "bg-orange-500/10 text-orange-500 border-none";
+      case "Stable": return "bg-blue-500/10 text-blue-500 border-none";
+      case "Thriving": return "bg-green-500/10 text-green-500 border-none";
+      default: return "bg-blue-500/10 text-blue-500 border-none";
+    }
+  };
+
+  const getNameColor = (status: string) => {
+    switch (status) {
+      case "Failed": return "text-red-500";
+      case "Critical": return "text-orange-500";
+      case "Stable": return "text-blue-500";
+      case "Thriving": return "text-green-500";
+      default: return "text-foreground";
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6 md:p-12">
       <div className="max-w-5xl mx-auto space-y-8">
-        
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <Link href="/simulation" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
+            <Link href={`/simulation?id=${simId}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
               <ChevronLeft className="w-4 h-4 mr-1" /> Back to Simulation
             </Link>
             <h1 className="text-3xl font-bold tracking-tight">Post-Simulation Report</h1>
-            <p className="text-muted-foreground">Pied Piper v2.0 Crisis • Completed round 12/12</p>
+            <p className="text-muted-foreground">{report.company_name} • {report.crisis_name} • Completed round {report.completed_rounds}/{report.total_rounds}</p>
           </div>
           <Button variant="outline" size="sm" className="h-10">
             <Download className="w-4 h-4 mr-2" /> Export to PDF
@@ -30,7 +134,7 @@ export default function ReportPage() {
         <Separator />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
+
           {/* Executive Summary */}
           <div className="md:col-span-2 space-y-6">
             <Card className="bg-card/40 border-border/50 shadow-md">
@@ -42,13 +146,13 @@ export default function ReportPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-muted-foreground leading-relaxed">
-                  The simulation ran for 12 virtual weeks following the injection of the <strong>"Mandatory Weekend Coding"</strong> crisis. Overall team morale dropped by <strong>45%</strong> within the first 3 weeks. 
+                  {report.executive_summary}
                 </p>
                 <div className="bg-destructive/10 border-l-4 border-l-destructive rounded-r-lg p-4 flex gap-3 text-sm">
                   <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
                   <div>
                     <span className="font-semibold text-foreground">Critical Finding:</span>
-                    <p className="text-muted-foreground mt-1">The Junior Dev (Sam) reached a critical burnout state in Week 4, causing productivity to permanently flatline. The Tech Lead (Alex) submitted a virtual resignation in Week 9 due to extreme stress metrics.</p>
+                    <p className="text-muted-foreground mt-1">{report.critical_finding}</p>
                   </div>
                 </div>
               </CardContent>
@@ -57,63 +161,37 @@ export default function ReportPage() {
             {/* Agent Journeys */}
             <h2 className="text-xl font-semibold mt-8 mb-4 flex items-center gap-2"><Users className="w-5 h-5" /> Agent Resiliency Profiles</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              
-              <Card className="bg-background/40 border-border/50">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-base text-red-500">Alex (Tech Lead)</CardTitle>
-                      <CardDescription>Resigned • Week 9</CardDescription>
+              {report.agent_reports.map((agent) => (
+                <Card key={agent.id} className="bg-background/40 border-border/50">
+                  <CardHeader className="pb-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className={`text-base ${getNameColor(agent.status)}`}>{agent.name} ({agent.role})</CardTitle>
+                        <CardDescription>{agent.status_label}</CardDescription>
+                      </div>
+                      <Badge variant="outline" className={getStatusColor(agent.status)}>{agent.status}</Badge>
                     </div>
-                    <Badge variant="outline" className="bg-red-500/10 text-red-500 border-none">Failed</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Starting Morale</span>
-                      <span>80%</span>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Starting Morale</span>
+                        <span>{agent.starting_morale}%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Ending Morale</span>
+                        <span className={`font-bold ${agent.ending_morale < 30 ? 'text-red-500' : agent.ending_morale < 50 ? 'text-yellow-500' : 'text-green-500'}`}>
+                          {agent.ending_morale}%
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Peak Stress</span>
+                        <span>{agent.peak_stress}%</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Ending Morale</span>
-                      <span className="text-red-500 font-bold">12%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Peak Stress</span>
-                      <span>95%</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-background/40 border-border/50">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-base text-blue-500">Jordan (PM)</CardTitle>
-                      <CardDescription>Survived</CardDescription>
-                    </div>
-                    <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-none">Stable</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Starting Morale</span>
-                      <span>75%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Ending Morale</span>
-                      <span className="text-yellow-500 font-bold">45%</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Peak Stress</span>
-                      <span>60%</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
 
@@ -125,13 +203,13 @@ export default function ReportPage() {
               </CardHeader>
               <CardContent className="flex flex-col items-center justify-center p-6">
                 <div className="w-32 h-32 rounded-full border-8 border-secondary flex items-center justify-center relative">
-                  <div className="absolute inset-0 rounded-full border-8 border-destructive" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 60%, 0 60%)' }} />
+                  <div className="absolute inset-0 rounded-full border-8 border-destructive" style={{ clipPath: `polygon(0 0, 100% 0, 100% ${Math.min(100, report.productivity_drop + 20)}%, 0 ${Math.min(100, report.productivity_drop + 20)}%)` }} />
                   <span className="text-3xl font-bold flex items-center gap-1">
-                    <TrendingDown className="w-6 h-6 text-destructive" /> 42%
+                    <TrendingDown className="w-6 h-6 text-destructive" /> {report.productivity_drop}%
                   </span>
                 </div>
                 <p className="text-sm text-center text-muted-foreground mt-4">
-                  Overall output dropped significantly compared to baseline.
+                  Overall output dropped compared to baseline.
                 </p>
               </CardContent>
             </Card>
@@ -142,21 +220,37 @@ export default function ReportPage() {
               </CardHeader>
               <CardContent>
                 <ul className="space-y-3 text-sm text-muted-foreground">
-                  <li className="flex gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                    Provide compensation (bonus/time-off) immediately after deadline pressure.
-                  </li>
-                  <li className="flex gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                    Protect Tech Leads from middle-management sandwiching.
-                  </li>
+                  {report.recommendations.map((rec, i) => (
+                    <li key={i} className="flex gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                      {rec}
+                    </li>
+                  ))}
                 </ul>
               </CardContent>
             </Card>
+
+            <Link href="/setup">
+              <Button className="w-full" variant="outline">
+                Run Another Simulation
+              </Button>
+            </Link>
           </div>
 
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <ReportContent />
+    </Suspense>
   );
 }
