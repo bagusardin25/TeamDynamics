@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Play, Pause, FastForward, Activity, Users, Send, Zap, Coffee, Bell, Loader2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -285,6 +285,23 @@ function SimulationContent() {
         </div>
       </header>
 
+      {/* Simulation Progress Bar */}
+      <div className="h-1 w-full bg-secondary/50 shrink-0 relative overflow-hidden">
+        <motion.div
+          className={`h-full ${status === 'completed' ? 'bg-green-500' : 'bg-primary'}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${totalRounds > 0 ? (currentRound / totalRounds) * 100 : 0}%` }}
+          transition={{ duration: 0.8, ease: "easeInOut" }}
+        />
+        {status === 'running' && (
+          <motion.div
+            className="absolute top-0 h-full w-20 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+            animate={{ x: ["-80px", "calc(100vw + 80px)"] }}
+            transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          />
+        )}
+      </div>
+
       {/* Main 3 Column Layout */}
       <main className="flex-1 flex overflow-hidden min-h-0">
 
@@ -439,36 +456,59 @@ function SimulationContent() {
                       </div>
                     )}
                     <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3 }}
+                      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
                       layout={false}
                       className="flex gap-4 group w-full overflow-hidden"
                     >
                       {msg.type === 'system' ? (
-                        <div className="w-full rounded-xl bg-orange-500/10 border border-orange-500/20 p-4 flex gap-3 text-sm text-foreground my-2">
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.5, ease: "easeOut" }}
+                          className="w-full rounded-xl bg-orange-500/10 border border-orange-500/20 p-4 flex gap-3 text-sm text-foreground my-2"
+                        >
                           <Bell className="w-5 h-5 text-orange-500 shrink-0" />
                           <div className="pt-0.5 leading-relaxed font-medium">
                             {msg.content}
                           </div>
-                        </div>
+                        </motion.div>
                       ) : (
                         <div className="flex gap-4 w-full">
-                          <Avatar className="h-9 w-9 mt-1 border border-border shrink-0">
-                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                              {(msg.agent || msg.agent_name || "??").substring(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
+                          <div className="relative shrink-0">
+                            {idx === messages.length - 1 && status === 'running' && (
+                              <motion.div
+                                className="absolute -inset-1 rounded-full bg-primary/20"
+                                animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              />
+                            )}
+                            <Avatar className="h-9 w-9 mt-1 border border-border relative">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                                {(msg.agent || msg.agent_name || "??").substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                          </div>
                           <div className="flex-1 min-w-0 space-y-1.5">
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-sm truncate">{msg.agent || msg.agent_name}</span>
                             </div>
-                            <div className="text-sm bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm">
+                            <motion.div
+                              initial={{ opacity: 0, x: -8 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ duration: 0.3, delay: 0.1 }}
+                              className="text-sm bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm"
+                            >
                               {msg.content}
-                            </div>
+                            </motion.div>
                             {msg.thought && (
-                              <div className="pt-2">
-                                <div className="text-xs italic text-muted-foreground bg-secondary/50 rounded-md p-2.5 border border-border/50">
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                transition={{ duration: 0.3, delay: 0.2 }}
+                                className="pt-2 overflow-hidden"
+                              >                                <div className="text-xs italic text-muted-foreground bg-secondary/50 rounded-md p-2.5 border border-border/50">
                                   <span className="font-semibold text-primary/70 mr-2 not-italic">Internal Thought:</span>
                                   &quot;{msg.thought}&quot;
                                 </div>
@@ -484,7 +524,7 @@ function SimulationContent() {
                                     </Badge>
                                   )}
                                 </div>
-                              </div>
+                              </motion.div>
                             )}
                           </div>
                         </div>
