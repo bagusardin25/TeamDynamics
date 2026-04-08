@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2 } from "lucide-react";
+import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown } from "lucide-react";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,15 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const MAX_ROSTER_SIZE = 8;
+
+interface AgentPersonality {
+  empathy: number;
+  ambition: number;
+  stressTolerance: number;
+  agreeableness: number;
+  assertiveness: number;
+}
 
 interface PresetAgent {
   id: string;
@@ -22,14 +31,29 @@ interface PresetAgent {
   role: string;
   type: string;
   color: string;
-  personality: {
-    empathy: number;
-    ambition: number;
-    stressTolerance: number;
-    agreeableness: number;
-    assertiveness: number;
-  };
+  personality: AgentPersonality;
+  motivation?: string;
+  expertise?: string;
 }
+
+const AGENT_COLORS = [
+  { label: "Red", value: "bg-red-500/20 text-red-500", dot: "bg-red-500" },
+  { label: "Green", value: "bg-green-500/20 text-green-500", dot: "bg-green-500" },
+  { label: "Blue", value: "bg-blue-500/20 text-blue-500", dot: "bg-blue-500" },
+  { label: "Purple", value: "bg-purple-500/20 text-purple-500", dot: "bg-purple-500" },
+  { label: "Orange", value: "bg-orange-500/20 text-orange-500", dot: "bg-orange-500" },
+  { label: "Cyan", value: "bg-cyan-500/20 text-cyan-500", dot: "bg-cyan-500" },
+  { label: "Pink", value: "bg-pink-500/20 text-pink-500", dot: "bg-pink-500" },
+  { label: "Yellow", value: "bg-yellow-500/20 text-yellow-500", dot: "bg-yellow-500" },
+];
+
+const DEFAULT_PERSONALITY: AgentPersonality = {
+  empathy: 50,
+  ambition: 50,
+  stressTolerance: 50,
+  agreeableness: 50,
+  assertiveness: 50,
+};
 
 export default function SetupPage() {
   const router = useRouter();
@@ -41,10 +65,24 @@ export default function SetupPage() {
   );
   const [crisis, setCrisis] = useState("");
   const [customCrisis, setCustomCrisis] = useState("");
-  const [durationWeeks, setDurationWeeks] = useState([12]);
-  const [pacingSpeed, setPacingSpeed] = useState([50]);
+  const [durationWeeks, setDurationWeeks] = useState(12);
+  const [pacingSpeed, setPacingSpeed] = useState(50);
   const [isLoading, setIsLoading] = useState(false);
   const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+
+  // Custom Agent Modal State
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<PresetAgent | null>(null);
+  const [customName, setCustomName] = useState("");
+  const [customRole, setCustomRole] = useState("");
+  const [customType, setCustomType] = useState("");
+  const [customColor, setCustomColor] = useState(AGENT_COLORS[0].value);
+  const [customMotivation, setCustomMotivation] = useState("");
+  const [customExpertise, setCustomExpertise] = useState("");
+  const [customPersonality, setCustomPersonality] = useState<AgentPersonality>({ ...DEFAULT_PERSONALITY });
+
+  // Preset picker dropdown
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
 
   // Fetch preset agents on mount
   useEffect(() => {
@@ -71,27 +109,73 @@ export default function SetupPage() {
   const removeAgent = (id: string) => setSelectedAgents(selectedAgents.filter((a) => a.id !== id));
 
   const addPresetAgent = (agent: PresetAgent) => {
+    if (selectedAgents.length >= MAX_ROSTER_SIZE) return;
     if (!selectedAgents.find((a) => a.id === agent.id)) {
       setSelectedAgents([...selectedAgents, agent]);
     }
   };
 
+  const openCreateModal = () => {
+    setEditingAgent(null);
+    setCustomName("");
+    setCustomRole("");
+    setCustomType("");
+    setCustomColor(AGENT_COLORS[0].value);
+    setCustomMotivation("");
+    setCustomExpertise("");
+    setCustomPersonality({ ...DEFAULT_PERSONALITY });
+    setShowCreateModal(true);
+  };
+
+  const openEditModal = (agent: PresetAgent) => {
+    setEditingAgent(agent);
+    setCustomName(agent.name);
+    setCustomRole(agent.role);
+    setCustomType(agent.type);
+    setCustomColor(agent.color);
+    setCustomMotivation(agent.motivation || "");
+    setCustomExpertise(agent.expertise || "");
+    setCustomPersonality({ ...agent.personality });
+    setShowCreateModal(true);
+  };
+
+  const handleSaveAgent = () => {
+    if (!customName.trim() || !customRole.trim() || !customType.trim()) return;
+
+    const agentData: PresetAgent = {
+      id: editingAgent ? editingAgent.id : `custom-${Date.now()}`,
+      name: customName.trim(),
+      role: customRole.trim(),
+      type: customType.trim(),
+      color: customColor,
+      personality: { ...customPersonality },
+      motivation: customMotivation.trim() || undefined,
+      expertise: customExpertise.trim() || undefined,
+    };
+
+    if (editingAgent) {
+      setSelectedAgents(selectedAgents.map((a) => (a.id === editingAgent.id ? agentData : a)));
+    } else {
+      setSelectedAgents([...selectedAgents, agentData]);
+    }
+
+    setShowCreateModal(false);
+  };
+
   const getPacingLabel = () => {
-    const val = pacingSpeed[0];
-    if (val <= 25) return "Slow";
-    if (val <= 75) return "Normal";
+    if (pacingSpeed <= 25) return "Slow";
+    if (pacingSpeed <= 75) return "Normal";
     return "Fast";
   };
 
   const getPacingValue = (): string => {
-    const val = pacingSpeed[0];
-    if (val <= 25) return "slow";
-    if (val <= 75) return "normal";
+    if (pacingSpeed <= 25) return "slow";
+    if (pacingSpeed <= 75) return "normal";
     return "fast";
   };
 
   const estimateApiCalls = () => {
-    return selectedAgents.length * durationWeeks[0];
+    return selectedAgents.length * durationWeeks;
   };
 
   const estimateCost = () => {
@@ -122,13 +206,15 @@ export default function SetupPage() {
           type: a.type,
           color: a.color,
           personality: a.personality,
+          motivation: a.motivation || null,
+          expertise: a.expertise || null,
         })),
         crisis: {
           scenario: crisis,
           custom_description: crisis === "custom" ? customCrisis : null,
         },
         params: {
-          duration_weeks: durationWeeks[0],
+          duration_weeks: durationWeeks,
           pacing: getPacingValue(),
         },
       };
@@ -151,6 +237,9 @@ export default function SetupPage() {
       setIsLoading(false);
     }
   };
+
+  const rosterFull = selectedAgents.length >= MAX_ROSTER_SIZE;
+  const availablePresets = presets.filter((p) => !selectedAgents.find((s) => s.id === p.id));
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-12">
@@ -202,7 +291,7 @@ export default function SetupPage() {
               </CardContent>
             </Card>
 
-            {/* Step 2: Crisis Injection (moved above Team for visibility) */}
+            {/* Step 2: Crisis Injection */}
             <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl border-t-4 border-t-orange-500">
               <CardHeader>
                 <div className="flex items-center gap-2 mb-1">
@@ -248,16 +337,21 @@ export default function SetupPage() {
 
             {/* Step 3: The Team */}
             <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl">
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <Users className="w-5 h-5 text-primary" />
                     <CardTitle>Team Roster</CardTitle>
                   </div>
-                  <CardDescription>Select the employees who will participate in the simulation.</CardDescription>
+                  <CardDescription>
+                    Select preset employees or create custom ones. You can customize personality, motivation, and expertise for each member.
+                  </CardDescription>
                 </div>
+                <Badge variant={rosterFull ? "destructive" : "secondary"} className="shrink-0 mt-1">
+                  {selectedAgents.length}/{MAX_ROSTER_SIZE}
+                </Badge>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {selectedAgents.map((agent) => (
                     <motion.div
@@ -268,12 +362,22 @@ export default function SetupPage() {
                       className="border border-border rounded-xl p-4 bg-background/50 relative group cursor-pointer transition-colors hover:border-primary/30"
                       onClick={() => setExpandedAgent(expandedAgent === agent.id ? null : agent.id)}
                     >
+                      {/* Remove button */}
                       <button
                         onClick={(e) => { e.stopPropagation(); removeAgent(agent.id); }}
                         className="absolute top-2 right-2 w-6 h-6 rounded-full bg-destructive/10 text-destructive flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground z-10"
                       >
                         <X className="w-3 h-3" />
                       </button>
+
+                      {/* Edit button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEditModal(agent); }}
+                        className="absolute top-2 right-10 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-primary hover:text-primary-foreground z-10"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+
                       <div className="flex items-center gap-3 mb-2">
                         <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
                           {agent.name.charAt(0)}
@@ -286,6 +390,18 @@ export default function SetupPage() {
                       <Badge variant="secondary" className={`${agent.color} border-none font-medium text-xs`}>
                         {agent.type}
                       </Badge>
+
+                      {/* Extra info badges */}
+                      {(agent.expertise || agent.motivation) && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {agent.expertise && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">🎯 {agent.expertise}</span>
+                          )}
+                          {agent.motivation && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">🔥 {agent.motivation.length > 30 ? agent.motivation.slice(0, 30) + "..." : agent.motivation}</span>
+                          )}
+                        </div>
+                      )}
 
                       {/* Radar Chart (expanded) */}
                       <AnimatePresence>
@@ -322,29 +438,67 @@ export default function SetupPage() {
                     </motion.div>
                   ))}
 
-                  {/* Add from presets dropdown */}
-                  {presets.filter((p) => !selectedAgents.find((s) => s.id === p.id)).length > 0 && (
-                    <div
-                      className="border border-dashed border-border rounded-xl p-4 bg-transparent flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground cursor-pointer transition-colors min-h-[100px]"
-                    >
-                      <Plus className="w-6 h-6 mb-2" />
-                      <span className="text-sm font-medium mb-2">Add from Presets</span>
-                      <div className="flex flex-wrap gap-1 justify-center">
-                        {presets
-                          .filter((p) => !selectedAgents.find((s) => s.id === p.id))
-                          .map((p) => (
-                            <button
-                              key={p.id}
-                              onClick={() => addPresetAgent(p)}
-                              className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-md hover:bg-primary/20 transition-colors"
-                            >
-                              + {p.name}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
+                  {/* Action buttons: Add from Presets + Create Custom */}
+                  {!rosterFull && (
+                    <>
+                      {/* Add from Presets */}
+                      {availablePresets.length > 0 && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowPresetPicker(!showPresetPicker)}
+                            className="w-full border border-dashed border-border rounded-xl p-4 bg-transparent flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground cursor-pointer transition-colors min-h-[100px]"
+                          >
+                            <ChevronDown className={`w-5 h-5 mb-1 transition-transform ${showPresetPicker ? "rotate-180" : ""}`} />
+                            <span className="text-sm font-medium">Add from Presets</span>
+                            <span className="text-xs text-muted-foreground mt-1">{availablePresets.length} available</span>
+                          </button>
+                          <AnimatePresence>
+                            {showPresetPicker && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -8 }}
+                                className="absolute z-20 top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl p-3 shadow-xl space-y-2"
+                              >
+                                {availablePresets.map((p) => (
+                                  <button
+                                    key={p.id}
+                                    onClick={() => { addPresetAgent(p); setShowPresetPicker(false); }}
+                                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                                  >
+                                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+                                      {p.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-medium">{p.name}</div>
+                                      <div className="text-xs text-muted-foreground">{p.role} · {p.type}</div>
+                                    </div>
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )}
+
+                      {/* Create Custom Agent */}
+                      <button
+                        onClick={openCreateModal}
+                        className="border border-dashed border-primary/30 rounded-xl p-4 bg-primary/5 flex flex-col items-center justify-center text-primary hover:bg-primary/10 cursor-pointer transition-colors min-h-[100px]"
+                      >
+                        <UserPlus className="w-6 h-6 mb-2" />
+                        <span className="text-sm font-semibold">Create Custom Agent</span>
+                        <span className="text-xs text-primary/60 mt-1">Define personality & skills</span>
+                      </button>
+                    </>
                   )}
                 </div>
+
+                {rosterFull && (
+                  <p className="text-xs text-muted-foreground text-center py-2">
+                    Maximum roster size of {MAX_ROSTER_SIZE} reached. Remove an agent to add more.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -360,9 +514,15 @@ export default function SetupPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <label className="text-sm font-medium text-muted-foreground">Duration (Weeks)</label>
-                    <span className="text-sm font-bold text-primary">{durationWeeks[0]}</span>
+                    <span className="text-sm font-bold text-primary">{durationWeeks}</span>
                   </div>
-                  <Slider value={durationWeeks} onValueChange={(val) => setDurationWeeks(val as number[])} max={24} min={1} step={1} />
+                  <Slider
+                    value={durationWeeks}
+                    onValueChange={(val) => setDurationWeeks(val as number)}
+                    max={24}
+                    min={1}
+                    step={1}
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -370,7 +530,12 @@ export default function SetupPage() {
                     <label className="text-sm font-medium text-muted-foreground">Pacing Speed</label>
                     <span className="text-sm font-bold text-primary">{getPacingLabel()}</span>
                   </div>
-                  <Slider value={pacingSpeed} onValueChange={(val) => setPacingSpeed(val as number[])} max={100} step={50} />
+                  <Slider
+                    value={pacingSpeed}
+                    onValueChange={(val) => setPacingSpeed(val as number)}
+                    max={100}
+                    step={50}
+                  />
                   <p className="text-xs text-muted-foreground">Determines how fast agents reply in the simulated chat UI.</p>
                 </div>
 
@@ -410,6 +575,170 @@ export default function SetupPage() {
 
         </div>
       </div>
+
+      {/* Create / Edit Agent Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowCreateModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 space-y-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-bold">{editingAgent ? "Edit Agent" : "Create Custom Agent"}</h2>
+                  <button onClick={() => setShowCreateModal(false)} className="text-muted-foreground hover:text-foreground">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Basic Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Name *</label>
+                    <Input
+                      placeholder="e.g. Taylor"
+                      value={customName}
+                      onChange={(e) => setCustomName(e.target.value)}
+                      className="bg-background/50"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">Role *</label>
+                    <Input
+                      placeholder="e.g. Designer"
+                      value={customRole}
+                      onChange={(e) => setCustomRole(e.target.value)}
+                      className="bg-background/50"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Personality Type *</label>
+                  <Input
+                    placeholder="e.g. Perfectionist & Anxious"
+                    value={customType}
+                    onChange={(e) => setCustomType(e.target.value)}
+                    className="bg-background/50"
+                  />
+                </div>
+
+                {/* Color Picker */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Color Tag</label>
+                  <div className="flex gap-2">
+                    {AGENT_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        onClick={() => setCustomColor(c.value)}
+                        className={`w-7 h-7 rounded-full ${c.dot} transition-all ${customColor === c.value ? "ring-2 ring-primary ring-offset-2 ring-offset-card scale-110" : "opacity-60 hover:opacity-100"}`}
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Personality Traits */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Personality Traits</label>
+                  <div className="space-y-4 pt-2">
+                    {[
+                      { key: "empathy" as const, label: "Empathy", desc: "How well they understand others' feelings" },
+                      { key: "ambition" as const, label: "Ambition", desc: "Drive to achieve and succeed" },
+                      { key: "stressTolerance" as const, label: "Stress Tolerance", desc: "Ability to handle pressure" },
+                      { key: "agreeableness" as const, label: "Agreeableness", desc: "Tendency to cooperate and comply" },
+                      { key: "assertiveness" as const, label: "Assertiveness", desc: "Willingness to speak up and lead" },
+                    ].map((trait) => (
+                      <div key={trait.key} className="space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <span className="text-sm font-medium">{trait.label}</span>
+                            <p className="text-[10px] text-muted-foreground">{trait.desc}</p>
+                          </div>
+                          <span className="text-sm font-bold text-primary w-8 text-right">{customPersonality[trait.key]}</span>
+                        </div>
+                        <Slider
+                          value={customPersonality[trait.key]}
+                          onValueChange={(val) => setCustomPersonality({ ...customPersonality, [trait.key]: val as number })}
+                          max={100}
+                          min={0}
+                          step={5}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Motivation & Expertise */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Motivation</label>
+                  <Textarea
+                    placeholder="e.g. Wants to prove themselves after a failed project..."
+                    value={customMotivation}
+                    onChange={(e) => setCustomMotivation(e.target.value)}
+                    className="min-h-[60px] bg-background/50 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Expertise / Skills</label>
+                  <Input
+                    placeholder="e.g. React, System Design, Team Management"
+                    value={customExpertise}
+                    onChange={(e) => setCustomExpertise(e.target.value)}
+                    className="bg-background/50"
+                  />
+                </div>
+
+                {/* Radar Preview */}
+                <div className="flex justify-center pt-2">
+                  <div className="text-center">
+                    <p className="text-xs text-muted-foreground mb-2">Personality Preview</p>
+                    <RadarChart
+                      size={160}
+                      data={[
+                        { label: "EMP", value: customPersonality.empathy },
+                        { label: "AMB", value: customPersonality.ambition },
+                        { label: "RES", value: customPersonality.stressTolerance },
+                        { label: "AGR", value: customPersonality.agreeableness },
+                        { label: "ASR", value: customPersonality.assertiveness },
+                      ]}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowCreateModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={handleSaveAgent}
+                    disabled={!customName.trim() || !customRole.trim() || !customType.trim()}
+                  >
+                    {editingAgent ? "Save Changes" : "Add to Roster"}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
