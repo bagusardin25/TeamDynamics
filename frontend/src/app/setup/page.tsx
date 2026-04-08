@@ -362,7 +362,7 @@ export default function SetupPage() {
                     <label className="text-sm font-medium text-muted-foreground">Duration (Weeks)</label>
                     <span className="text-sm font-bold text-primary">{durationWeeks[0]}</span>
                   </div>
-                  <Slider value={durationWeeks} onValueChange={setDurationWeeks} max={24} min={1} step={1} />
+                  <Slider value={durationWeeks} onValueChange={(val) => setDurationWeeks(val as number[])} max={24} min={1} step={1} />
                 </div>
 
                 <div className="space-y-3">
@@ -370,7 +370,7 @@ export default function SetupPage() {
                     <label className="text-sm font-medium text-muted-foreground">Pacing Speed</label>
                     <span className="text-sm font-bold text-primary">{getPacingLabel()}</span>
                   </div>
-                  <Slider value={pacingSpeed} onValueChange={setPacingSpeed} max={100} step={50} />
+                  <Slider value={pacingSpeed} onValueChange={(val) => setPacingSpeed(val as number[])} max={100} step={50} />
                   <p className="text-xs text-muted-foreground">Determines how fast agents reply in the simulated chat UI.</p>
                 </div>
 

@@ -148,7 +148,7 @@ export default function LandingPage() {
           
           <Slider 
             value={pressure} 
-            onValueChange={setPressure}
+            onValueChange={(val) => setPressure(val as number[])}
             max={100}
             step={1}
             className="mb-4"
