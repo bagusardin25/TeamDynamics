@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Play, Pause, FastForward, Activity, Users, Send, Zap, Coffee, Bell, Loader2, AlertTriangle } from "lucide-react";
@@ -10,7 +10,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const WS_BASE = API_BASE.replace("http", "ws");
@@ -58,7 +59,9 @@ interface Metrics {
 
 function SimulationContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const simId = searchParams.get("id");
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   const [agents, setAgents] = useState<Agent[]>([]);
   const [messages, setMessages] = useState<SimMessage[]>([]);
@@ -89,10 +92,17 @@ function SimulationContent() {
     return diff;
   };
 
-  // Auto-scroll
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      requestAnimationFrame(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: "smooth",
+          });
+        }
+      });
     }
   }, [messages]);
 
@@ -257,14 +267,25 @@ function SimulationContent() {
 
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Activity className="w-4 h-4" /></Button>
-          <Link href={`/report?id=${simId}`}>
-            <Button size="sm" variant="outline" className="h-8">End &amp; View Report</Button>
-          </Link>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={() => {
+              if (status === "completed") {
+                router.push(`/report?id=${simId}`);
+              } else {
+                setShowExitConfirm(true);
+              }
+            }}
+          >
+            End &amp; View Report
+          </Button>
         </div>
       </header>
 
       {/* Main 3 Column Layout */}
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden min-h-0">
 
         {/* Left Column: Agents State */}
         <aside className="w-[300px] border-r border-border bg-card/20 p-4 flex flex-col shrink-0 overflow-y-auto">
@@ -323,10 +344,10 @@ function SimulationContent() {
         </aside>
 
         {/* Center Column: Simulated Slack */}
-        <section className="flex-1 flex flex-col bg-background/50 relative">
+        <section className="flex-1 flex flex-col bg-background/50 relative min-h-0">
 
           {/* Messages Area */}
-          <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+          <div className="flex-1 overflow-y-auto p-6 min-h-0 custom-scroll" ref={scrollRef}>
             <div className="space-y-6 max-w-3xl mx-auto pb-40">
 
               {connectionError && (
@@ -354,60 +375,77 @@ function SimulationContent() {
                 </Badge>
               </div>
 
-              {messages.map((msg) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-4 group"
-                >
-                  {msg.type === 'system' ? (
-                    <div className="w-full rounded-xl bg-orange-500/10 border border-orange-500/20 p-4 flex gap-3 text-sm text-foreground my-2">
-                      <Bell className="w-5 h-5 text-orange-500 shrink-0" />
-                      <div className="pt-0.5 leading-relaxed font-medium">
-                        {msg.content}
+              {messages.map((msg, idx) => {
+                // Week separator: show divider when round changes
+                const prevRound = idx > 0 ? messages[idx - 1].round : null;
+                const showWeekDivider = msg.round && msg.round !== prevRound;
+
+                return (
+                  <div key={msg.id}>
+                    {showWeekDivider && (
+                      <div className="flex items-center gap-3 my-6">
+                        <div className="flex-1 h-px bg-border/50" />
+                        <Badge variant="secondary" className="bg-card font-medium text-xs text-muted-foreground px-3 py-1">
+                          📅 Week {msg.round}
+                        </Badge>
+                        <div className="flex-1 h-px bg-border/50" />
                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <Avatar className="h-9 w-9 mt-1 border border-border shrink-0">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-                          {(msg.agent || msg.agent_name || "??").substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{msg.agent || msg.agent_name}</span>
-                          <span className="text-xs text-muted-foreground">Week {msg.round || "?"}</span>
-                        </div>
-                        <div className="text-sm bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 inline-block shadow-sm">
-                          {msg.content}
-                        </div>
-                        {msg.thought && (
-                          <div className="pt-2">
-                            <div className="text-xs italic text-muted-foreground bg-secondary/50 rounded-md p-2.5 inline-block border border-border/50">
-                              <span className="font-semibold text-primary/70 mr-2 not-italic">Internal Thought:</span>
-                              &quot;{msg.thought}&quot;
-                            </div>
-                            <div className="flex gap-2 mt-2">
-                              {(msg.changes?.morale || msg.state_changes?.morale) && (
-                                <Badge variant="outline" className={`text-[10px] ${(msg.changes?.morale || msg.state_changes?.morale || 0) < 0 ? 'text-red-400 border-red-500/20' : 'text-green-400 border-green-500/20'}`}>
-                                  Morale {(msg.changes?.morale || msg.state_changes?.morale || 0) > 0 ? '+' : ''}{msg.changes?.morale || msg.state_changes?.morale}
-                                </Badge>
-                              )}
-                              {(msg.changes?.stress || msg.state_changes?.stress) && (
-                                <Badge variant="outline" className={`text-[10px] ${(msg.changes?.stress || msg.state_changes?.stress || 0) > 0 ? 'text-orange-400 border-orange-500/20' : 'text-blue-400 border-blue-500/20'}`}>
-                                  Stress {(msg.changes?.stress || msg.state_changes?.stress || 0) > 0 ? '+' : ''}{msg.changes?.stress || msg.state_changes?.stress}
-                                </Badge>
-                              )}
-                            </div>
+                    )}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      layout={false}
+                      className="flex gap-4 group w-full overflow-hidden"
+                    >
+                      {msg.type === 'system' ? (
+                        <div className="w-full rounded-xl bg-orange-500/10 border border-orange-500/20 p-4 flex gap-3 text-sm text-foreground my-2">
+                          <Bell className="w-5 h-5 text-orange-500 shrink-0" />
+                          <div className="pt-0.5 leading-relaxed font-medium">
+                            {msg.content}
                           </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </motion.div>
-              ))}
+                        </div>
+                      ) : (
+                        <div className="flex gap-4 w-full">
+                          <Avatar className="h-9 w-9 mt-1 border border-border shrink-0">
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                              {(msg.agent || msg.agent_name || "??").substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm truncate">{msg.agent || msg.agent_name}</span>
+                            </div>
+                            <div className="text-sm bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm">
+                              {msg.content}
+                            </div>
+                            {msg.thought && (
+                              <div className="pt-2">
+                                <div className="text-xs italic text-muted-foreground bg-secondary/50 rounded-md p-2.5 border border-border/50">
+                                  <span className="font-semibold text-primary/70 mr-2 not-italic">Internal Thought:</span>
+                                  &quot;{msg.thought}&quot;
+                                </div>
+                                <div className="flex gap-2 mt-2 flex-wrap">
+                                  {(msg.changes?.morale || msg.state_changes?.morale) && (
+                                    <Badge variant="outline" className={`text-[10px] ${(msg.changes?.morale || msg.state_changes?.morale || 0) < 0 ? 'text-red-400 border-red-500/20' : 'text-green-400 border-green-500/20'}`}>
+                                      Morale {(msg.changes?.morale || msg.state_changes?.morale || 0) > 0 ? '+' : ''}{msg.changes?.morale || msg.state_changes?.morale}
+                                    </Badge>
+                                  )}
+                                  {(msg.changes?.stress || msg.state_changes?.stress) && (
+                                    <Badge variant="outline" className={`text-[10px] ${(msg.changes?.stress || msg.state_changes?.stress || 0) > 0 ? 'text-orange-400 border-orange-500/20' : 'text-blue-400 border-blue-500/20'}`}>
+                                      Stress {(msg.changes?.stress || msg.state_changes?.stress || 0) > 0 ? '+' : ''}{msg.changes?.stress || msg.state_changes?.stress}
+                                    </Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </div>
+                );
+              })}
 
               {/* Typing indicator */}
               {isTyping && status !== "completed" && (
@@ -431,7 +469,7 @@ function SimulationContent() {
                 </div>
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           {/* God Mode Interventions Panel (Sticky Bottom) */}
           <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-background via-background to-transparent z-20">
@@ -442,28 +480,38 @@ function SimulationContent() {
                   <div className="h-8 w-px bg-border mx-1 shrink-0" />
 
                   {/* Quick Interventions */}
-                  <div className="flex gap-2 shrink-0">
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-9 w-9 rounded-full hover:bg-secondary"
-                      title="Give Bonus"
-                      onClick={() => handleIntervene("bonus")}
-                      disabled={status === "completed"}
-                    >
-                      <Zap className="h-4 w-4 text-yellow-500" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-9 w-9 rounded-full hover:bg-secondary"
-                      title="Pizza Party"
-                      onClick={() => handleIntervene("pizza")}
-                      disabled={status === "completed"}
-                    >
-                      <Coffee className="h-4 w-4 text-orange-400" />
-                    </Button>
-                  </div>
+                  <TooltipProvider>
+                    <div className="flex gap-2 shrink-0">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-9 w-9 rounded-full hover:bg-secondary"
+                            onClick={() => handleIntervene("bonus")}
+                            disabled={status === "completed"}
+                          >
+                            <Zap className="h-4 w-4 text-yellow-500" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Give Bonus (+15 Morale, -10 Stress)</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            className="h-9 w-9 rounded-full hover:bg-secondary"
+                            onClick={() => handleIntervene("pizza")}
+                            disabled={status === "completed"}
+                          >
+                            <Coffee className="h-4 w-4 text-orange-400" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Pizza Party (+10 Morale, -5 Stress)</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </TooltipProvider>
 
                   <div className="flex-1 relative">
                     <Input
@@ -531,6 +579,17 @@ function SimulationContent() {
               </CardContent>
             </Card>
 
+            <Card className="bg-background/40 border-border/50 shadow-sm">
+              <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/20">
+                <CardTitle className="text-xs font-medium text-muted-foreground">Avg Stress Level</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 pt-3 flex items-end gap-2">
+                <span className={`text-3xl font-bold tracking-tighter ${metrics.avgStress > 70 ? 'text-red-500' : metrics.avgStress > 50 ? 'text-orange-500' : 'text-blue-500'}`}>
+                  {metrics.avgStress}<span className="text-lg text-muted-foreground font-normal">%</span>
+                </span>
+              </CardContent>
+            </Card>
+
             {metrics.resignations > 0 && (
               <Card className="bg-red-500/5 border-red-500/20 shadow-sm">
                 <CardContent className="p-4 flex items-center gap-3">
@@ -567,6 +626,47 @@ function SimulationContent() {
         </aside>
 
       </main>
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-card border border-border rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">End Simulation?</h3>
+                <p className="text-sm text-muted-foreground">The simulation is still running at Week {currentRound}/{totalRounds}.</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground mb-6">
+              Ending now will generate a report based on the data collected so far. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowExitConfirm(false)}
+              >
+                Continue Simulation
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setShowExitConfirm(false);
+                  router.push(`/report?id=${simId}`);
+                }}
+              >
+                End &amp; View Report
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

@@ -200,7 +200,51 @@ export default function SetupPage() {
               </CardContent>
             </Card>
 
-            {/* Step 2: The Team */}
+            {/* Step 2: Crisis Injection (moved above Team for visibility) */}
+            <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl border-t-4 border-t-orange-500">
+              <CardHeader>
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertTriangle className="w-5 h-5 text-orange-500" />
+                  <CardTitle>Crisis Injection</CardTitle>
+                </div>
+                <CardDescription>What event triggers this simulation?</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Scenario</label>
+                  <Select value={crisis} onValueChange={(val) => setCrisis(val || "")}>
+                    <SelectTrigger className="bg-background/50">
+                      <SelectValue placeholder="Choose a crisis..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="rnd1">Mandatory Weekend Coding for v2.0</SelectItem>
+                      <SelectItem value="rnd2">Budget Cut: 30% Layoffs Required</SelectItem>
+                      <SelectItem value="rnd3">CEO Resigns Unexpectedly</SelectItem>
+                      <SelectItem value="rnd4">Critical Database Deleted on Friday</SelectItem>
+                      <SelectItem value="custom">Custom Crisis...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {crisis === "custom" && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="space-y-2 pt-2"
+                  >
+                    <label className="text-sm font-medium">Describe Custom Event</label>
+                    <Textarea
+                      placeholder="e.g. We just lost our biggest client and everyone's panic-blaming each other..."
+                      value={customCrisis}
+                      onChange={(e) => setCustomCrisis(e.target.value)}
+                      className="min-h-[100px] bg-background/50"
+                    />
+                  </motion.div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Step 3: The Team */}
             <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl">
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
@@ -265,50 +309,6 @@ export default function SetupPage() {
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Step 3: Crisis Injection */}
-            <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl border-t-4 border-t-orange-500">
-              <CardHeader>
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="w-5 h-5 text-orange-500" />
-                  <CardTitle>Crisis Injection</CardTitle>
-                </div>
-                <CardDescription>What event triggers this simulation?</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Select Scenario</label>
-                  <Select value={crisis} onValueChange={(val) => setCrisis(val || "")}>
-                    <SelectTrigger className="bg-background/50">
-                      <SelectValue placeholder="Choose a crisis..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="rnd1">Mandatory Weekend Coding for v2.0</SelectItem>
-                      <SelectItem value="rnd2">Budget Cut: 30% Layoffs Required</SelectItem>
-                      <SelectItem value="rnd3">CEO Resigns Unexpectedly</SelectItem>
-                      <SelectItem value="rnd4">Critical Database Deleted on Friday</SelectItem>
-                      <SelectItem value="custom">Custom Crisis...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {crisis === "custom" && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="space-y-2 pt-2"
-                  >
-                    <label className="text-sm font-medium">Describe Custom Event</label>
-                    <Textarea
-                      placeholder="e.g. We just lost our biggest client and everyone's panic-blaming each other..."
-                      value={customCrisis}
-                      onChange={(e) => setCustomCrisis(e.target.value)}
-                      className="min-h-[100px] bg-background/50"
-                    />
-                  </motion.div>
-                )}
               </CardContent>
             </Card>
 
