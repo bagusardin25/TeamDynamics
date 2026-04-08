@@ -46,7 +46,7 @@ export default function LandingPage() {
             <span className="font-bold text-xl tracking-tight text-foreground">TeamDynamics</span>
           </div>
           <nav className="flex items-center gap-2">
-            <Link href="/setup">
+            <Link href="/docs">
               <Button variant="ghost" size="sm" className="hidden sm:flex text-muted-foreground hover:text-foreground font-medium rounded-lg">
                 Docs
               </Button>

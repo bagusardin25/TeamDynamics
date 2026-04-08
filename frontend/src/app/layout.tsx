@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   // Force dark mode for that sleek SaaS aesthetic
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body
         className={`${poppins.variable} antialiased min-h-screen bg-background text-foreground font-sans`}
       >
