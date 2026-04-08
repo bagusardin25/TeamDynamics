@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Play, Pause, FastForward, Activity, Users, Send, Zap, Coffee, Bell, Loader2, AlertTriangle } from "lucide-react";
+import { Play, Pause, FastForward, Activity, Users, Send, Zap, Coffee, Bell, Loader2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +81,7 @@ function SimulationContent() {
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [showMobileAgents, setShowMobileAgents] = useState(false);
 
   const MAX_RECONNECT_ATTEMPTS = 3;
 
@@ -287,8 +288,8 @@ function SimulationContent() {
       {/* Main 3 Column Layout */}
       <main className="flex-1 flex overflow-hidden min-h-0">
 
-        {/* Left Column: Agents State */}
-        <aside className="w-[300px] border-r border-border bg-card/20 p-4 flex flex-col shrink-0 overflow-y-auto">
+        {/* Left Column: Agents State (hidden on mobile) */}
+        <aside className="w-[300px] border-r border-border bg-card/20 p-4 hidden md:flex flex-col shrink-0 overflow-y-auto custom-scroll">
           <div className="space-y-1 mb-6">
             <h2 className="text-sm font-semibold flex items-center gap-2"><Users className="w-4 h-4 text-primary" /> Active Agents</h2>
             <p className="text-xs text-muted-foreground">Live psychological state</p>
@@ -345,6 +346,52 @@ function SimulationContent() {
 
         {/* Center Column: Simulated Slack */}
         <section className="flex-1 flex flex-col bg-background/50 relative min-h-0">
+
+          {/* Mobile compact agent bar (visible on small screens only) */}
+          <div className="md:hidden border-b border-border bg-card/30 shrink-0">
+            <button
+              onClick={() => setShowMobileAgents(!showMobileAgents)}
+              className="w-full px-4 py-2 flex items-center justify-between text-sm"
+            >
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-primary" />
+                <span className="font-medium">Agents</span>
+                <div className="flex -space-x-2">
+                  {agents.map((agent) => (
+                    <Avatar key={agent.id} className="h-6 w-6 border-2 border-background">
+                      <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">{agent.initials}</AvatarFallback>
+                    </Avatar>
+                  ))}
+                </div>
+              </div>
+              {showMobileAgents ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+            </button>
+            {showMobileAgents && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden border-t border-border/50"
+              >
+                <div className="p-3 grid grid-cols-2 gap-2 max-h-48 overflow-y-auto custom-scroll">
+                  {agents.map((agent) => (
+                    <div key={agent.id} className={`flex items-center gap-2 p-2 rounded-lg bg-background/40 border border-border/50 ${agent.has_resigned ? 'opacity-50' : ''}`}>
+                      <Avatar className="h-7 w-7 border border-border shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-[9px] font-bold">{agent.initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate">{agent.name}</div>
+                        <div className="flex gap-2 text-[9px] text-muted-foreground">
+                          <span className={agent.morale < 40 ? 'text-red-400' : 'text-green-400'}>M:{agent.morale}%</span>
+                          <span className={agent.stress > 70 ? 'text-orange-400' : 'text-blue-400'}>S:{agent.stress}%</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-6 min-h-0 custom-scroll" ref={scrollRef}>
@@ -539,7 +586,7 @@ function SimulationContent() {
         </section>
 
         {/* Right Column: Dashboard & Controls */}
-        <aside className="w-[300px] border-l border-border bg-card/20 p-4 shrink-0 hidden lg:flex flex-col overflow-y-auto">
+        <aside className="w-[300px] border-l border-border bg-card/20 p-4 shrink-0 hidden lg:flex flex-col overflow-y-auto custom-scroll">
 
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-sm font-semibold flex items-center gap-2"><Activity className="w-4 h-4 text-primary" /> Metrics</h2>
