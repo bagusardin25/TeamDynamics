@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2 } from "lucide-react";
+import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ export default function SetupPage() {
   const [durationWeeks, setDurationWeeks] = useState([12]);
   const [pacingSpeed, setPacingSpeed] = useState([50]);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
 
   // Fetch preset agents on mount
   useEffect(() => {
@@ -263,11 +265,12 @@ export default function SetupPage() {
                       layout
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      className="border border-border rounded-xl p-4 bg-background/50 relative group"
+                      className="border border-border rounded-xl p-4 bg-background/50 relative group cursor-pointer transition-colors hover:border-primary/30"
+                      onClick={() => setExpandedAgent(expandedAgent === agent.id ? null : agent.id)}
                     >
                       <button
-                        onClick={() => removeAgent(agent.id)}
-                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-destructive/10 text-destructive flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
+                        onClick={(e) => { e.stopPropagation(); removeAgent(agent.id); }}
+                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-destructive/10 text-destructive flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground z-10"
                       >
                         <X className="w-3 h-3" />
                       </button>
@@ -283,6 +286,39 @@ export default function SetupPage() {
                       <Badge variant="secondary" className={`${agent.color} border-none font-medium text-xs`}>
                         {agent.type}
                       </Badge>
+
+                      {/* Radar Chart (expanded) */}
+                      <AnimatePresence>
+                        {expandedAgent === agent.id && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-3 pt-3 border-t border-border/50 flex flex-col items-center">
+                              <RadarChart
+                                size={160}
+                                data={[
+                                  { label: "EMP", value: agent.personality.empathy },
+                                  { label: "AMB", value: agent.personality.ambition },
+                                  { label: "RES", value: agent.personality.stressTolerance },
+                                  { label: "AGR", value: agent.personality.agreeableness },
+                                  { label: "ASR", value: agent.personality.assertiveness },
+                                ]}
+                              />
+                              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-[10px] text-muted-foreground">
+                                <span>EMP = Empathy</span>
+                                <span>AMB = Ambition</span>
+                                <span>RES = Resilience</span>
+                                <span>AGR = Agreeableness</span>
+                                <span className="col-span-2 text-center">ASR = Assertiveness</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </motion.div>
                   ))}
 

@@ -4,13 +4,14 @@ import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "rea
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Pause, FastForward, Activity, Users, Send, Zap, Coffee, Bell, Loader2, AlertTriangle, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Pause, FastForward, Activity, Users, Send, Zap, Coffee, Bell, Loader2, AlertTriangle, ChevronDown, ChevronUp, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { useSoundEffects } from "@/hooks/use-sound-effects";
 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -82,6 +83,15 @@ function SimulationContent() {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [showMobileAgents, setShowMobileAgents] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const { playNotification, playMessageTick, playTypingClick } = useSoundEffects();
+  const soundEnabledRef = useRef(true);
+
+  // Keep ref in sync with state for use inside WS callback
+  useEffect(() => {
+    soundEnabledRef.current = soundEnabled;
+  }, [soundEnabled]);
 
   const MAX_RECONNECT_ATTEMPTS = 3;
 
@@ -147,6 +157,15 @@ function SimulationContent() {
             changes: msg.state_changes || msg.changes,
           };
           setMessages((prev) => [...prev, normalizedMsg]);
+
+          // Sound: play notification for system msgs, tick for agent msgs
+          if (soundEnabledRef.current) {
+            if (msg.type === 'system') {
+              playNotification();
+            } else {
+              playMessageTick();
+            }
+          }
 
           if (payload.agents) setAgents(payload.agents);
           if (payload.metrics) {
@@ -267,7 +286,21 @@ function SimulationContent() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground"><Activity className="w-4 h-4" /></Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-8 w-8 ${soundEnabled ? 'text-primary' : 'text-muted-foreground'}`}
+                  onClick={() => setSoundEnabled(!soundEnabled)}
+                >
+                  {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{soundEnabled ? 'Mute sounds' : 'Enable sounds'}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <Button
             size="sm"
             variant="outline"
