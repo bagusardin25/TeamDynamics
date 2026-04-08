@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle } from "lucide-react";
+import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle, Sun, Moon } from "lucide-react";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 
 export default function LandingPage() {
   const [pressure, setPressure] = useState([20]);
+  const { theme, setTheme } = useTheme();
 
   // Dynamic styles based on pressure
   const pressureValue = pressure[0];
@@ -51,6 +53,16 @@ export default function LandingPage() {
                 Docs
               </Button>
             </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            >
+              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">Toggle theme</span>
+            </Button>
             <Link href="/setup">
               <Button size="sm" className="shadow-sm rounded-lg font-semibold px-5">
                 Launch App

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -44,6 +44,59 @@ function ReportContent() {
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const exportToPDF = useCallback(async () => {
+    if (!reportRef.current || !report) return;
+    setIsExporting(true);
+
+    try {
+      const html2canvas = (await import("html2canvas-pro")).default;
+      const { jsPDF } = await import("jspdf");
+
+      const canvas = await html2canvas(reportRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#1a1a2e",
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth - 20; // 10mm margin each side
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 10; // top margin
+
+      // First page
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      heightLeft -= (pageHeight - 20);
+
+      // Additional pages if content overflows
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+        heightLeft -= (pageHeight - 20);
+      }
+
+      pdf.save(`TeamDynamics_Report_${report.company_name.replace(/\s+/g, "_")}.pdf`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      alert("Failed to export PDF. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [report]);
 
   useEffect(() => {
     if (!simId) {
@@ -115,7 +168,7 @@ function ReportContent() {
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-12">
-      <div className="max-w-5xl mx-auto space-y-8">
+      <div className="max-w-5xl mx-auto space-y-8" ref={reportRef}>
 
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -126,8 +179,18 @@ function ReportContent() {
             <h1 className="text-3xl font-bold tracking-tight">Post-Simulation Report</h1>
             <p className="text-muted-foreground">{report.company_name} • {report.crisis_name} • Completed round {report.completed_rounds}/{report.total_rounds}</p>
           </div>
-          <Button variant="outline" size="sm" className="h-10">
-            <Download className="w-4 h-4 mr-2" /> Export to PDF
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-10"
+            onClick={exportToPDF}
+            disabled={isExporting}
+          >
+            {isExporting ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Exporting...</>
+            ) : (
+              <><Download className="w-4 h-4 mr-2" /> Export to PDF</>
+            )}
           </Button>
         </div>
 
