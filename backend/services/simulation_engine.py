@@ -166,6 +166,24 @@ async def get_simulation_state(sim_id: str) -> dict | None:
     _active_simulations[sim_id] = state
     return state
 
+async def _broadcast_typing(sim_id: str, agent: AgentFullState, ws_broadcast):
+    """Broadcast a typing indicator for the given agent to all WebSocket clients."""
+    from routers.websocket import _ws_connections
+    connections = _ws_connections.get(sim_id, [])
+    payload = {
+        "type": "typing_start",
+        "agent_name": f"{agent.name} ({agent.role})",
+        "agent_id": agent.id,
+    }
+    dead = []
+    for ws in connections:
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        connections.remove(ws)
+
 
 async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     """
@@ -224,7 +242,13 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             "type": agent.type,
             "personality": agent.personality.model_dump(by_alias=True),
             "state": agent.state.model_dump(),
+            "motivation": getattr(agent, "motivation", None) or "",
+            "expertise": getattr(agent, "expertise", None) or "",
         }
+
+        # Broadcast typing indicator before LLM call
+        if ws_broadcast:
+            await _broadcast_typing(sim_id, agent, ws_broadcast)
 
         # Build conversation history for context
         conv_history = [

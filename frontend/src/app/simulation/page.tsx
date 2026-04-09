@@ -32,6 +32,7 @@ function SimulationContent() {
     companyName,
     isConnected,
     isTyping,
+    typingAgent,
     connectionError,
     sendIntervention,
     sendInterventionRest,
@@ -87,7 +88,7 @@ function SimulationContent() {
       {/* Main 3-Column Layout */}
       <main className="flex-1 flex overflow-hidden min-h-0">
         {/* Left: Agent Sidebar (desktop) */}
-        <AgentSidebar agents={agents} connectionError={connectionError} />
+        <AgentSidebar agents={agents} connectionError={connectionError} typingAgentId={typingAgent} />
 
         {/* Center: Chat Feed */}
         <section className="flex-1 flex flex-col bg-background/50 relative min-h-0">
@@ -96,6 +97,7 @@ function SimulationContent() {
             messages={messages}
             status={status}
             isTyping={isTyping}
+            typingAgent={typingAgent}
             connectionError={connectionError}
             simId={simId}
           />

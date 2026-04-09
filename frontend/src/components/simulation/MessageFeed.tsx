@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useRef, useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
@@ -13,12 +13,22 @@ interface MessageFeedProps {
   messages: SimMessage[];
   status: string;
   isTyping: boolean;
+  typingAgent: string | null;
   connectionError: string | null;
   simId: string | null;
 }
 
-export function MessageFeed({ messages, status, isTyping, connectionError, simId }: MessageFeedProps) {
+const THINKING_PHRASES = [
+  "is thinking...",
+  "is formulating a response...",
+  "is considering the situation...",
+  "is composing a message...",
+  "is reflecting...",
+];
+
+export function MessageFeed({ messages, status, isTyping, typingAgent, connectionError, simId }: MessageFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [phraseIndex, setPhraseIndex] = useState(0);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -32,7 +42,16 @@ export function MessageFeed({ messages, status, isTyping, connectionError, simId
         }
       });
     }
-  }, [messages]);
+  }, [messages, isTyping]);
+
+  // Rotate thinking phrases
+  useEffect(() => {
+    if (!isTyping || status === "completed") return;
+    const interval = setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isTyping, status]);
 
   return (
     <div className="flex-1 overflow-y-auto p-6 min-h-0 custom-scroll" ref={scrollRef}>
@@ -103,19 +122,82 @@ export function MessageFeed({ messages, status, isTyping, connectionError, simId
           );
         })}
 
-        {/* Typing indicator */}
-        {isTyping && status !== "completed" && (
-          <div className="flex gap-4 opacity-50">
-            <div className="h-9 w-9 rounded-full bg-secondary animate-pulse shrink-0" />
-            <div className="space-y-2">
-              <div className="flex gap-1 items-center h-4">
-                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" />
-                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]" />
+        {/* Enhanced Typing Indicator */}
+        <AnimatePresence>
+          {isTyping && status !== "completed" && (
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3 }}
+              className="flex gap-4"
+            >
+              {/* Avatar placeholder with pulse */}
+              <div className="relative shrink-0">
+                <motion.div
+                  className="absolute -inset-1 rounded-full bg-primary/20"
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                />
+                <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center relative">
+                  <span className="text-primary text-xs font-bold">
+                    {typingAgent ? typingAgent.substring(0, 2).toUpperCase() : "AI"}
+                  </span>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+
+              {/* Typing card with shimmer */}
+              <div className="flex-1 min-w-0 space-y-1.5">
+                <motion.div
+                  key={typingAgent || "generic"}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="text-sm font-semibold text-muted-foreground"
+                >
+                  {typingAgent || "Agent"}
+                </motion.div>
+                <div className="relative overflow-hidden bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm max-w-xs">
+                  {/* Shimmer overlay */}
+                  <div className="absolute inset-0 shimmer-effect" />
+
+                  <div className="flex items-center gap-2 relative z-10">
+                    {/* Bouncing dots */}
+                    <div className="flex gap-1 items-center">
+                      <motion.span
+                        className="w-2 h-2 bg-primary/60 rounded-full"
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1 }}
+                      />
+                      <motion.span
+                        className="w-2 h-2 bg-primary/60 rounded-full"
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1, delay: 0.15 }}
+                      />
+                      <motion.span
+                        className="w-2 h-2 bg-primary/60 rounded-full"
+                        animate={{ y: [0, -6, 0] }}
+                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1, delay: 0.3 }}
+                      />
+                    </div>
+                    {/* Rotating phrase */}
+                    <AnimatePresence mode="wait">
+                      <motion.span
+                        key={phraseIndex}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.2 }}
+                        className="text-xs text-muted-foreground italic"
+                      >
+                        {THINKING_PHRASES[phraseIndex]}
+                      </motion.span>
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {status === "completed" && (
           <div className="flex items-center justify-center my-6">

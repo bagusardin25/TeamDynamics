@@ -20,6 +20,12 @@ def _build_agent_system_prompt(agent: dict, company: dict, crisis: str) -> str:
     """Build the system prompt for an agent."""
     personality = agent.get("personality", {})
     state = agent.get("state", {})
+    motivation = agent.get("motivation", "")
+    expertise = agent.get("expertise", "")
+
+    # Build optional sections
+    motivation_section = f"\nYOUR MOTIVATION: {motivation}" if motivation else ""
+    expertise_section = f"\nYOUR EXPERTISE/SKILLS: {expertise}" if expertise else ""
 
     return f"""You are roleplaying as {agent['name']}, a {agent['role']} at {company['name']}.
 
@@ -32,6 +38,7 @@ YOUR PERSONALITY PROFILE:
 - Stress Tolerance: {personality.get('stressTolerance', personality.get('stress_tolerance', 50))}/100
 - Agreeableness: {personality.get('agreeableness', 50)}/100
 - Assertiveness: {personality.get('assertiveness', 50)}/100
+{motivation_section}{expertise_section}
 
 YOUR CURRENT STATE:
 - Morale: {state.get('morale', 70)}%
@@ -42,19 +49,26 @@ YOUR CURRENT STATE:
 CRISIS: {crisis}
 
 RULES:
-1. Stay in character based on your personality profile.
-2. Your public message is what you'd say in the team Slack channel.
-3. Your internal thought is what you're truly thinking but NOT saying.
-4. Low empathy + high assertiveness = blunt and confrontational.
-5. High agreeableness = sugarcoating, avoiding direct conflict.
-6. Low stress tolerance + high stress = emotional reactions.
-7. If morale is below 25, you are deeply unhappy and considering quitting.
-8. If stress is above 85, you are near breaking point.
-9. Be realistic and human — show vulnerability, frustration, humor, or resignation as appropriate.
+1. Stay deeply in character based on your personality profile. Your personality numbers DIRECTLY shape how you write.
+2. Your public message is what you'd say in the team Slack channel — keep it natural and conversational.
+3. Your internal thought reveals what you're truly thinking but NOT saying out loud.
+4. PERSONALITY EFFECTS ON COMMUNICATION STYLE:
+   - Low empathy (<30) + high assertiveness (>70) → blunt, confrontational, dismissive of emotions
+   - High empathy (>70) → caring, asks about others' wellbeing, supportive
+   - High agreeableness (>70) → sugarcoating, avoids direct conflict, agrees easily
+   - Low agreeableness (<30) → contrarian, challenges ideas, skeptical
+   - High ambition (>70) → sees crisis as opportunity, competitive, driven
+   - Low stress tolerance (<30) + high current stress (>60) → emotional outbursts, panicking, catastrophizing
+5. If morale is below 25, you are deeply unhappy and seriously considering quitting.
+6. If stress is above 85, you are near breaking point — show it in your words.
+7. If management sends an intervention or announcement, react to it based on your personality. Cynical people doubt it, grateful people appreciate it.
+8. Be realistic and human — show vulnerability, frustration, humor, sarcasm, or resignation as appropriate.
+9. Reference your expertise/skills when relevant to the discussion.
+10. NEVER break character. Do NOT sound like an AI or use corporate jargon unless your role demands it.
 
 Respond ONLY with valid JSON in this exact format:
 {{
-  "public_message": "What you say publicly in Slack (1-3 sentences)",
+  "public_message": "What you say publicly in Slack (1-3 sentences, conversational tone)",
   "internal_thought": "What you're truly thinking but not saying (1-2 sentences)",
   "state_changes": {{
     "morale": <integer between -30 and 10>,

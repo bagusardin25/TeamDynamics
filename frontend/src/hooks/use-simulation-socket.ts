@@ -24,6 +24,7 @@ interface UseSimulationSocketReturn {
   companyName: string;
   isConnected: boolean;
   isTyping: boolean;
+  typingAgent: string | null;
   connectionError: string | null;
   sendIntervention: (type: string, customMsg?: string) => void;
   sendInterventionRest: (type: string, customMsg?: string) => Promise<void>;
@@ -42,6 +43,7 @@ export function useSimulationSocket(
   const [companyName, setCompanyName] = useState("Simulation");
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [typingAgent, setTypingAgent] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [prevMetrics, setPrevMetrics] = useState<Metrics | null>(null);
 
@@ -98,6 +100,10 @@ export function useSimulationSocket(
           setStatus(payload.status || "idle");
           setCompanyName(payload.company?.name || "Simulation");
           setIsTyping(true);
+          setTypingAgent(null);
+        } else if (payload.type === "typing_start") {
+          setIsTyping(true);
+          setTypingAgent(payload.agent_name || null);
         } else if (payload.type === "message") {
           const msg = payload.data;
           const normalizedMsg: SimMessage = {
@@ -124,9 +130,11 @@ export function useSimulationSocket(
           if (payload.currentRound) setCurrentRound(payload.currentRound);
           if (payload.status) setStatus(payload.status);
           setIsTyping(true);
+          setTypingAgent(null);
         } else if (payload.type === "completed") {
           setStatus("completed");
           setIsTyping(false);
+          setTypingAgent(null);
         } else if (payload.type === "error") {
           setConnectionError(payload.message || "Simulation error");
           setIsTyping(false);
@@ -221,6 +229,7 @@ export function useSimulationSocket(
     companyName,
     isConnected,
     isTyping,
+    typingAgent,
     connectionError,
     sendIntervention,
     sendInterventionRest,

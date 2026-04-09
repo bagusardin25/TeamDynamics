@@ -85,6 +85,8 @@ class AgentConfig(BaseModel):
     type: str
     personality: PersonalityTraits
     color: Optional[str] = None
+    motivation: Optional[str] = None
+    expertise: Optional[str] = None
 
 
 class AgentFullState(AgentConfig):
