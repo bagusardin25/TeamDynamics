@@ -3,15 +3,17 @@
 import Link from "next/link";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle, Sun, Moon } from "lucide-react";
+import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle, Sun, Moon, LogIn } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function LandingPage() {
   const [pressure, setPressure] = useState([20]);
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
 
   // Dynamic styles based on pressure
   const pressureValue = pressure[0];
@@ -63,11 +65,26 @@ export default function LandingPage() {
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               <span className="sr-only">Toggle theme</span>
             </Button>
-            <Link href="/setup">
-              <Button size="sm" className="shadow-sm rounded-lg font-semibold px-5">
-                Launch App
-              </Button>
-            </Link>
+            {user ? (
+              <Link href="/dashboard">
+                <Button size="sm" className="shadow-sm rounded-lg font-semibold px-5">
+                  Dashboard
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm" className="hidden sm:flex text-muted-foreground hover:text-foreground font-medium rounded-lg">
+                    <LogIn className="w-4 h-4 mr-1.5" /> Sign In
+                  </Button>
+                </Link>
+                <Link href="/setup">
+                  <Button size="sm" className="shadow-sm rounded-lg font-semibold px-5">
+                    Launch App
+                  </Button>
+                </Link>
+              </>
+            )}
           </nav>
         </div>
       </header>

@@ -24,8 +24,21 @@ async def init_db():
     db = await get_db()
     try:
         await db.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                avatar_url TEXT,
+                auth_provider TEXT NOT NULL DEFAULT 'email',
+                hashed_password TEXT,
+                role TEXT NOT NULL DEFAULT 'user',
+                credits INTEGER NOT NULL DEFAULT 10,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
             CREATE TABLE IF NOT EXISTS simulations (
                 id TEXT PRIMARY KEY,
+                user_id TEXT,
                 status TEXT NOT NULL DEFAULT 'idle',
                 current_round INTEGER NOT NULL DEFAULT 0,
                 total_rounds INTEGER NOT NULL DEFAULT 12,
@@ -34,7 +47,8 @@ async def init_db():
                 crisis_scenario TEXT NOT NULL,
                 crisis_description TEXT,
                 pacing TEXT NOT NULL DEFAULT 'normal',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             );
 
             CREATE TABLE IF NOT EXISTS agents (
@@ -70,21 +84,104 @@ async def init_db():
             );
         """)
         await db.commit()
+
+        # Migration: Add user_id column if not exists (for existing databases)
+        try:
+            await db.execute("SELECT user_id FROM simulations LIMIT 1")
+        except Exception:
+            await db.execute("ALTER TABLE simulations ADD COLUMN user_id TEXT REFERENCES users(id)")
+            await db.commit()
+
     finally:
         await db.close()
 
 
+# ── User Operations ───────────────────────────────────────────────────
+
+async def create_user(user_id: str, email: str, name: str,
+                      auth_provider: str = "email",
+                      hashed_password: str | None = None,
+                      avatar_url: str | None = None,
+                      role: str = "user") -> dict:
+    """Create a new user and return their data."""
+    db = await get_db()
+    try:
+        await db.execute(
+            """INSERT INTO users (id, email, name, auth_provider, hashed_password, avatar_url, role)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, email, name, auth_provider, hashed_password, avatar_url, role)
+        )
+        await db.commit()
+        return {
+            "id": user_id, "email": email, "name": name,
+            "auth_provider": auth_provider, "avatar_url": avatar_url,
+            "role": role, "credits": 10,
+        }
+    finally:
+        await db.close()
+
+
+async def get_user_by_email(email: str) -> dict | None:
+    """Get a user by email."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT * FROM users WHERE email=?", (email,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def get_user_by_id(user_id: str) -> dict | None:
+    """Get a user by ID."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT * FROM users WHERE id=?", (user_id,))
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        await db.close()
+
+
+async def update_user_credits(user_id: str, credits: int):
+    """Update user credits."""
+    db = await get_db()
+    try:
+        await db.execute("UPDATE users SET credits=? WHERE id=?", (credits, user_id))
+        await db.commit()
+    finally:
+        await db.close()
+
+
+async def get_user_simulations(user_id: str) -> list[dict]:
+    """Get all simulations for a user, ordered by newest first."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            """SELECT id, status, current_round, total_rounds, company_name,
+                      crisis_scenario, pacing, created_at
+               FROM simulations WHERE user_id=? ORDER BY created_at DESC""",
+            (user_id,)
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        await db.close()
+
+
+# ── Simulation Operations ─────────────────────────────────────────────
+
 async def save_simulation(sim_id: str, company_name: str, company_culture: str,
                           crisis_scenario: str, crisis_description: str | None,
-                          total_rounds: int, pacing: str):
+                          total_rounds: int, pacing: str, user_id: str | None = None):
     """Insert a new simulation record."""
     db = await get_db()
     try:
         await db.execute(
-            """INSERT INTO simulations (id, status, current_round, total_rounds,
+            """INSERT INTO simulations (id, user_id, status, current_round, total_rounds,
                company_name, company_culture, crisis_scenario, crisis_description, pacing)
-               VALUES (?, 'idle', 0, ?, ?, ?, ?, ?, ?)""",
-            (sim_id, total_rounds, company_name, company_culture,
+               VALUES (?, ?, 'idle', 0, ?, ?, ?, ?, ?, ?)""",
+            (sim_id, user_id, total_rounds, company_name, company_culture,
              crisis_scenario, crisis_description, pacing)
         )
         await db.commit()

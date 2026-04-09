@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
+import { Providers } from "@/components/providers";
 
 const poppins = Poppins({
   weight: ["400", "500", "600", "700"],
@@ -24,10 +24,11 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} antialiased min-h-screen bg-background text-foreground font-sans`}
       >
-        <ThemeProvider>
+        <Providers>
           {children}
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );
 }
+

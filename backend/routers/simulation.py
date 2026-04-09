@@ -2,7 +2,7 @@
 Simulation CRUD and control routes.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from models.schemas import (
     CreateSimulationRequest, SimulationResponse, SimulationMetrics,
     InterventionRequest, SimulationStatus, AgentState,
@@ -12,14 +12,19 @@ from services.simulation_engine import (
     create_simulation, get_simulation_state, process_intervention, compute_metrics,
 )
 from services.report_generator import generate_report
+from routers.auth import get_current_user, TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
 
 
 @router.post("/create")
-async def create_sim(request: CreateSimulationRequest):
+async def create_sim(
+    request: CreateSimulationRequest,
+    current_user: TokenData | None = Depends(get_current_user),
+):
     """Create a new simulation and return its ID."""
-    sim_id = await create_simulation(request)
+    user_id = current_user.user_id if current_user else None
+    sim_id = await create_simulation(request, user_id=user_id)
     return {"id": sim_id, "status": "idle"}
 
 

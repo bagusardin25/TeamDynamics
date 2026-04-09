@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 _active_simulations: dict[str, dict] = {}
 
 
-async def create_simulation(request: CreateSimulationRequest) -> str:
+async def create_simulation(request: CreateSimulationRequest, user_id: str | None = None) -> str:
     """Create a new simulation and return its ID."""
     sim_id = str(uuid.uuid4())[:8]
 
@@ -49,6 +49,7 @@ async def create_simulation(request: CreateSimulationRequest) -> str:
         crisis_description=crisis_desc,
         total_rounds=request.params.duration_weeks,
         pacing=request.params.pacing.value,
+        user_id=user_id,
     )
 
     # Initialize agents

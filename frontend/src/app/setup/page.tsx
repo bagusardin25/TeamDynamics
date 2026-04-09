@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
+import { useAuth } from "@/contexts/auth-context";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const MAX_ROSTER_SIZE = 8;
@@ -57,6 +58,7 @@ const DEFAULT_PERSONALITY: AgentPersonality = {
 
 export default function SetupPage() {
   const router = useRouter();
+  const { token } = useAuth();
   const [presets, setPresets] = useState<PresetAgent[]>([]);
   const [selectedAgents, setSelectedAgents] = useState<PresetAgent[]>([]);
   const [companyName, setCompanyName] = useState("Pied Piper");
@@ -219,9 +221,12 @@ export default function SetupPage() {
         },
       };
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const res = await fetch(`${API_BASE}/api/simulation/create`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
       });
 

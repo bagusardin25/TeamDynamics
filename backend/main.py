@@ -16,6 +16,7 @@ from models.database import init_db
 from routers.simulation import router as simulation_router
 from routers.agents import router as agents_router
 from routers.websocket import router as websocket_router
+from routers.auth import router as auth_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -50,6 +51,7 @@ app.add_middleware(
 )
 
 # Register routers
+app.include_router(auth_router)
 app.include_router(simulation_router)
 app.include_router(agents_router)
 app.include_router(websocket_router)
