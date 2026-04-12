@@ -1,6 +1,9 @@
 """
 Simulation Engine — the core orchestrator that runs simulation rounds,
 manages agent interactions, and coordinates with the LLM service.
+
+v2: Integrated with Decision Engine, Memory System, Round Agenda,
+    and Outcome System for strategic realism.
 """
 
 from __future__ import annotations
@@ -20,9 +23,15 @@ from models.database import (
     save_simulation, update_simulation_status, get_simulation,
     save_agent, update_agent_state, get_agents,
     save_message, get_messages,
+    update_agent_memory, get_agent_memory,
 )
 from services.llm_service import generate_agent_response
+from services.decision_engine import (
+    get_tracker, process_agent_action, determine_outcome,
+    build_outcome_message, cleanup_tracker,
+)
 from data.presets import CRISIS_SCENARIOS
+from data.round_agenda import get_round_agenda
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +201,7 @@ async def _broadcast_typing(sim_id: str, agent: AgentFullState, ws_broadcast):
 async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     """
     Run a single simulation round. Each agent responds sequentially.
+    Now includes: agenda injection, memory system, decision tracking, and outcome system.
     Returns list of new messages produced this round.
     """
     state = await get_simulation_state(sim_id)
@@ -207,11 +217,19 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     new_messages = []
     company = state["company"]
     crisis = state.get("crisis_description", "Unknown crisis")
+    crisis_scenario = state.get("crisis_scenario", "")
 
-    # If first round, send the crisis announcement
+    # ── Get round agenda ──────────────────────────────────────────
+    agenda = get_round_agenda(current_round, state["total_rounds"], crisis_scenario)
+
+    # ── Get decision context ──────────────────────────────────────
+    tracker = get_tracker(sim_id)
+    decision_context = tracker.get_decision_summary()
+
+    # ── Phase announcement (broadcast at phase transitions) ───────
     if current_round == 1:
-        scenario = state.get("crisis_scenario", "")
-        announcement = CRISIS_SCENARIOS.get(scenario, {}).get("announcement", f"🚨 Crisis: {crisis}")
+        # Crisis announcement
+        announcement = CRISIS_SCENARIOS.get(crisis_scenario, {}).get("announcement", f"🚨 Crisis: {crisis}")
 
         msg_id = await save_message(
             sim_id, current_round, None, None, "system",
@@ -234,7 +252,31 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         if ws_broadcast:
             await ws_broadcast(sim_id, system_msg)
 
-    # Each agent responds
+    # Phase transition announcement
+    prev_agenda = get_round_agenda(max(1, current_round - 1), state["total_rounds"], crisis_scenario)
+    if current_round > 1 and agenda["phase_id"] != prev_agenda["phase_id"]:
+        phase_msg_content = f"📊 Phase Shift → {agenda['phase_name']}: {agenda['phase_description']}"
+        phase_msg_id = await save_message(
+            sim_id, current_round, None, None, "system",
+            phase_msg_content, timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        phase_msg = {
+            "id": phase_msg_id,
+            "round": current_round,
+            "agent_id": None,
+            "agent_name": None,
+            "type": "system",
+            "content": phase_msg_content,
+            "thought": None,
+            "state_changes": None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        state["messages"].append(phase_msg)
+        new_messages.append(phase_msg)
+        if ws_broadcast:
+            await ws_broadcast(sim_id, phase_msg)
+
+    # ── Each agent responds ───────────────────────────────────────
     for agent in state["agents"]:
         if agent.has_resigned:
             continue
@@ -265,7 +307,20 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             for m in state["messages"][-15:]
         ]
 
-        # Call LLM
+        # ── Fetch agent memory ────────────────────────────────────
+        try:
+            raw_memory = await get_agent_memory(sim_id, agent.id)
+            memory_list = json.loads(raw_memory) if raw_memory else []
+            # Format as readable text (last 5 memories)
+            memory_text = "\n".join(
+                f"- Week {m.get('round', '?')}: {m.get('memory', '')}"
+                for m in memory_list[-5:]
+            ) if memory_list else ""
+        except Exception:
+            memory_text = ""
+            memory_list = []
+
+        # ── Call LLM ──────────────────────────────────────────────
         llm_response = await generate_agent_response(
             agent=agent_dict,
             company=company,
@@ -273,12 +328,18 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             round_num=current_round,
             total_rounds=state["total_rounds"],
             conversation_history=conv_history,
+            memory=memory_text,
+            agenda=agenda,
+            decision_context=decision_context,
         )
 
-        # Extract data
+        # ── Extract data ──────────────────────────────────────────
         public_msg = llm_response.get("public_message", "*stays silent*")
         internal_thought = llm_response.get("internal_thought", "...")
         raw_changes = llm_response.get("state_changes", {})
+        memory_update = llm_response.get("memory_update", "")
+        action = llm_response.get("action", "do_nothing")
+        action_detail = llm_response.get("action_detail", "")
 
         state_changes = StateChanges(
             morale=raw_changes.get("morale", 0),
@@ -287,10 +348,10 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             productivity=raw_changes.get("productivity", 0),
         )
 
-        # Apply state changes
+        # ── Apply state changes ───────────────────────────────────
         apply_state_changes(agent, state_changes)
 
-        # Update DB
+        # ── Update DB agent state ─────────────────────────────────
         await update_agent_state(
             sim_id, agent.id,
             agent.state.morale, agent.state.stress,
@@ -298,7 +359,26 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             agent.has_resigned, agent.resigned_week,
         )
 
-        # Save message
+        # ── Save memory ──────────────────────────────────────────
+        if memory_update:
+            memory_list.append({
+                "round": current_round,
+                "memory": memory_update,
+            })
+            # Keep only last 8 memories to prevent unbounded growth
+            memory_list = memory_list[-8:]
+            try:
+                await update_agent_memory(sim_id, agent.id, json.dumps(memory_list))
+            except Exception as e:
+                logger.warning(f"Failed to save memory for {agent.name}: {e}")
+
+        # ── Process action through Decision Engine ────────────────
+        agent_display_name = f"{agent.name} ({agent.role})"
+        decision_msg = process_agent_action(
+            sim_id, current_round, agent_display_name, action, action_detail,
+        )
+
+        # ── Save public message ───────────────────────────────────
         changes_dict = {
             "morale": state_changes.morale,
             "stress": state_changes.stress,
@@ -307,7 +387,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         }
 
         msg_id = await save_message(
-            sim_id, current_round, agent.id, f"{agent.name} ({agent.role})",
+            sim_id, current_round, agent.id, agent_display_name,
             "public", public_msg, thought=internal_thought,
             state_changes=changes_dict,
             timestamp=datetime.now(timezone.utc).isoformat(),
@@ -317,7 +397,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             "id": msg_id,
             "round": current_round,
             "agent_id": agent.id,
-            "agent_name": f"{agent.name} ({agent.role})",
+            "agent_name": agent_display_name,
             "type": "public",
             "content": public_msg,
             "thought": internal_thought,
@@ -330,11 +410,36 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         if ws_broadcast:
             await ws_broadcast(sim_id, agent_msg)
 
-        # Check for critical events
+        # ── Broadcast decision engine events ──────────────────────
+        if decision_msg:
+            dec_msg_id = await save_message(
+                sim_id, current_round, None, None, "system",
+                decision_msg, timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+            dec_sys_msg = {
+                "id": dec_msg_id,
+                "round": current_round,
+                "agent_id": None,
+                "agent_name": None,
+                "type": "system",
+                "content": decision_msg,
+                "thought": None,
+                "state_changes": None,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            state["messages"].append(dec_sys_msg)
+            new_messages.append(dec_sys_msg)
+            if ws_broadcast:
+                await ws_broadcast(sim_id, dec_sys_msg)
+
+            # Update decision context for next agent in this round
+            decision_context = tracker.get_decision_summary()
+
+        # ── Check for critical events ─────────────────────────────
         critical = check_critical_events(agent, current_round)
         if critical:
             crit_msg_id = await save_message(
-                sim_id, current_round, agent.id, f"{agent.name} ({agent.role})",
+                sim_id, current_round, agent.id, agent_display_name,
                 "system", critical,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
@@ -342,7 +447,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
                 "id": crit_msg_id,
                 "round": current_round,
                 "agent_id": agent.id,
-                "agent_name": f"{agent.name} ({agent.role})",
+                "agent_name": agent_display_name,
                 "type": "system",
                 "content": critical,
                 "thought": None,
@@ -368,26 +473,26 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         pacing_delay = {"slow": 3.0, "normal": 1.5, "fast": 0.5}
         await asyncio.sleep(pacing_delay.get(state.get("pacing", "normal"), 1.5))
 
-    # Check if simulation should end
-    if current_round >= state["total_rounds"]:
-        state["status"] = SimulationStatus.COMPLETED
-        await update_simulation_status(sim_id, "completed", current_round)
+    # ── Check simulation end conditions ───────────────────────────
 
-    # Check if all agents resigned
+    # Check if all agents resigned → immediate end
     active_agents = [a for a in state["agents"] if not a.has_resigned]
     if not active_agents:
         state["status"] = SimulationStatus.COMPLETED
         await update_simulation_status(sim_id, "completed", current_round)
+
+        outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round)
+        outcome_msg = build_outcome_message(outcome)
+
         end_msg_id = await save_message(
             sim_id, current_round, None, None, "system",
-            "🚨 All team members have resigned. Simulation ended.",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            outcome_msg, timestamp=datetime.now(timezone.utc).isoformat(),
         )
         end_msg = {
             "id": end_msg_id, "round": current_round,
             "agent_id": None, "agent_name": None,
             "type": "system",
-            "content": "🚨 All team members have resigned. Simulation ended.",
+            "content": outcome_msg,
             "thought": None, "state_changes": None,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -395,6 +500,37 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         new_messages.append(end_msg)
         if ws_broadcast:
             await ws_broadcast(sim_id, end_msg)
+
+        cleanup_tracker(sim_id)
+        return new_messages
+
+    # Check if simulation reached final round
+    if current_round >= state["total_rounds"]:
+        state["status"] = SimulationStatus.COMPLETED
+        await update_simulation_status(sim_id, "completed", current_round)
+
+        # ── Determine and broadcast outcome ───────────────────────
+        outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round)
+        outcome_msg = build_outcome_message(outcome)
+
+        end_msg_id = await save_message(
+            sim_id, current_round, None, None, "system",
+            outcome_msg, timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        end_msg = {
+            "id": end_msg_id, "round": current_round,
+            "agent_id": None, "agent_name": None,
+            "type": "system",
+            "content": outcome_msg,
+            "thought": None, "state_changes": None,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        state["messages"].append(end_msg)
+        new_messages.append(end_msg)
+        if ws_broadcast:
+            await ws_broadcast(sim_id, end_msg)
+
+        cleanup_tracker(sim_id)
 
     return new_messages
 

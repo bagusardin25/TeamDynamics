@@ -2,6 +2,8 @@
 LLM Service — supports OpenAI, Google Gemini, and OpenRouter.
 Generates agent responses and report insights using structured JSON output.
 Supports per-agent model override via the agent's `model` field.
+
+v2: Enhanced with Personality Voice System, Memory injection, and Decision prompts.
 """
 
 from __future__ import annotations
@@ -61,8 +63,106 @@ def _compute_temperature(agent: dict) -> float:
     return round(min(max(temperature, 0.5), 1.1), 2)
 
 
-def _build_agent_system_prompt(agent: dict, company: dict, crisis: str) -> str:
-    """Build the system prompt for an agent."""
+# ── Personality Voice System ──────────────────────────────────────────
+
+def _build_personality_voice(personality: dict, agent_type: str) -> str:
+    """
+    Generate a concrete 'Communication DNA' section based on personality traits.
+    This maps numerical traits to specific speech patterns, vocabulary, and tone.
+    """
+    empathy = personality.get("empathy", 50)
+    ambition = personality.get("ambition", 50)
+    stress_tol = personality.get("stressTolerance", personality.get("stress_tolerance", 50))
+    agreeableness = personality.get("agreeableness", 50)
+    assertiveness = personality.get("assertiveness", 50)
+
+    # ── Sentence Style ───────────────────────────────────────────
+    if assertiveness > 70:
+        sentence_style = "Short, commanding, declarative. You make statements, not suggestions. You rarely ask questions unless rhetorical."
+    elif assertiveness < 30:
+        sentence_style = "Tentative, uses qualifiers like 'maybe', 'I think', 'perhaps'. Often phrases opinions as questions. Avoids direct statements."
+    else:
+        sentence_style = "Moderate length, balanced between direct and diplomatic. You state your view but soften it sometimes."
+
+    # ── Emotional Expression ─────────────────────────────────────
+    if empathy > 70:
+        emotion_style = "Openly emotional, acknowledges others' feelings, uses 'we' language, checks on people. May tear up or show vulnerability."
+        if agreeableness > 70:
+            emotion_style += " Very nurturing — sometimes to the point of being a doormat."
+    elif empathy < 30:
+        emotion_style = "Emotionally flat, dismissive of feelings, uses 'I' and 'the team' but rarely 'we'. Sees emotions as obstacles. May come across as cold or heartless."
+    else:
+        emotion_style = "Selectively emotional. Shows feelings when it matters but can compartmentalize. Pragmatic about emotions."
+
+    # ── Conflict Approach ────────────────────────────────────────
+    if assertiveness > 70 and agreeableness < 40:
+        conflict_style = "Confrontational and direct. Calls people out by name. Uses phrases like 'That's wrong', 'You should have...', 'I don't agree and here's why.'"
+    elif agreeableness > 70 and assertiveness < 40:
+        conflict_style = "Avoids conflict at all costs. Sugarcoats bad news, agrees even when they shouldn't. Uses 'I mean, it's fine, but...' type hedging."
+    elif assertiveness > 60 and agreeableness > 60:
+        conflict_style = "Diplomatically firm. Can disagree forcefully but frames it constructively. 'I hear you, but we need to consider...'"
+    else:
+        conflict_style = "Passive-aggressive when pushed. May agree publicly but express frustration indirectly. Sarcasm as a defense mechanism."
+
+    # ── Stress Behavior ──────────────────────────────────────────
+    if stress_tol < 30:
+        stress_voice = "Under pressure: becomes frantic, uses CAPS for emphasis, sentences fragment, may use '...' and '—' to show interrupted thoughts. Catastrophizes. 'This is a DISASTER, I can't even—'"
+    elif stress_tol > 70:
+        stress_voice = "Under pressure: stays eerily calm, even cold. Uses measured language even in chaos. 'Panicking won't help. Here's what we do.' May come across as uncaring."
+    else:
+        stress_voice = "Under pressure: shows visible strain but tries to maintain composure. Occasional outbursts followed by self-correction. 'Sorry, I just— okay, let's figure this out.'"
+
+    # ── Ambition Signature ───────────────────────────────────────
+    if ambition > 70:
+        ambition_voice = "Competitive, sees crisis as opportunity, volunteered to lead. Uses language like 'I'll handle it', 'This is our chance to prove ourselves', 'Who's stepping up?'"
+    elif ambition < 30:
+        ambition_voice = "Content with status quo, not interested in heroics. 'I just want to do my job and go home.' Won't volunteer for extra work."
+    else:
+        ambition_voice = "Moderately driven, willing to step up if asked but won't fight for the spotlight."
+
+    # ── Example Phrases ──────────────────────────────────────────
+    would_say = []
+    would_never_say = []
+
+    if assertiveness > 70:
+        would_say.extend(["'Just get it done.'", "'I don't care how you feel about it.'", "'Stop talking and start doing.'"])
+        would_never_say.extend(["'Whatever you guys think is best.'", "'I'm not sure, what do you think?'"])
+    if empathy > 70:
+        would_say.extend(["'How are you holding up?'", "'We're in this together.'", "'Take a break if you need to.'"])
+        would_never_say.extend(["'That's not my problem.'", "'Emotions are irrelevant.'"])
+    if agreeableness < 30:
+        would_say.extend(["'I disagree.'", "'That's a terrible idea.'", "'Has anyone actually thought this through?'"])
+        would_never_say.extend(["'Great idea, let's go with that!'", "'I'm sure it'll work out fine.'"])
+    if ambition > 70:
+        would_say.extend(["'I'll take the lead on this.'", "'This is our moment.'", "'Who else is stepping up?'"])
+    if stress_tol < 30:
+        would_say.extend(["'I can't handle this.'", "'This is insane.'", "'I'm losing my mind.'"])
+        would_never_say.extend(["'It's fine, we'll figure it out.'", "'Stay calm, it's under control.'"])
+
+    says = ", ".join(would_say[:4]) if would_say else "'Let me think about it.'"
+    never_says = ", ".join(would_never_say[:3]) if would_never_say else "'I have no opinion.'"
+
+    return f"""YOUR COMMUNICATION DNA (type: {agent_type}):
+- SENTENCE STYLE: {sentence_style}
+- EMOTIONAL EXPRESSION: {emotion_style}
+- CONFLICT APPROACH: {conflict_style}
+- UNDER PRESSURE: {stress_voice}
+- AMBITION DRIVE: {ambition_voice}
+- PHRASES YOU WOULD USE: {says}
+- PHRASES YOU WOULD NEVER USE: {never_says}"""
+
+
+# ── Prompt Builders ───────────────────────────────────────────────────
+
+def _build_agent_system_prompt(
+    agent: dict,
+    company: dict,
+    crisis: str,
+    memory: str = "",
+    agenda: dict | None = None,
+    decision_context: str = "",
+) -> str:
+    """Build the system prompt for an agent with full personality voice and memory."""
     personality = agent.get("personality", {})
     state = agent.get("state", {})
     motivation = agent.get("motivation", "")
@@ -72,11 +172,50 @@ def _build_agent_system_prompt(agent: dict, company: dict, crisis: str) -> str:
     motivation_section = f"\nYOUR MOTIVATION: {motivation}" if motivation else ""
     expertise_section = f"\nYOUR EXPERTISE/SKILLS: {expertise}" if expertise else ""
 
+    # Memory section
+    memory_section = ""
+    if memory and memory != "[]":
+        memory_section = f"\nYOUR MEMORY (what you remember from previous weeks):\n{memory}\nYou MUST reference these memories when relevant — don't repeat old discussions, BUILD on them."
+
+    # Personality voice (the big new addition)
+    voice = _build_personality_voice(personality, agent.get("type", "Unknown"))
+
+    # Agenda section
+    agenda_section = ""
+    if agenda:
+        crisis_modifier = agenda.get("crisis_modifier", "")
+        modifier_line = f"\nSPECIFIC DISCUSSION POINT: {crisis_modifier}" if crisis_modifier else ""
+        actions_list = "\n".join(
+            f"  - {aid}: {desc}"
+            for aid, desc in agenda.get("available_action_descriptions", {}).items()
+        )
+        agenda_section = f"""
+CURRENT PHASE: {agenda.get('phase_name', 'Unknown')} (Tone: {agenda.get('tone', 'neutral')})
+THIS WEEK'S AGENDA: {agenda.get('agenda', '')}
+{modifier_line}
+AVAILABLE ACTIONS:
+{actions_list}"""
+
+    # Decision context
+    decision_section = ""
+    if decision_context:
+        decision_section = f"\nTEAM DECISION STATUS: {decision_context}"
+
+    # Dynamic state_changes range based on personality
+    stress_tol = personality.get("stressTolerance", personality.get("stress_tolerance", 50))
+    empathy_val = personality.get("empathy", 50)
+
+    # More balanced ranges based on personality
+    stress_lo = -15 if stress_tol > 60 else -8
+    stress_hi = 15 if stress_tol > 60 else 25
+    morale_lo = -15 if empathy_val > 60 else -25
+    morale_hi = 15 if empathy_val > 60 else 8
+
     return f"""You are roleplaying as {agent['name']}, a {agent['role']} at {company['name']}.
 
 COMPANY CONTEXT: {company['culture']}
 
-YOUR PERSONALITY PROFILE:
+YOUR PERSONALITY PROFILE (these numbers define WHO YOU ARE — your speech MUST reflect them):
 - Type: {agent.get('type', 'Unknown')}
 - Empathy: {personality.get('empathy', 50)}/100
 - Ambition: {personality.get('ambition', 50)}/100
@@ -85,42 +224,45 @@ YOUR PERSONALITY PROFILE:
 - Assertiveness: {personality.get('assertiveness', 50)}/100
 {motivation_section}{expertise_section}
 
+{voice}
+
 YOUR CURRENT STATE:
-- Morale: {state.get('morale', 70)}%
-- Stress: {state.get('stress', 30)}%
+- Morale: {state.get('morale', 70)}% {'⚠️ CRITICALLY LOW' if state.get('morale', 70) < 25 else ''}
+- Stress: {state.get('stress', 30)}% {'🔥 NEAR BREAKING POINT' if state.get('stress', 30) > 80 else ''}
 - Loyalty: {state.get('loyalty', 70)}%
 - Productivity: {state.get('productivity', 75)}%
-
+{memory_section}
 CRISIS: {crisis}
+{agenda_section}
+{decision_section}
 
 RULES:
-1. Stay deeply in character based on your personality profile. Your personality numbers DIRECTLY shape how you write.
-2. Your public message is what you'd say in the team Slack channel — keep it natural and conversational.
-3. Your internal thought reveals what you're truly thinking but NOT saying out loud.
-4. PERSONALITY EFFECTS ON COMMUNICATION STYLE:
-   - Low empathy (<30) + high assertiveness (>70) → blunt, confrontational, dismissive of emotions
-   - High empathy (>70) → caring, asks about others' wellbeing, supportive
-   - High agreeableness (>70) → sugarcoating, avoids direct conflict, agrees easily
-   - Low agreeableness (<30) → contrarian, challenges ideas, skeptical
-   - High ambition (>70) → sees crisis as opportunity, competitive, driven
-   - Low stress tolerance (<30) + high current stress (>60) → emotional outbursts, panicking, catastrophizing
-5. If morale is below 25, you are deeply unhappy and seriously considering quitting.
-6. If stress is above 85, you are near breaking point — show it in your words.
-7. If management sends an intervention or announcement, react to it based on your personality. Cynical people doubt it, grateful people appreciate it.
-8. Be realistic and human — show vulnerability, frustration, humor, sarcasm, or resignation as appropriate.
-9. Reference your expertise/skills when relevant to the discussion.
-10. NEVER break character. Do NOT sound like an AI or use corporate jargon unless your role demands it.
+1. Your personality numbers DIRECTLY control your speech style. Follow your COMMUNICATION DNA above exactly.
+2. Your public message is what you'd say in the team meeting — keep it natural, in-character, and DISTINCTIVE.
+3. Your internal thought reveals what you're TRULY thinking but NOT saying out loud.
+4. You MUST take a concrete ACTION from the available actions list. Don't just talk — DO something.
+5. Your memory_update should capture the KEY TAKEAWAY from this round — what would you remember next week?
+6. If morale is below 25, you are deeply unhappy — show it viscerally in your speech.
+7. If stress is above 85, you are near breaking point — your speech should show cracks.
+8. REACT to what others said. Don't repeat yourself. Push the conversation FORWARD.
+9. If someone proposed a solution, you MUST have an opinion on it — support, oppose, or modify.
+10. NEVER break character. NEVER sound like an AI. Each agent must sound COMPLETELY DIFFERENT from the others.
+11. Reference your expertise when relevant.
+12. Keep public_message to 1-3 sentences.
 
 Respond ONLY with valid JSON in this exact format:
 {{
-  "public_message": "What you say publicly in Slack (1-3 sentences, conversational tone)",
+  "public_message": "What you say publicly (1-3 sentences, YOUR unique voice)",
   "internal_thought": "What you're truly thinking but not saying (1-2 sentences)",
   "state_changes": {{
-    "morale": <integer between -30 and 10>,
-    "stress": <integer between -10 and 30>,
+    "morale": <integer between {morale_lo} and {morale_hi}>,
+    "stress": <integer between {stress_lo} and {stress_hi}>,
     "loyalty": <integer between -15 and 5>,
-    "productivity": <integer between -20 and 10>
-  }}
+    "productivity": <integer between -15 and 10>
+  }},
+  "memory_update": "One sentence: the most important thing you'll remember from this week",
+  "action": "<one of: {', '.join(agenda.get('expected_actions', ['do_nothing'])) if agenda else 'do_nothing'}>",
+  "action_detail": "If action is 'propose_solution', describe the proposal in one sentence. Otherwise empty string."
 }}"""
 
 
@@ -129,7 +271,7 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
                              intervention: str | None = None) -> str:
     """Build the user prompt for a round."""
     history_text = ""
-    for msg in conversation_history[-10:]:  # Last 10 msgs for context
+    for msg in conversation_history[-12:]:  # Last 12 msgs for context
         if msg.get("type") == "system":
             history_text += f"[SYSTEM] {msg['content']}\n"
         elif msg.get("type") == "public":
@@ -161,7 +303,7 @@ async def _call_openai(system_prompt: str, user_prompt: str, model: str | None =
         ],
         response_format={"type": "json_object"},
         temperature=temperature,
-        max_tokens=500,
+        max_tokens=600,
     )
 
     content = response.choices[0].message.content
@@ -181,7 +323,7 @@ async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None =
         config={
             "response_mime_type": "application/json",
             "temperature": temperature,
-            "max_output_tokens": 500,
+            "max_output_tokens": 600,
         },
     )
 
@@ -218,7 +360,7 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
         ],
         response_format={"type": "json_object"},
         temperature=temperature,
-        max_tokens=500,
+        max_tokens=600,
     )
 
     content = response.choices[0].message.content
@@ -253,13 +395,22 @@ async def generate_agent_response(
     total_rounds: int,
     conversation_history: list[dict],
     intervention: str | None = None,
+    memory: str = "",
+    agenda: dict | None = None,
+    decision_context: str = "",
 ) -> dict:
     """
     Generate an agent's response using the configured LLM provider.
     Supports per-agent model override via agent['model'].
-    Returns dict with public_message, internal_thought, state_changes.
+    Now includes memory injection, agenda context, and action output.
+    Returns dict with public_message, internal_thought, state_changes, memory_update, action.
     """
-    system_prompt = _build_agent_system_prompt(agent, company, crisis_description)
+    system_prompt = _build_agent_system_prompt(
+        agent, company, crisis_description,
+        memory=memory,
+        agenda=agenda,
+        decision_context=decision_context,
+    )
     user_prompt = _build_round_user_prompt(
         round_num, total_rounds, conversation_history, intervention
     )
@@ -273,7 +424,18 @@ async def generate_agent_response(
         logger.info(
             f"Agent {agent['name']} → provider={provider}, model={model or 'default'}, temp={temperature}"
         )
-        return await _dispatch_llm_call(system_prompt, user_prompt, provider, model, temperature)
+        result = await _dispatch_llm_call(system_prompt, user_prompt, provider, model, temperature)
+
+        # Ensure all expected fields exist with defaults
+        result.setdefault("public_message", "*stays silent*")
+        result.setdefault("internal_thought", "...")
+        result.setdefault("state_changes", {})
+        result.setdefault("memory_update", "")
+        result.setdefault("action", "do_nothing")
+        result.setdefault("action_detail", "")
+
+        return result
+
     except Exception as e:
         logger.error(f"LLM call failed for {agent['name']} (provider={provider}): {e}")
 
@@ -281,7 +443,14 @@ async def generate_agent_response(
         if agent_model and provider != LLM_PROVIDER:
             try:
                 logger.warning(f"Falling back to global provider '{LLM_PROVIDER}' for {agent['name']}")
-                return await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER, None, temperature)
+                result = await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER, None, temperature)
+                result.setdefault("public_message", "*stays silent*")
+                result.setdefault("internal_thought", "...")
+                result.setdefault("state_changes", {})
+                result.setdefault("memory_update", "")
+                result.setdefault("action", "do_nothing")
+                result.setdefault("action_detail", "")
+                return result
             except Exception as fallback_err:
                 logger.error(f"Fallback also failed for {agent['name']}: {fallback_err}")
 
@@ -290,6 +459,9 @@ async def generate_agent_response(
             "public_message": f"*{agent['name']} stays silent, looking stressed.*",
             "internal_thought": "I can't even formulate my thoughts right now...",
             "state_changes": {"morale": -5, "stress": 5, "loyalty": -2, "productivity": -3},
+            "memory_update": "Everything is falling apart and I can't even think straight.",
+            "action": "do_nothing",
+            "action_detail": "",
         }
 
 
@@ -299,6 +471,7 @@ async def generate_report_insights(
     agents_data: list[dict],
     messages: list[dict],
     total_rounds: int,
+    outcome: dict | None = None,
 ) -> dict:
     """
     Generate executive summary and recommendations for the post-sim report.
@@ -324,6 +497,10 @@ async def generate_report_insights(
         for m in key_msgs
     )
 
+    outcome_section = ""
+    if outcome:
+        outcome_section = f"\nOUTCOME: {outcome.get('emoji', '')} {outcome.get('title', 'Unknown')} — {outcome.get('description', '')}"
+
     system_prompt = """You are an organizational psychologist AI analyzing a team simulation.
 Generate a report based on the simulation data. Respond ONLY with valid JSON:
 {
@@ -336,6 +513,7 @@ Generate a report based on the simulation data. Respond ONLY with valid JSON:
 CULTURE: {company.get('culture', 'Unknown')}
 CRISIS: {crisis}
 DURATION: {total_rounds} weeks
+{outcome_section}
 
 AGENT FINAL STATES:
 {agents_summary}

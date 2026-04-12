@@ -86,9 +86,18 @@ async def init_db():
                 productivity INTEGER NOT NULL DEFAULT 75,
                 has_resigned BOOLEAN NOT NULL DEFAULT FALSE,
                 resigned_week INTEGER,
+                memory_json TEXT DEFAULT '[]',
                 PRIMARY KEY (id, simulation_id)
             )
         """)
+
+        # Migration: add memory_json if it doesn't exist
+        try:
+            await conn.execute("""
+                ALTER TABLE agents ADD COLUMN IF NOT EXISTS memory_json TEXT DEFAULT '[]'
+            """)
+        except Exception:
+            pass  # Column already exists
 
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS messages (
@@ -258,6 +267,27 @@ async def get_agents(sim_id: str) -> list[dict]:
             "SELECT * FROM agents WHERE simulation_id=$1", sim_id
         )
         return [_record_to_dict(r) for r in rows]
+
+
+async def update_agent_memory(sim_id: str, agent_id: str, memory_json: str):
+    """Update an agent's memory summary."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE agents SET memory_json=$1 WHERE id=$2 AND simulation_id=$3",
+            memory_json, agent_id, sim_id
+        )
+
+
+async def get_agent_memory(sim_id: str, agent_id: str) -> str:
+    """Get an agent's memory JSON string."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT memory_json FROM agents WHERE id=$1 AND simulation_id=$2",
+            agent_id, sim_id
+        )
+        return row["memory_json"] if row and row["memory_json"] else "[]"
 
 
 async def save_message(sim_id: str, round_num: int, agent_id: str | None,
