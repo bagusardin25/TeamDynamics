@@ -41,7 +41,7 @@ export function MetricsDashboard({ metrics, prevMetrics, status, currentRound }:
                 variant="outline"
                 className={`text-[10px] ${moraleChange < 0 ? "text-red-400 border-red-500/20" : "text-green-400 border-green-500/20"}`}
               >
-                {moraleChange > 0 ? "+" : ""}{moraleChange}%
+                {`${moraleChange > 0 ? "+" : ""}${moraleChange}%`}
               </Badge>
             )}
           </CardHeader>
@@ -63,7 +63,7 @@ export function MetricsDashboard({ metrics, prevMetrics, status, currentRound }:
                 variant="outline"
                 className={`text-[10px] ${productivityChange < 0 ? "text-red-400 border-red-500/20" : "text-green-400 border-green-500/20"}`}
               >
-                {productivityChange > 0 ? "+" : ""}{productivityChange}%
+                {`${productivityChange > 0 ? "+" : ""}${productivityChange}%`}
               </Badge>
             )}
           </CardHeader>

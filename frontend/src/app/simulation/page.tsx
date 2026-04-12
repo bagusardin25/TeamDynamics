@@ -35,15 +35,14 @@ function SimulationContent() {
     typingAgent,
     connectionError,
     sendIntervention,
-    sendInterventionRest,
   } = useSimulationSocket(simId, soundEnabled);
 
   const handleIntervene = useCallback(
     (type: string, customMsg?: string) => {
+      // Use WebSocket to send intervention natively
       sendIntervention(type, customMsg);
-      sendInterventionRest(type, customMsg);
     },
-    [sendIntervention, sendInterventionRest]
+    [sendIntervention]
   );
 
   const handleEndSimulation = useCallback(() => {

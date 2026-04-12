@@ -11,8 +11,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/auth-context";
 import { useTheme } from "next-themes";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -34,6 +36,10 @@ const CRISIS_LABELS: Record<string, string> = {
   rnd4: "Database Deleted",
   custom: "Custom Crisis",
 };
+
+const SPARKLINE_DATA = [
+  { value: 10 }, { value: 25 }, { value: 15 }, { value: 40 }, { value: 30 }, { value: 60 }
+];
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -172,30 +178,51 @@ export default function DashboardPage() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10"
         >
-          <Card className="bg-card/40 border-border/50">
-            <CardContent className="p-4">
+          <Card className="relative bg-card/40 border-border/50 overflow-hidden group">
+            <div className="absolute inset-x-0 bottom-0 h-1/2 opacity-20 pointer-events-none transition-transform group-hover:scale-y-110 origin-bottom duration-500">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={SPARKLINE_DATA}>
+                  <Area type="monotone" dataKey="value" stroke="var(--primary)" fill="currentColor" className="text-primary" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <CardContent className="p-4 relative z-10">
               <div className="text-xs text-muted-foreground font-medium mb-1">Total Simulations</div>
               <div className="text-2xl font-bold">{simulations.length}</div>
             </CardContent>
           </Card>
-          <Card className="bg-card/40 border-border/50">
-            <CardContent className="p-4">
+          <Card className="relative bg-card/40 border-border/50 overflow-hidden group">
+             <div className="absolute inset-x-0 bottom-0 h-1/2 opacity-20 pointer-events-none transition-transform group-hover:scale-y-110 origin-bottom duration-500">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={[...SPARKLINE_DATA].reverse()}>
+                  <Area type="monotone" dataKey="value" stroke="#22c55e" fill="#22c55e" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <CardContent className="p-4 relative z-10">
               <div className="text-xs text-muted-foreground font-medium mb-1">Completed</div>
               <div className="text-2xl font-bold text-green-500">
                 {simulations.filter((s) => s.status === "completed").length}
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-card/40 border-border/50">
-            <CardContent className="p-4">
+          <Card className="relative bg-card/40 border-border/50 overflow-hidden group">
+            <div className="absolute inset-x-0 bottom-0 h-1/2 opacity-20 pointer-events-none transition-transform group-hover:scale-y-110 origin-bottom duration-500">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={SPARKLINE_DATA.map(d=>( {value: d.value * (0.5 + Math.random()*0.5)} ))}>
+                  <Area type="monotone" dataKey="value" stroke="#f97316" fill="#f97316" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <CardContent className="p-4 relative z-10">
               <div className="text-xs text-muted-foreground font-medium mb-1">Running</div>
               <div className="text-2xl font-bold text-orange-500">
                 {simulations.filter((s) => s.status === "running").length}
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-card/40 border-border/50">
-            <CardContent className="p-4">
+          <Card className="relative bg-card/40 border-border/50 overflow-hidden">
+            <CardContent className="p-4 relative z-10">
               <div className="text-xs text-muted-foreground font-medium mb-1">Credits Left</div>
               <div className="text-2xl font-bold text-primary">
                 {isAdmin ? "∞" : user.credits}
@@ -222,19 +249,24 @@ export default function DashboardPage() {
           </div>
         ) : simulations.length === 0 ? (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-20"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center py-24 relative overflow-hidden rounded-2xl border border-dashed border-border/60 bg-card/10 backdrop-blur-sm"
           >
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle className="w-8 h-8 text-primary/60" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">No simulations yet</h3>
-            <p className="text-sm text-muted-foreground mb-6 max-w-sm mx-auto">
-              Create your first simulation to see how your team reacts under pressure.
+            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+            <motion.div 
+               animate={{ y: [0, -10, 0] }}
+               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+               className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_-10px_rgba(var(--primary),0.5)]"
+            >
+              <Play className="w-8 h-8 text-primary ml-1" />
+            </motion.div>
+            <h3 className="text-xl font-bold mb-3 tracking-tight">Your Simulation Sandbox awaits</h3>
+            <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto leading-relaxed">
+              Assemble your team and inject unexpected chaos. Watch how agents interact and make decisions under pressure.
             </p>
             <Link href="/setup">
-              <Button className="rounded-lg font-semibold">
+              <Button className="rounded-full px-8 h-12 font-semibold shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all hover:-translate-y-1">
                 <Plus className="w-4 h-4 mr-2" /> Create First Simulation
               </Button>
             </Link>
@@ -251,33 +283,48 @@ export default function DashboardPage() {
                   transition={{ delay: idx * 0.05 }}
                 >
                   <Link href={sim.status === "completed" ? `/simulation?id=${sim.id}` : `/simulation?id=${sim.id}`}>
-                    <Card className="bg-card/40 border-border/50 hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group">
-                      <CardContent className="p-5 flex items-center gap-4">
-                        {/* Status icon */}
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${cfg.color}`}>
-                          {cfg.icon}
+                    <Card className="bg-card/40 border-border/50 hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
+                      <CardContent className="p-5 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          {/* Status icon */}
+                          <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${cfg.color} transition-transform group-hover:scale-110`}>
+                            {cfg.icon}
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0 pr-4">
+                            <div className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
+                              {sim.company_name}
+                            </div>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1">
+                              <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:block">
+                                {CRISIS_LABELS[sim.crisis_scenario] || sim.crisis_scenario}
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-1 max-w-[150px]">
+                                <Progress value={(sim.current_round / sim.total_rounds) * 100} className="h-1.5" />
+                                <span className="text-[10px] text-muted-foreground font-mono">{Math.round((sim.current_round / sim.total_rounds) * 100)}%</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
-                            {sim.company_name}
+                        <div className="flex items-center gap-4 shrink-0">
+                          {/* Date */}
+                          <div className="text-[10px] text-muted-foreground hidden md:block text-right">
+                            {sim.created_at ? new Date(sim.created_at).toLocaleDateString() : ""}
                           </div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {CRISIS_LABELS[sim.crisis_scenario] || sim.crisis_scenario} •
-                            Week {sim.current_round}/{sim.total_rounds}
+
+                          {/* Action Button & Badge */}
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={`text-[10px] font-semibold transition-opacity group-hover:opacity-0 sm:group-hover:flex ${cfg.color}`}>
+                              {cfg.label}
+                            </Badge>
+                            <Button size="sm" variant="secondary" className="hidden group-hover:flex h-7 text-xs rounded-full shadow-sm mx-2 absolute right-0 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
+                              {sim.status === "completed" ? "View Report" : "Resume"}
+                            </Button>
                           </div>
                         </div>
-
-                        {/* Status badge */}
-                        <Badge variant="outline" className={`text-[10px] font-semibold ${cfg.color}`}>
-                          {cfg.label}
-                        </Badge>
-
-                        {/* Date */}
-                        <span className="text-[10px] text-muted-foreground hidden sm:block">
-                          {sim.created_at ? new Date(sim.created_at).toLocaleDateString() : ""}
-                        </span>
                       </CardContent>
                     </Card>
                   </Link>
