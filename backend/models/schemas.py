@@ -111,6 +111,10 @@ class CrisisConfig(BaseModel):
     custom_description: Optional[str] = None
 
 
+class GenerateCrisisRequest(BaseModel):
+    company_name: str
+    company_culture: str
+
 # ── Simulation ────────────────────────────────────────────────────────
 
 class SimulationParams(BaseModel):

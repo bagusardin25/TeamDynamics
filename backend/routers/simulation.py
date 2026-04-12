@@ -5,7 +5,7 @@ Simulation CRUD and control routes.
 from fastapi import APIRouter, HTTPException, Depends
 from models.schemas import (
     CreateSimulationRequest, SimulationResponse, SimulationMetrics,
-    InterventionRequest, SimulationStatus, AgentState,
+    InterventionRequest, SimulationStatus, AgentState, GenerateCrisisRequest,
     Message, StateChanges,
 )
 from services.simulation_engine import (
@@ -16,6 +16,15 @@ from routers.auth import get_current_user, TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
 
+
+
+@router.post("/generate-crisis")
+async def generate_crisis(request: GenerateCrisisRequest):
+    """Generate a custom crisis tailored to the company using AI."""
+    from services.llm_service import generate_tailored_crisis
+    
+    crisis = await generate_tailored_crisis(request.company_name, request.company_culture)
+    return crisis
 
 @router.post("/create")
 async def create_sim(

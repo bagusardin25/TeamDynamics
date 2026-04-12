@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu } from "lucide-react";
+import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles } from "lucide-react";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,6 +83,7 @@ export default function SetupPage() {
   );
   const [crisis, setCrisis] = useState("");
   const [customCrisis, setCustomCrisis] = useState("");
+  const [isGeneratingCrisis, setIsGeneratingCrisis] = useState(false);
   const [durationWeeks, setDurationWeeks] = useState(12);
   const [pacingSpeed, setPacingSpeed] = useState(50);
   const [isLoading, setIsLoading] = useState(false);
@@ -133,6 +134,31 @@ export default function SetupPage() {
     if (selectedAgents.length >= MAX_ROSTER_SIZE) return;
     if (!selectedAgents.find((a) => a.id === agent.id)) {
       setSelectedAgents([...selectedAgents, agent]);
+    }
+  };
+
+  const handleGenerateCrisis = async () => {
+    if (!companyName || !companyCulture) {
+      toast.error("Please fill in Company Name and Culture first.");
+      return;
+    }
+    setIsGeneratingCrisis(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/simulation/generate-crisis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ company_name: companyName, company_culture: companyCulture }),
+      });
+      if (!res.ok) throw new Error("Failed to generate crisis");
+      const data = await res.json();
+      setCrisis("custom");
+      setCustomCrisis(`[${data.title}]\n\n${data.description}`);
+      toast.success("AI tailored a custom crisis for your startup!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Generation failed. Please try again.");
+    } finally {
+      setIsGeneratingCrisis(false);
     }
   };
 
@@ -336,7 +362,13 @@ export default function SetupPage() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium">Select Scenario</label>
+                       <div className="flex items-center justify-between">
+                         <label className="text-sm font-medium">Select Scenario</label>
+                         <Button variant="ghost" size="sm" onClick={handleGenerateCrisis} disabled={isGeneratingCrisis} className="h-7 text-xs text-orange-500 hover:text-orange-600 hover:bg-orange-500/10">
+                           {isGeneratingCrisis ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                           Auto-Generate
+                         </Button>
+                       </div>
                       <Select value={crisis} onValueChange={(val) => setCrisis(val || "")}>
                         <SelectTrigger className="w-full bg-background/50">
                           <SelectValue placeholder="Choose a crisis..." />
