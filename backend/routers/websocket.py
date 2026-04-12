@@ -114,6 +114,9 @@ async def simulation_websocket(websocket: WebSocket, sim_id: str):
 
         # Run simulation rounds
         async def run_rounds():
+            consecutive_errors = 0
+            max_consecutive_errors = 3
+
             while True:
                 current_state = await get_simulation_state(sim_id)
                 if not current_state:
@@ -128,16 +131,46 @@ async def simulation_websocket(websocket: WebSocket, sim_id: str):
                 if current_state["current_round"] >= current_state["total_rounds"]:
                     break
 
-                await run_simulation_round(sim_id, ws_broadcast=broadcast_message)
+                try:
+                    await run_simulation_round(sim_id, ws_broadcast=broadcast_message)
+                    consecutive_errors = 0  # Reset on success
+                except Exception as e:
+                    consecutive_errors += 1
+                    logger.error(f"Round error in simulation {sim_id}: {e}")
+                    # Notify clients about the error
+                    try:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": f"Round error: {str(e)}. Retrying..."
+                        })
+                    except Exception:
+                        pass
+
+                    if consecutive_errors >= max_consecutive_errors:
+                        logger.error(f"Simulation {sim_id} aborted after {max_consecutive_errors} consecutive errors")
+                        try:
+                            await websocket.send_json({
+                                "type": "error",
+                                "message": "Simulation stopped due to repeated errors. Please try again."
+                            })
+                        except Exception:
+                            pass
+                        break
+
+                    await asyncio.sleep(2.0)  # Wait before retrying
+                    continue
 
                 # Small pause between rounds
                 await asyncio.sleep(1.0)
 
             # Send completion
-            await websocket.send_json({
-                "type": "completed",
-                "simulation_id": sim_id,
-            })
+            try:
+                await websocket.send_json({
+                    "type": "completed",
+                    "simulation_id": sim_id,
+                })
+            except Exception:
+                pass
 
         # Run rounds in background so we can still receive messages
         round_task = asyncio.create_task(run_rounds())

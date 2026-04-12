@@ -1,6 +1,7 @@
 """
-LLM Service — supports both OpenAI and Google Gemini.
+LLM Service — supports OpenAI, Google Gemini, and OpenRouter.
 Generates agent responses and report insights using structured JSON output.
+Supports per-agent model override via the agent's `model` field.
 """
 
 from __future__ import annotations
@@ -14,6 +15,50 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+
+# ── Provider / Model resolution ───────────────────────────────────────
+
+def _resolve_provider_and_model(agent_model: str | None) -> tuple[str, str | None]:
+    """
+    Determine which provider+model to use for a given agent.
+
+    Logic:
+    1. If agent has a model override → detect provider from the model string.
+    2. Otherwise → fall back to global LLM_PROVIDER + its default model.
+
+    Returns (provider, model) where model may be None (= use env default).
+    """
+    if agent_model:
+        # OpenRouter models always contain "/" (e.g. "anthropic/claude-3.5-sonnet")
+        if "/" in agent_model:
+            return "openrouter", agent_model
+        # Direct OpenAI model names
+        if agent_model.startswith(("gpt-", "o1", "o3", "chatgpt")):
+            return "openai", agent_model
+        # Direct Gemini model names
+        if agent_model.startswith("gemini"):
+            return "gemini", agent_model
+        # Default: treat unknown as OpenRouter (most likely)
+        return "openrouter", agent_model
+
+    return LLM_PROVIDER, None
+
+
+def _compute_temperature(agent: dict) -> float:
+    """
+    Compute agent-specific temperature based on personality traits.
+    High empathy / low assertiveness → more creative (higher temp)
+    Low empathy / high assertiveness → more precise (lower temp)
+    """
+    personality = agent.get("personality", {})
+    empathy = personality.get("empathy", 50)
+    assertiveness = personality.get("assertiveness", 50)
+    agreeableness = personality.get("agreeableness", 50)
+
+    # Base temperature 0.8, range 0.5 - 1.1
+    creativity_score = (empathy + agreeableness - assertiveness) / 300  # 0 to ~0.66
+    temperature = 0.5 + creativity_score * 0.9  # 0.5 to ~1.1
+    return round(min(max(temperature, 0.5), 1.1), 2)
 
 
 def _build_agent_system_prompt(agent: dict, company: dict, crisis: str) -> str:
@@ -99,6 +144,107 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
     return prompt
 
 
+# ── LLM Callers ───────────────────────────────────────────────────────
+
+async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9) -> dict:
+    """Call OpenAI API."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+    response = await client.chat.completions.create(
+        model=resolved_model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=temperature,
+        max_tokens=500,
+    )
+
+    content = response.choices[0].message.content
+    return json.loads(content)
+
+
+async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9) -> dict:
+    """Call Google Gemini API."""
+    from google import genai
+
+    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    resolved_model = model or os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+    response = await client.aio.models.generate_content(
+        model=resolved_model,
+        contents=f"{system_prompt}\n\n{user_prompt}",
+        config={
+            "response_mime_type": "application/json",
+            "temperature": temperature,
+            "max_output_tokens": 500,
+        },
+    )
+
+    return json.loads(response.text)
+
+
+async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9) -> dict:
+    """Call OpenRouter API (uses OpenAI-compatible SDK)."""
+    from openai import AsyncOpenAI
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "OPENROUTER_API_KEY is not set. Please add it to your .env file. "
+            "Get a key at https://openrouter.ai/keys"
+        )
+
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={
+            "HTTP-Referer": os.getenv("FRONTEND_URL", "http://localhost:3000"),
+            "X-Title": "TeamDynamics",
+        },
+    )
+
+    resolved_model = model or os.getenv("OPENROUTER_DEFAULT_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+
+    response = await client.chat.completions.create(
+        model=resolved_model,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        response_format={"type": "json_object"},
+        temperature=temperature,
+        max_tokens=500,
+    )
+
+    content = response.choices[0].message.content
+    return json.loads(content)
+
+
+# ── Dispatch helper ───────────────────────────────────────────────────
+
+async def _dispatch_llm_call(
+    system_prompt: str,
+    user_prompt: str,
+    provider: str,
+    model: str | None = None,
+    temperature: float = 0.9,
+) -> dict:
+    """Route a call to the correct LLM provider."""
+    if provider == "gemini":
+        return await _call_gemini(system_prompt, user_prompt, model, temperature)
+    elif provider == "openrouter":
+        return await _call_openrouter(system_prompt, user_prompt, model, temperature)
+    else:
+        return await _call_openai(system_prompt, user_prompt, model, temperature)
+
+
+# ── Public API ────────────────────────────────────────────────────────
+
 async def generate_agent_response(
     agent: dict,
     company: dict,
@@ -110,6 +256,7 @@ async def generate_agent_response(
 ) -> dict:
     """
     Generate an agent's response using the configured LLM provider.
+    Supports per-agent model override via agent['model'].
     Returns dict with public_message, internal_thought, state_changes.
     """
     system_prompt = _build_agent_system_prompt(agent, company, crisis_description)
@@ -117,61 +264,33 @@ async def generate_agent_response(
         round_num, total_rounds, conversation_history, intervention
     )
 
+    # Resolve per-agent provider/model
+    agent_model = agent.get("model")
+    provider, model = _resolve_provider_and_model(agent_model)
+    temperature = _compute_temperature(agent)
+
     try:
-        if LLM_PROVIDER == "gemini":
-            return await _call_gemini(system_prompt, user_prompt)
-        else:
-            return await _call_openai(system_prompt, user_prompt)
+        logger.info(
+            f"Agent {agent['name']} → provider={provider}, model={model or 'default'}, temp={temperature}"
+        )
+        return await _dispatch_llm_call(system_prompt, user_prompt, provider, model, temperature)
     except Exception as e:
-        logger.error(f"LLM call failed for {agent['name']}: {e}")
-        # Fallback response
+        logger.error(f"LLM call failed for {agent['name']} (provider={provider}): {e}")
+
+        # Fallback: try global provider if per-agent failed
+        if agent_model and provider != LLM_PROVIDER:
+            try:
+                logger.warning(f"Falling back to global provider '{LLM_PROVIDER}' for {agent['name']}")
+                return await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER, None, temperature)
+            except Exception as fallback_err:
+                logger.error(f"Fallback also failed for {agent['name']}: {fallback_err}")
+
+        # Final fallback response
         return {
             "public_message": f"*{agent['name']} stays silent, looking stressed.*",
             "internal_thought": "I can't even formulate my thoughts right now...",
             "state_changes": {"morale": -5, "stress": 5, "loyalty": -2, "productivity": -3},
         }
-
-
-async def _call_openai(system_prompt: str, user_prompt: str) -> dict:
-    """Call OpenAI API."""
-    from openai import AsyncOpenAI
-
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
-    response = await client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.9,
-        max_tokens=500,
-    )
-
-    content = response.choices[0].message.content
-    return json.loads(content)
-
-
-async def _call_gemini(system_prompt: str, user_prompt: str) -> dict:
-    """Call Google Gemini API."""
-    from google import genai
-
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=f"{system_prompt}\n\n{user_prompt}",
-        config={
-            "response_mime_type": "application/json",
-            "temperature": 0.9,
-            "max_output_tokens": 500,
-        },
-    )
-
-    return json.loads(response.text)
 
 
 async def generate_report_insights(
@@ -183,6 +302,7 @@ async def generate_report_insights(
 ) -> dict:
     """
     Generate executive summary and recommendations for the post-sim report.
+    Uses the global LLM provider.
     """
     agents_summary = ""
     for a in agents_data:
@@ -226,10 +346,7 @@ KEY CONVERSATION MOMENTS:
 Analyze this simulation and generate insights."""
 
     try:
-        if LLM_PROVIDER == "gemini":
-            return await _call_gemini(system_prompt, user_prompt)
-        else:
-            return await _call_openai(system_prompt, user_prompt)
+        return await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER)
     except Exception as e:
         logger.error(f"Report generation failed: {e}")
         return {

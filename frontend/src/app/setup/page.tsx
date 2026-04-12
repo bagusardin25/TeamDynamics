@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown } from "lucide-react";
+import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu } from "lucide-react";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,7 +36,22 @@ interface PresetAgent {
   personality: AgentPersonality;
   motivation?: string;
   expertise?: string;
+  model?: string;
 }
+
+const POPULAR_MODELS = [
+  { label: "Default (Global)", value: "__default__" },
+  { label: "GPT-4o Mini", value: "gpt-4o-mini" },
+  { label: "GPT-4o", value: "gpt-4o" },
+  { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
+  { label: "Claude 3 Haiku", value: "anthropic/claude-3-haiku" },
+  { label: "Llama 3.1 8B (Free)", value: "meta-llama/llama-3.1-8b-instruct:free" },
+  { label: "Llama 3.1 70B", value: "meta-llama/llama-3.1-70b-instruct" },
+  { label: "Mistral 7B (Free)", value: "mistralai/mistral-7b-instruct:free" },
+  { label: "Deepseek", value: "deepseek/deepseek-v3.2" },
+  { label: "Gemini 2.0 Flash", value: "gemini-2.0-flash" },
+  { label: "Custom...", value: "__custom__" },
+];
 
 const AGENT_COLORS = [
   { label: "Red", value: "bg-red-500/20 text-red-500", dot: "bg-red-500" },
@@ -82,6 +97,8 @@ export default function SetupPage() {
   const [customColor, setCustomColor] = useState(AGENT_COLORS[0].value);
   const [customMotivation, setCustomMotivation] = useState("");
   const [customExpertise, setCustomExpertise] = useState("");
+  const [customModel, setCustomModel] = useState("");
+  const [customModelInput, setCustomModelInput] = useState("");
   const [customPersonality, setCustomPersonality] = useState<AgentPersonality>({ ...DEFAULT_PERSONALITY });
 
   // Preset picker dropdown
@@ -126,6 +143,8 @@ export default function SetupPage() {
     setCustomColor(AGENT_COLORS[0].value);
     setCustomMotivation("");
     setCustomExpertise("");
+    setCustomModel("__default__");
+    setCustomModelInput("");
     setCustomPersonality({ ...DEFAULT_PERSONALITY });
     setShowCreateModal(true);
   };
@@ -138,6 +157,10 @@ export default function SetupPage() {
     setCustomColor(agent.color);
     setCustomMotivation(agent.motivation || "");
     setCustomExpertise(agent.expertise || "");
+    const agentModel = agent.model || "";
+    const isKnown = POPULAR_MODELS.some(m => m.value === agentModel && m.value !== "__default__");
+    setCustomModel(isKnown ? agentModel : (agentModel ? "__custom__" : "__default__"));
+    setCustomModelInput(isKnown ? "" : (agentModel || ""));
     setCustomPersonality({ ...agent.personality });
     setShowCreateModal(true);
   };
@@ -145,6 +168,7 @@ export default function SetupPage() {
   const handleSaveAgent = () => {
     if (!customName.trim() || !customRole.trim() || !customType.trim()) return;
 
+    const resolvedModel = customModel === "__custom__" ? customModelInput.trim() : (customModel === "__default__" ? "" : customModel);
     const agentData: PresetAgent = {
       id: editingAgent ? editingAgent.id : `custom-${Date.now()}`,
       name: customName.trim(),
@@ -154,6 +178,7 @@ export default function SetupPage() {
       personality: { ...customPersonality },
       motivation: customMotivation.trim() || undefined,
       expertise: customExpertise.trim() || undefined,
+      model: resolvedModel || undefined,
     };
 
     if (editingAgent) {
@@ -211,6 +236,7 @@ export default function SetupPage() {
           personality: a.personality,
           motivation: a.motivation || null,
           expertise: a.expertise || null,
+          model: a.model || null,
         })),
         crisis: {
           scenario: crisis,
@@ -405,8 +431,14 @@ export default function SetupPage() {
                       </Badge>
 
                       {/* Extra info badges */}
-                      {(agent.expertise || agent.motivation) && (
+                      {(agent.expertise || agent.motivation || agent.model) && (
                         <div className="flex flex-wrap gap-1 mt-2">
+                          {agent.model && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-400 flex items-center gap-0.5">
+                              <Cpu className="w-2.5 h-2.5" />
+                              {POPULAR_MODELS.find(m => m.value === agent.model)?.label || agent.model}
+                            </span>
+                          )}
                           {agent.expertise && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">🎯 {agent.expertise}</span>
                           )}
@@ -715,6 +747,39 @@ export default function SetupPage() {
                     onChange={(e) => setCustomExpertise(e.target.value)}
                     className="bg-background/50"
                   />
+                </div>
+
+                <Separator />
+
+                {/* LLM Model Selection */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Cpu className="w-3 h-3" /> AI Model (Optional)
+                  </label>
+                  <p className="text-[10px] text-muted-foreground">Assign a specific AI model to this agent via OpenRouter. Leave as &quot;Default&quot; to use the global provider.</p>
+                  <Select value={customModel} onValueChange={(val) => { setCustomModel(val); if (val !== "__custom__") setCustomModelInput(""); }}>
+                    <SelectTrigger className="bg-background/50">
+                      <SelectValue placeholder="Default (Global Provider)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POPULAR_MODELS.map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {customModel === "__custom__" && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-1">
+                      <Input
+                        placeholder="e.g. anthropic/claude-3.5-sonnet"
+                        value={customModelInput}
+                        onChange={(e) => setCustomModelInput(e.target.value)}
+                        className="bg-background/50 font-mono text-xs"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">Browse models at <a href="https://openrouter.ai/models" target="_blank" rel="noopener" className="text-primary hover:underline">openrouter.ai/models</a></p>
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Radar Preview */}

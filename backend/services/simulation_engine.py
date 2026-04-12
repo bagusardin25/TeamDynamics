@@ -77,6 +77,9 @@ async def create_simulation(request: CreateSimulationRequest, user_id: str | Non
             color=agent_config.color,
             personality=agent_config.personality,
             state=AgentState(**initial_state),
+            motivation=agent_config.motivation,
+            expertise=agent_config.expertise,
+            model=agent_config.model,
         )
         agent_full.initials = agent_full.compute_initials()
         agents_cache.append(agent_full)
@@ -245,6 +248,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             "state": agent.state.model_dump(),
             "motivation": getattr(agent, "motivation", None) or "",
             "expertise": getattr(agent, "expertise", None) or "",
+            "model": getattr(agent, "model", None),
         }
 
         # Broadcast typing indicator before LLM call
