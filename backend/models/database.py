@@ -1,29 +1,47 @@
 """
-SQLite database layer using aiosqlite for async operations.
+PostgreSQL database layer using asyncpg with connection pooling.
 """
 
 from __future__ import annotations
 
+import os
 import json
-import aiosqlite
-from pathlib import Path
+import logging
+import asyncpg
+from dotenv import load_dotenv
 
-DB_PATH = Path(__file__).parent.parent / "teamdynamics.db"
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5432/teamdynamics"
+)
+
+# Connection pool (initialized at startup)
+_pool: asyncpg.Pool | None = None
 
 
-async def get_db() -> aiosqlite.Connection:
-    """Get a database connection."""
-    db = await aiosqlite.connect(str(DB_PATH))
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA journal_mode=WAL")
-    return db
+async def get_pool() -> asyncpg.Pool:
+    """Get or create the connection pool."""
+    global _pool
+    if _pool is None:
+        _pool = await asyncpg.create_pool(
+            DATABASE_URL,
+            min_size=2,
+            max_size=10,
+            command_timeout=30,
+        )
+    return _pool
 
 
 async def init_db():
     """Initialize database tables."""
-    db = await get_db()
-    try:
-        await db.executescript("""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Create tables
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
                 email TEXT UNIQUE NOT NULL,
@@ -33,12 +51,14 @@ async def init_db():
                 hashed_password TEXT,
                 role TEXT NOT NULL DEFAULT 'user',
                 credits INTEGER NOT NULL DEFAULT 10,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS simulations (
                 id TEXT PRIMARY KEY,
-                user_id TEXT,
+                user_id TEXT REFERENCES users(id),
                 status TEXT NOT NULL DEFAULT 'idle',
                 current_round INTEGER NOT NULL DEFAULT 0,
                 total_rounds INTEGER NOT NULL DEFAULT 12,
@@ -47,13 +67,14 @@ async def init_db():
                 crisis_scenario TEXT NOT NULL,
                 crisis_description TEXT,
                 pacing TEXT NOT NULL DEFAULT 'normal',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            );
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS agents (
                 id TEXT NOT NULL,
-                simulation_id TEXT NOT NULL,
+                simulation_id TEXT NOT NULL REFERENCES simulations(id),
                 name TEXT NOT NULL,
                 role TEXT NOT NULL,
                 type TEXT NOT NULL,
@@ -63,15 +84,16 @@ async def init_db():
                 stress INTEGER NOT NULL DEFAULT 30,
                 loyalty INTEGER NOT NULL DEFAULT 70,
                 productivity INTEGER NOT NULL DEFAULT 75,
-                has_resigned INTEGER NOT NULL DEFAULT 0,
+                has_resigned BOOLEAN NOT NULL DEFAULT FALSE,
                 resigned_week INTEGER,
-                PRIMARY KEY (id, simulation_id),
-                FOREIGN KEY (simulation_id) REFERENCES simulations(id)
-            );
+                PRIMARY KEY (id, simulation_id)
+            )
+        """)
 
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                simulation_id TEXT NOT NULL,
+                id SERIAL PRIMARY KEY,
+                simulation_id TEXT NOT NULL REFERENCES simulations(id),
                 round INTEGER NOT NULL,
                 agent_id TEXT,
                 agent_name TEXT,
@@ -79,21 +101,24 @@ async def init_db():
                 content TEXT NOT NULL,
                 thought TEXT,
                 state_changes_json TEXT,
-                timestamp TEXT,
-                FOREIGN KEY (simulation_id) REFERENCES simulations(id)
-            );
+                timestamp TEXT
+            )
         """)
-        await db.commit()
 
-        # Migration: Add user_id column if not exists (for existing databases)
-        try:
-            await db.execute("SELECT user_id FROM simulations LIMIT 1")
-        except Exception:
-            await db.execute("ALTER TABLE simulations ADD COLUMN user_id TEXT REFERENCES users(id)")
-            await db.commit()
+    logger.info("✅ PostgreSQL database initialized")
 
-    finally:
-        await db.close()
+
+async def close_db():
+    """Close the connection pool."""
+    global _pool
+    if _pool:
+        await _pool.close()
+        _pool = None
+
+
+def _record_to_dict(record: asyncpg.Record) -> dict:
+    """Convert asyncpg Record to a plain dict."""
+    return dict(record)
 
 
 # ── User Operations ───────────────────────────────────────────────────
@@ -104,69 +129,54 @@ async def create_user(user_id: str, email: str, name: str,
                       avatar_url: str | None = None,
                       role: str = "user") -> dict:
     """Create a new user and return their data."""
-    db = await get_db()
-    try:
-        await db.execute(
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
             """INSERT INTO users (id, email, name, auth_provider, hashed_password, avatar_url, role)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, email, name, auth_provider, hashed_password, avatar_url, role)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+            user_id, email, name, auth_provider, hashed_password, avatar_url, role
         )
-        await db.commit()
         return {
             "id": user_id, "email": email, "name": name,
             "auth_provider": auth_provider, "avatar_url": avatar_url,
             "role": role, "credits": 10,
         }
-    finally:
-        await db.close()
 
 
 async def get_user_by_email(email: str) -> dict | None:
     """Get a user by email."""
-    db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM users WHERE email=?", (email,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE email=$1", email)
+        return _record_to_dict(row) if row else None
 
 
 async def get_user_by_id(user_id: str) -> dict | None:
     """Get a user by ID."""
-    db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM users WHERE id=?", (user_id,))
-        row = await cursor.fetchone()
-        return dict(row) if row else None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM users WHERE id=$1", user_id)
+        return _record_to_dict(row) if row else None
 
 
 async def update_user_credits(user_id: str, credits: int):
     """Update user credits."""
-    db = await get_db()
-    try:
-        await db.execute("UPDATE users SET credits=? WHERE id=?", (credits, user_id))
-        await db.commit()
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE users SET credits=$1 WHERE id=$2", credits, user_id)
 
 
 async def get_user_simulations(user_id: str) -> list[dict]:
     """Get all simulations for a user, ordered by newest first."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
             """SELECT id, status, current_round, total_rounds, company_name,
                       crisis_scenario, pacing, created_at
-               FROM simulations WHERE user_id=? ORDER BY created_at DESC""",
-            (user_id,)
+               FROM simulations WHERE user_id=$1 ORDER BY created_at DESC""",
+            user_id
         )
-        rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        await db.close()
+        return [_record_to_dict(r) for r in rows]
 
 
 # ── Simulation Operations ─────────────────────────────────────────────
@@ -175,50 +185,39 @@ async def save_simulation(sim_id: str, company_name: str, company_culture: str,
                           crisis_scenario: str, crisis_description: str | None,
                           total_rounds: int, pacing: str, user_id: str | None = None):
     """Insert a new simulation record."""
-    db = await get_db()
-    try:
-        await db.execute(
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
             """INSERT INTO simulations (id, user_id, status, current_round, total_rounds,
                company_name, company_culture, crisis_scenario, crisis_description, pacing)
-               VALUES (?, ?, 'idle', 0, ?, ?, ?, ?, ?, ?)""",
-            (sim_id, user_id, total_rounds, company_name, company_culture,
-             crisis_scenario, crisis_description, pacing)
+               VALUES ($1, $2, 'idle', 0, $3, $4, $5, $6, $7, $8)""",
+            sim_id, user_id, total_rounds, company_name, company_culture,
+            crisis_scenario, crisis_description, pacing
         )
-        await db.commit()
-    finally:
-        await db.close()
 
 
 async def update_simulation_status(sim_id: str, status: str, current_round: int | None = None):
     """Update simulation status and optionally the round."""
-    db = await get_db()
-    try:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
         if current_round is not None:
-            await db.execute(
-                "UPDATE simulations SET status=?, current_round=? WHERE id=?",
-                (status, current_round, sim_id)
+            await conn.execute(
+                "UPDATE simulations SET status=$1, current_round=$2 WHERE id=$3",
+                status, current_round, sim_id
             )
         else:
-            await db.execute(
-                "UPDATE simulations SET status=? WHERE id=?",
-                (status, sim_id)
+            await conn.execute(
+                "UPDATE simulations SET status=$1 WHERE id=$2",
+                status, sim_id
             )
-        await db.commit()
-    finally:
-        await db.close()
 
 
 async def get_simulation(sim_id: str) -> dict | None:
     """Get simulation record by ID."""
-    db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM simulations WHERE id=?", (sim_id,))
-        row = await cursor.fetchone()
-        if row:
-            return dict(row)
-        return None
-    finally:
-        await db.close()
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT * FROM simulations WHERE id=$1", sim_id)
+        return _record_to_dict(row) if row else None
 
 
 async def save_agent(sim_id: str, agent_id: str, name: str, role: str,
@@ -226,48 +225,39 @@ async def save_agent(sim_id: str, agent_id: str, name: str, role: str,
                      morale: int = 70, stress: int = 30,
                      loyalty: int = 70, productivity: int = 75):
     """Insert an agent record."""
-    db = await get_db()
-    try:
-        await db.execute(
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
             """INSERT INTO agents (id, simulation_id, name, role, type, color,
                personality_json, morale, stress, loyalty, productivity)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (agent_id, sim_id, name, role, agent_type, color,
-             json.dumps(personality), morale, stress, loyalty, productivity)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)""",
+            agent_id, sim_id, name, role, agent_type, color,
+            json.dumps(personality), morale, stress, loyalty, productivity
         )
-        await db.commit()
-    finally:
-        await db.close()
 
 
 async def update_agent_state(sim_id: str, agent_id: str, morale: int, stress: int,
                              loyalty: int, productivity: int,
                              has_resigned: bool = False, resigned_week: int | None = None):
     """Update an agent's live state."""
-    db = await get_db()
-    try:
-        await db.execute(
-            """UPDATE agents SET morale=?, stress=?, loyalty=?, productivity=?,
-               has_resigned=?, resigned_week=? WHERE id=? AND simulation_id=?""",
-            (morale, stress, loyalty, productivity,
-             1 if has_resigned else 0, resigned_week, agent_id, sim_id)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE agents SET morale=$1, stress=$2, loyalty=$3, productivity=$4,
+               has_resigned=$5, resigned_week=$6 WHERE id=$7 AND simulation_id=$8""",
+            morale, stress, loyalty, productivity,
+            has_resigned, resigned_week, agent_id, sim_id
         )
-        await db.commit()
-    finally:
-        await db.close()
 
 
 async def get_agents(sim_id: str) -> list[dict]:
     """Get all agents for a simulation."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM agents WHERE simulation_id=?", (sim_id,)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM agents WHERE simulation_id=$1", sim_id
         )
-        rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        await db.close()
+        return [_record_to_dict(r) for r in rows]
 
 
 async def save_message(sim_id: str, round_num: int, agent_id: str | None,
@@ -276,30 +266,25 @@ async def save_message(sim_id: str, round_num: int, agent_id: str | None,
                        state_changes: dict | None = None,
                        timestamp: str | None = None) -> int:
     """Insert a message and return its ID."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
             """INSERT INTO messages (simulation_id, round, agent_id, agent_name,
                type, content, thought, state_changes_json, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (sim_id, round_num, agent_id, agent_name, msg_type, content,
-             thought, json.dumps(state_changes) if state_changes else None, timestamp)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+               RETURNING id""",
+            sim_id, round_num, agent_id, agent_name, msg_type, content,
+            thought, json.dumps(state_changes) if state_changes else None, timestamp
         )
-        await db.commit()
-        return cursor.lastrowid
-    finally:
-        await db.close()
+        return row["id"]
 
 
 async def get_messages(sim_id: str) -> list[dict]:
     """Get all messages for a simulation."""
-    db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT * FROM messages WHERE simulation_id=? ORDER BY id ASC",
-            (sim_id,)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM messages WHERE simulation_id=$1 ORDER BY id ASC",
+            sim_id
         )
-        rows = await cursor.fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        await db.close()
+        return [_record_to_dict(r) for r in rows]

@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-from models.database import init_db
+from models.database import init_db, close_db
 from routers.simulation import router as simulation_router
 from routers.agents import router as agents_router
 from routers.websocket import router as websocket_router
@@ -27,10 +27,11 @@ async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     logger.info("🚀 Initializing TeamDynamics Backend...")
     await init_db()
-    logger.info("✅ Database initialized")
+    logger.info("✅ Database initialized (PostgreSQL)")
     logger.info(f"🤖 LLM Provider: {os.getenv('LLM_PROVIDER', 'openai')}")
     yield
     logger.info("👋 Shutting down TeamDynamics Backend")
+    await close_db()
 
 
 app = FastAPI(
