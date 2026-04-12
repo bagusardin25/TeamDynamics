@@ -87,7 +87,7 @@ class AgentConfig(BaseModel):
     color: Optional[str] = None
     motivation: Optional[str] = None
     expertise: Optional[str] = None
-    model: Optional[str] = None  # Per-agent LLM model override (e.g. "anthropic/claude-3.5-sonnet")
+    model: Optional[str] = None  # Per-agent LLM model override (e.g. "anthropic/claude-3.7-sonnet")
 
 
 class AgentFullState(AgentConfig):

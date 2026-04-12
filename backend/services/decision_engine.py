@@ -1,12 +1,20 @@
 """
-Decision Engine — tracks proposals, votes, team decisions,
-and determines simulation outcomes.
+Decision Engine — tracks proposals, votes with hierarchy-weighted influence,
+processes action consequences on the world state, and determines outcomes.
+
+v2: Added power hierarchy weighting, action-consequence coupling, and
+    world-state-aware outcome determination.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+
+from data.world_state import (
+    WorldState, get_role_influence, apply_action_to_world,
+    apply_decision_to_world,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +74,27 @@ OUTCOMES = {
 @dataclass
 class Proposal:
     proposer: str            # agent name
+    proposer_role: str       # agent role (for hierarchy weight)
     summary: str             # short description
     round_proposed: int
     supporters: list[str] = field(default_factory=list)
+    supporter_roles: list[str] = field(default_factory=list)
     opponents: list[str] = field(default_factory=list)
+    opponent_roles: list[str] = field(default_factory=list)
+
+    @property
+    def weighted_support(self) -> float:
+        """Calculate hierarchy-weighted support score."""
+        score = get_role_influence(self.proposer_role)  # Proposer counts
+        for role in self.supporter_roles:
+            score += get_role_influence(role)
+        for role in self.opponent_roles:
+            score -= get_role_influence(role)
+        return score
 
     @property
     def net_support(self) -> int:
+        """Simple head-count support (backward compatible)."""
         return len(self.supporters) - len(self.opponents)
 
 
@@ -81,23 +103,25 @@ class DecisionTracker:
     proposals: list[Proposal] = field(default_factory=list)
     decided_proposal: Proposal | None = None
     escalation_count: int = 0
-    resign_threats: list[str] = field(default_factory=list)  # agent names who threatened
-    action_log: list[dict] = field(default_factory=list)     # chronological action log
+    resign_threats: list[str] = field(default_factory=list)
+    action_log: list[dict] = field(default_factory=list)
 
-    def add_action(self, round_num: int, agent_name: str, action: str, detail: str = ""):
+    def add_action(self, round_num: int, agent_name: str, agent_role: str,
+                   action: str, detail: str = ""):
         self.action_log.append({
             "round": round_num,
             "agent": agent_name,
+            "role": agent_role,
             "action": action,
             "detail": detail,
         })
 
     def get_leading_proposal(self) -> Proposal | None:
-        """Return the proposal with the most net support, or None."""
+        """Return the proposal with the most weighted support, or None."""
         if not self.proposals:
             return None
-        ranked = sorted(self.proposals, key=lambda p: p.net_support, reverse=True)
-        if ranked[0].net_support > 0:
+        ranked = sorted(self.proposals, key=lambda p: p.weighted_support, reverse=True)
+        if ranked[0].weighted_support > 0:
             return ranked[0]
         return None
 
@@ -113,15 +137,33 @@ class DecisionTracker:
 
         leading = self.get_leading_proposal()
         if leading:
+            influence_note = ""
+            proposer_influence = get_role_influence(leading.proposer_role)
+            if proposer_influence >= 2.0:
+                influence_note = f" — {leading.proposer}'s seniority gives this extra weight"
             return (
                 f"LEADING PROPOSAL: \"{leading.summary}\" by {leading.proposer} "
-                f"(+{len(leading.supporters)} support, -{len(leading.opponents)} opposition)"
+                f"(weighted influence: {leading.weighted_support:.1f}){influence_note}"
             )
 
         if self.proposals:
             return f"OPEN DEBATE: {len(self.proposals)} proposals on the table, no consensus yet."
 
         return "NO PROPOSALS YET: The team hasn't proposed any concrete solutions."
+
+    def get_action_consequences_summary(self) -> str:
+        """Summarize what concrete actions have produced consequences."""
+        if not self.action_log:
+            return ""
+        recent = self.action_log[-6:]
+        lines = []
+        for entry in recent:
+            if entry["action"] not in ("do_nothing", "reflect", "assess_situation"):
+                lines.append(
+                    f"- {entry['agent']}: {entry['action']}"
+                    + (f" — \"{entry['detail']}\"" if entry.get("detail") else "")
+                )
+        return "\n".join(lines) if lines else ""
 
 
 # In-memory store of trackers by sim_id
@@ -139,41 +181,66 @@ def process_agent_action(
     sim_id: str,
     round_num: int,
     agent_name: str,
+    agent_role: str,
     action: str,
     detail: str = "",
+    world: WorldState | None = None,
 ) -> str | None:
     """
-    Process an agent's action and return a system message if a
-    significant event occurred (e.g., decision reached).
+    Process an agent's action, apply world consequences, and return
+    a system message if a significant event occurred.
     """
     tracker = get_tracker(sim_id)
-    tracker.add_action(round_num, agent_name, action, detail)
+    tracker.add_action(round_num, agent_name, agent_role, action, detail)
     system_msg = None
 
+    # ── Apply action consequences to world state ──────────────────
+    world_changes = {}
+    if world:
+        world_changes = apply_action_to_world(world, action)
+        if world_changes:
+            logger.info(f"Action '{action}' by {agent_name} → world changes: {world_changes}")
+
+    # ── Process specific actions ──────────────────────────────────
     if action == "propose_solution" and detail:
         tracker.proposals.append(Proposal(
             proposer=agent_name,
+            proposer_role=agent_role,
             summary=detail,
             round_proposed=round_num,
         ))
-        system_msg = f"📋 {agent_name} has proposed: \"{detail}\""
+        influence = get_role_influence(agent_role)
+        weight_note = ""
+        if influence >= 2.0:
+            weight_note = f" (carries senior authority, influence weight: {influence:.1f})"
+        elif influence <= 0.7:
+            weight_note = " (junior voice — needs senior backing to pass)"
+        system_msg = f"📋 {agent_name} has proposed: \"{detail}\"{weight_note}"
 
     elif action == "support_proposal":
-        # Support the leading/latest proposal
         leading = tracker.get_leading_proposal()
         target = leading or (tracker.proposals[-1] if tracker.proposals else None)
         if target and agent_name not in target.supporters:
             target.supporters.append(agent_name)
+            target.supporter_roles.append(agent_role)
             if agent_name in target.opponents:
-                target.opponents.remove(agent_name)
+                idx = target.opponents.index(agent_name)
+                target.opponents.pop(idx)
+                target.opponent_roles.pop(idx)
 
     elif action == "oppose_proposal":
         leading = tracker.get_leading_proposal()
         target = leading or (tracker.proposals[-1] if tracker.proposals else None)
         if target and agent_name not in target.opponents:
             target.opponents.append(agent_name)
+            target.opponent_roles.append(agent_role)
             if agent_name in target.supporters:
-                target.supporters.remove(agent_name)
+                idx = target.supporters.index(agent_name)
+                target.supporters.pop(idx)
+                target.supporter_roles.pop(idx)
+            # If a senior person opposes, it's notable
+            if get_role_influence(agent_role) >= 2.0:
+                system_msg = f"❌ {agent_name} (senior authority) opposes the current proposal."
 
     elif action == "escalate":
         tracker.escalation_count += 1
@@ -185,19 +252,37 @@ def process_agent_action(
             tracker.resign_threats.append(agent_name)
             system_msg = f"⚠️ {agent_name} has hinted at resignation."
 
-    # Check if a proposal has majority support (more than half of expected team)
+    elif action == "blame":
+        system_msg = f"👉 {agent_name} is pointing fingers. Team tension is rising."
+
+    # ── Check for decision (hierarchy-weighted threshold) ─────────
     if not tracker.decided_proposal:
         for proposal in tracker.proposals:
-            # Include proposer in supporter count
-            total_support = proposal.net_support + 1  # +1 for the proposer
-            if total_support >= 3:  # Majority for typical 4-person team
+            # Weighted threshold: need 3.0+ weighted influence
+            # (e.g., 1 Tech Lead + 1 Junior = 2.0 + 0.7 = 2.7, not enough)
+            # (e.g., 1 Tech Lead + 1 Senior = 2.0 + 1.5 = 3.5, passes)
+            if proposal.weighted_support >= 3.0:
                 tracker.decided_proposal = proposal
                 system_msg = (
                     f"✅ TEAM DECISION REACHED: \"{proposal.summary}\" "
                     f"(proposed by {proposal.proposer}, "
-                    f"supported by {', '.join(proposal.supporters)})"
+                    f"supported by {', '.join(proposal.supporters)}, "
+                    f"weighted influence: {proposal.weighted_support:.1f})"
                 )
+                # Apply decision consequences to world
+                if world:
+                    apply_decision_to_world(world)
                 break
+
+    # ── Add world change note to system message ───────────────────
+    if world_changes and not system_msg:
+        change_parts = []
+        for k, v in world_changes.items():
+            label = k.replace("_", " ").title()
+            sign = "+" if v > 0 else ""
+            change_parts.append(f"{label}: {sign}{v}%")
+        if change_parts:
+            system_msg = f"📉 Impact of {agent_name}'s action: {', '.join(change_parts)}"
 
     return system_msg
 
@@ -207,10 +292,10 @@ def determine_outcome(
     agents: list,
     total_rounds: int,
     current_round: int,
+    world: WorldState | None = None,
 ) -> SimulationOutcome:
     """
-    Determine the simulation outcome based on final state.
-    Called when the simulation ends.
+    Determine the simulation outcome based on final agent states AND world state.
     """
     tracker = get_tracker(sim_id)
 
@@ -223,46 +308,66 @@ def determine_outcome(
         return OUTCOMES["total_collapse"]
 
     avg_morale = sum(a.state.morale for a in active_agents) / len(active_agents)
-    avg_stress = sum(a.state.stress for a in active_agents) / len(active_agents)
 
     has_decision = tracker.decided_proposal is not None
     has_proposals = len(tracker.proposals) > 0
+
+    # World state factors
+    world_healthy = True
+    if world:
+        world_healthy = (
+            world.budget_remaining > 20
+            and world.customer_satisfaction > 30
+            and world.company_reputation > 25
+        )
 
     # Team fracture: >50% resigned or avg morale < 20
     if resigned_count > total_agents / 2 or avg_morale < 20:
         return OUTCOMES["team_fracture"]
 
-    # Stalemate: simulation ended without any proposals or decisions
+    # Stalemate: no proposals and world is deteriorating
     if not has_proposals and current_round >= total_rounds:
         return OUTCOMES["stalemate"]
 
-    # Team triumph: high morale, no resignations, decision made
-    if avg_morale > 60 and resigned_count == 0 and has_decision:
+    # Team triumph: high morale, no resignations, decision, healthy world
+    if avg_morale > 55 and resigned_count == 0 and has_decision and world_healthy:
         return OUTCOMES["team_triumph"]
 
-    # Negotiated settlement: decision reached, morale OK
+    # Negotiated settlement: decision reached, acceptable state
     if has_decision and avg_morale > 35:
         return OUTCOMES["negotiated_settlement"]
 
-    # Pyrrhic victory: some resolution but with casualties
-    if (has_decision or has_proposals) and resigned_count > 0:
+    # Pyrrhic victory: some resolution but with casualties or world damage
+    if (has_decision or has_proposals) and (resigned_count > 0 or not world_healthy):
         return OUTCOMES["pyrrhic_victory"]
 
-    # Default to stalemate if none matched
+    # Default fallbacks
     if avg_morale > 40:
         return OUTCOMES["negotiated_settlement"]
 
     return OUTCOMES["stalemate"]
 
 
-def build_outcome_message(outcome: SimulationOutcome) -> str:
-    """Build the dramatic ending system message."""
-    return (
+def build_outcome_message(outcome: SimulationOutcome, world: WorldState | None = None) -> str:
+    """Build the dramatic ending system message with world state summary."""
+    msg = (
         f"\n{'='*50}\n"
         f"{outcome.emoji}  SIMULATION OUTCOME: {outcome.title.upper()}\n"
         f"{'='*50}\n\n"
         f"{outcome.description}\n"
     )
+
+    if world:
+        msg += (
+            f"\n📊 FINAL WORLD STATE:\n"
+            f"  Budget: {world.budget_remaining}% | "
+            f"Customer Satisfaction: {world.customer_satisfaction}% | "
+            f"Reputation: {world.company_reputation}% | "
+            f"Team Capacity: {world.team_capacity}% | "
+            f"Technical Debt: {world.technical_debt}%\n"
+        )
+
+    return msg
 
 
 def cleanup_tracker(sim_id: str):

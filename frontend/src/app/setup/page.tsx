@@ -43,10 +43,10 @@ const POPULAR_MODELS = [
   { label: "Default (Global)", value: "__default__" },
   { label: "GPT-4o Mini", value: "gpt-4o-mini" },
   { label: "GPT-4o", value: "gpt-4o" },
-  { label: "Claude 3.5 Sonnet", value: "anthropic/claude-3.5-sonnet" },
+  { label: "Claude 3.7 Sonnet", value: "anthropic/claude-3.7-sonnet" },
   { label: "Claude 3 Haiku", value: "anthropic/claude-3-haiku" },
   { label: "Llama 3.1 8B (Free)", value: "meta-llama/llama-3.1-8b-instruct:free" },
-  { label: "Llama 3.1 70B", value: "meta-llama/llama-3.1-70b-instruct" },
+  { label: "Kimi K2.5", value: "moonshotai/kimi-k2.5" },
   { label: "Mistral 7B (Free)", value: "mistralai/mistral-7b-instruct:free" },
   { label: "Deepseek", value: "deepseek/deepseek-v3.2" },
   { label: "Gemini 2.0 Flash", value: "gemini-2.0-flash" },
@@ -772,7 +772,7 @@ export default function SetupPage() {
                   {customModel === "__custom__" && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="pt-1">
                       <Input
-                        placeholder="e.g. anthropic/claude-3.5-sonnet"
+                        placeholder="e.g. anthropic/claude-3.7-sonnet"
                         value={customModelInput}
                         onChange={(e) => setCustomModelInput(e.target.value)}
                         className="bg-background/50 font-mono text-xs"

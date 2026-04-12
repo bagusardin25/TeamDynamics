@@ -31,7 +31,7 @@ def _resolve_provider_and_model(agent_model: str | None) -> tuple[str, str | Non
     Returns (provider, model) where model may be None (= use env default).
     """
     if agent_model:
-        # OpenRouter models always contain "/" (e.g. "anthropic/claude-3.5-sonnet")
+        # OpenRouter models always contain "/" (e.g. "anthropic/claude-3.7-sonnet")
         if "/" in agent_model:
             return "openrouter", agent_model
         # Direct OpenAI model names
@@ -161,6 +161,10 @@ def _build_agent_system_prompt(
     memory: str = "",
     agenda: dict | None = None,
     decision_context: str = "",
+    world_state_text: str = "",
+    hierarchy_desc: str = "",
+    hidden_agenda: str = "",
+    action_consequences: str = "",
 ) -> str:
     """Build the system prompt for an agent with full personality voice and memory."""
     personality = agent.get("personality", {})
@@ -201,6 +205,29 @@ AVAILABLE ACTIONS:
     if decision_context:
         decision_section = f"\nTEAM DECISION STATUS: {decision_context}"
 
+    # World state section
+    world_section = ""
+    if world_state_text:
+        world_section = f"\n{world_state_text}"
+
+    # Hierarchy section
+    hierarchy_section = ""
+    if hierarchy_desc:
+        hierarchy_section = f"\nYOUR POSITION IN THE HIERARCHY: {hierarchy_desc}"
+
+    # Hidden agenda section (only visible to this agent)
+    hidden_section = ""
+    if hidden_agenda:
+        hidden_section = f"""\nYOUR HIDDEN AGENDA (SECRET — this drives your INTERNAL decisions but you NEVER say it openly):
+{hidden_agenda}
+Your hidden agenda should subtly influence your proposals, who you support/oppose, and your internal thoughts.
+NEVER state your hidden agenda in your public_message. It should only show in internal_thought and in the WAY you argue."""
+
+    # Action consequences section
+    consequences_section = ""
+    if action_consequences:
+        consequences_section = f"\nRECENT ACTION CONSEQUENCES (actions have REAL impact):\n{action_consequences}\nLearn from these — if previous actions backfired, adapt your strategy."
+
     # Dynamic state_changes range based on personality
     stress_tol = personality.get("stressTolerance", personality.get("stress_tolerance", 50))
     empathy_val = personality.get("empathy", 50)
@@ -223,8 +250,10 @@ YOUR PERSONALITY PROFILE (these numbers define WHO YOU ARE — your speech MUST 
 - Agreeableness: {personality.get('agreeableness', 50)}/100
 - Assertiveness: {personality.get('assertiveness', 50)}/100
 {motivation_section}{expertise_section}
+{hierarchy_section}
 
 {voice}
+{hidden_section}
 
 YOUR CURRENT STATE:
 - Morale: {state.get('morale', 70)}% {'⚠️ CRITICALLY LOW' if state.get('morale', 70) < 25 else ''}
@@ -233,27 +262,32 @@ YOUR CURRENT STATE:
 - Productivity: {state.get('productivity', 75)}%
 {memory_section}
 CRISIS: {crisis}
+{world_section}
 {agenda_section}
 {decision_section}
+{consequences_section}
 
 RULES:
 1. Your personality numbers DIRECTLY control your speech style. Follow your COMMUNICATION DNA above exactly.
 2. Your public message is what you'd say in the team meeting — keep it natural, in-character, and DISTINCTIVE.
-3. Your internal thought reveals what you're TRULY thinking but NOT saying out loud.
+3. Your internal thought reveals what you're TRULY thinking but NOT saying. Your hidden agenda should influence your internal thought.
 4. You MUST take a concrete ACTION from the available actions list. Don't just talk — DO something.
 5. Your memory_update should capture the KEY TAKEAWAY from this round — what would you remember next week?
-6. If morale is below 25, you are deeply unhappy — show it viscerally in your speech.
-7. If stress is above 85, you are near breaking point — your speech should show cracks.
-8. REACT to what others said. Don't repeat yourself. Push the conversation FORWARD.
-9. If someone proposed a solution, you MUST have an opinion on it — support, oppose, or modify.
-10. NEVER break character. NEVER sound like an AI. Each agent must sound COMPLETELY DIFFERENT from the others.
-11. Reference your expertise when relevant.
-12. Keep public_message to 1-3 sentences.
+6. PROPOSALS MUST BE FEASIBLE given the WORLD STATE constraints above. Don't propose things the budget or timeline can't support.
+7. If morale is below 25, you are deeply unhappy — show it viscerally in your speech.
+8. If stress is above 85, you are near breaking point — your speech should show cracks.
+9. REACT to what others said. Don't repeat yourself. Push the conversation FORWARD.
+10. If someone proposed a solution, you MUST have an opinion — support, oppose, or modify. Consider how it affects YOUR hidden agenda.
+11. Your HIERARCHY POSITION matters — if you're senior, you can be more directive. If junior, you need to be strategic about influence.
+12. LEARN FROM CONSEQUENCES — if previous actions made things worse, acknowledge it and adapt.
+13. NEVER break character. NEVER sound like an AI. Each agent must sound COMPLETELY DIFFERENT from the others.
+14. Reference your expertise when relevant.
+15. Keep public_message to 1-3 sentences.
 
 Respond ONLY with valid JSON in this exact format:
 {{
   "public_message": "What you say publicly (1-3 sentences, YOUR unique voice)",
-  "internal_thought": "What you're truly thinking but not saying (1-2 sentences)",
+  "internal_thought": "What you're truly thinking, including hidden agenda reasoning (1-2 sentences)",
   "state_changes": {{
     "morale": <integer between {morale_lo} and {morale_hi}>,
     "stress": <integer between {stress_lo} and {stress_hi}>,
@@ -398,11 +432,15 @@ async def generate_agent_response(
     memory: str = "",
     agenda: dict | None = None,
     decision_context: str = "",
+    world_state_text: str = "",
+    hierarchy_desc: str = "",
+    hidden_agenda: str = "",
+    action_consequences: str = "",
 ) -> dict:
     """
     Generate an agent's response using the configured LLM provider.
     Supports per-agent model override via agent['model'].
-    Now includes memory injection, agenda context, and action output.
+    Now includes memory, agenda, world state, hierarchy, hidden agendas, and consequences.
     Returns dict with public_message, internal_thought, state_changes, memory_update, action.
     """
     system_prompt = _build_agent_system_prompt(
@@ -410,6 +448,10 @@ async def generate_agent_response(
         memory=memory,
         agenda=agenda,
         decision_context=decision_context,
+        world_state_text=world_state_text,
+        hierarchy_desc=hierarchy_desc,
+        hidden_agenda=hidden_agenda,
+        action_consequences=action_consequences,
     )
     user_prompt = _build_round_user_prompt(
         round_num, total_rounds, conversation_history, intervention
