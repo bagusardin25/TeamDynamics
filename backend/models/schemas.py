@@ -194,3 +194,5 @@ class ReportResponse(BaseModel):
     agent_reports: list[AgentReport]
     productivity_drop: int
     recommendations: list[str]
+    timeline: list[dict] = []
+
