@@ -438,7 +438,7 @@ export default function SetupPage() {
 
                   {/* Right: Roster */}
                   <Card className="border-primary/20 bg-card/50 shadow-2xl relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
+                    <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent pointer-events-none" />
                     <CardHeader className="flex flex-row items-start justify-between gap-4 pb-2 border-b border-border/50">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -527,7 +527,7 @@ export default function SetupPage() {
                         <label className="font-medium">Duration (Weeks)</label>
                         <span className="text-xl font-bold text-primary">{durationWeeks}</span>
                       </div>
-                      <Slider value={[durationWeeks]} onValueChange={(val) => setDurationWeeks(val[0])} max={24} min={1} step={1} className="py-4" />
+                      <Slider value={[durationWeeks]} onValueChange={(val: number[]) => setDurationWeeks(val[0])} max={24} min={1} step={1} className="py-4" />
                     </div>
 
                     <div className="space-y-4">
@@ -535,7 +535,7 @@ export default function SetupPage() {
                         <label className="font-medium">Pacing Speed</label>
                         <span className="text-xl font-bold text-primary">{getPacingLabel()}</span>
                       </div>
-                      <Slider value={[pacingSpeed]} onValueChange={(val) => setPacingSpeed(val[0])} max={100} step={50} className="py-4" />
+                      <Slider value={[pacingSpeed]} onValueChange={(val: number[]) => setPacingSpeed(val[0])} max={100} step={50} className="py-4" />
                       <p className="text-xs text-muted-foreground">Determines how fast agents reply in the simulated chat UI.</p>
                     </div>
 
@@ -704,7 +704,7 @@ export default function SetupPage() {
                     <Cpu className="w-3 h-3" /> AI Model (Optional)
                   </label>
                   <p className="text-[10px] text-muted-foreground">Assign a specific AI model to this agent via OpenRouter. Leave as &quot;Default&quot; to use the global provider.</p>
-                  <Select value={customModel} onValueChange={(val) => { setCustomModel(val); if (val !== "__custom__") setCustomModelInput(""); }}>
+                  <Select value={customModel} onValueChange={(val) => { setCustomModel(val || ""); if (val !== "__custom__") setCustomModelInput(""); }}>
                     <SelectTrigger className="bg-background/50">
                       <SelectValue placeholder="Default (Global Provider)" />
                     </SelectTrigger>

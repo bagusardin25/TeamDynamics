@@ -201,9 +201,10 @@ export default function LandingPage() {
               </motion.span>
             </Button>
           </Link>
-          <Link href="#how-it-works">
-            <Button size="lg" variant="outline" className="h-16 px-10 text-lg font-semibold w-full sm:w-auto rounded-2xl border-border/60 hover:bg-secondary/50 backdrop-blur-sm">
-              Explore Sandbox
+          <Link href="/report?id=demo">
+            <Button size="lg" variant="outline" className="h-16 px-10 text-lg font-semibold w-full sm:w-auto rounded-2xl border-border/60 hover:bg-secondary/50 backdrop-blur-sm group hover:border-orange-500/50">
+              <Zap className="mr-2 w-5 h-5 text-orange-500 group-hover:animate-pulse" />
+              Live Demo Report
             </Button>
           </Link>
         </motion.div>

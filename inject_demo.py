@@ -1,62 +1,7 @@
-"""
-Simulation CRUD and control routes.
-"""
+with open("backend/routers/simulation.py", "r", encoding="utf-8") as f:
+    content = f.read()
 
-from fastapi import APIRouter, HTTPException, Depends
-from models.schemas import (
-    CreateSimulationRequest, SimulationResponse, SimulationMetrics,
-    InterventionRequest, SimulationStatus, AgentState, GenerateCrisisRequest,
-    Message, StateChanges,
-)
-from services.simulation_engine import (
-    create_simulation, get_simulation_state, process_intervention, compute_metrics,
-)
-from services.report_generator import generate_report
-from routers.auth import get_current_user, TokenData
-
-router = APIRouter(prefix="/api/simulation", tags=["simulation"])
-
-
-
-@router.post("/generate-crisis")
-async def generate_crisis(request: GenerateCrisisRequest):
-    """Generate a custom crisis tailored to the company using AI."""
-    from services.llm_service import generate_tailored_crisis
-    
-    crisis = await generate_tailored_crisis(request.company_name, request.company_culture)
-    return crisis
-
-@router.post("/create")
-async def create_sim(
-    request: CreateSimulationRequest,
-    current_user: TokenData | None = Depends(get_current_user),
-):
-    """Create a new simulation and return its ID."""
-    from models.database import get_user_by_id, update_user_credits
-
-    user_id = current_user.user_id if current_user else None
-
-    # Credit check for authenticated non-admin users
-    if current_user and current_user.role != "admin":
-        user = await get_user_by_id(current_user.user_id)
-        if user and user["credits"] <= 0:
-            raise HTTPException(
-                status_code=403,
-                detail="No simulation credits remaining. Please upgrade your plan."
-            )
-
-    sim_id = await create_simulation(request, user_id=user_id)
-
-    # Deduct credit for authenticated non-admin users
-    if current_user and current_user.role != "admin":
-        user = await get_user_by_id(current_user.user_id)
-        if user:
-            await update_user_credits(current_user.user_id, max(0, user["credits"] - 1))
-
-    return {"id": sim_id, "status": "idle"}
-
-
-
+demo_status = """
 @router.get("/{sim_id}/status")
 async def get_sim_status(sim_id: str):
     if sim_id == "demo":
@@ -80,74 +25,13 @@ async def get_sim_status(sim_id: str):
             ],
             "metrics": {"company_morale": 58, "company_stress": 60, "company_productivity": 75}
         }
-    """Get current simulation status, round, agents, messages, and metrics."""
-    state = await get_simulation_state(sim_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="Simulation not found")
+    \"\"\"Get current simulation status, round, agents, messages, and metrics.\"\"\""""
 
-    agents = state["agents"]
-    metrics = compute_metrics(agents)
+content = content.replace("""@router.get("/{sim_id}/status")
+async def get_sim_status(sim_id: str):
+    \"\"\"Get current simulation status, round, agents, messages, and metrics.\"\"\"""", demo_status)
 
-    # Convert agents to serializable format
-    agents_data = []
-    for a in agents:
-        agents_data.append({
-            "id": a.id,
-            "name": f"{a.name} ({a.role})",
-            "morale": a.state.morale,
-            "stress": a.state.stress,
-            "loyalty": a.state.loyalty,
-            "productivity": a.state.productivity,
-            "initials": a.initials or a.compute_initials(),
-            "has_resigned": a.has_resigned,
-            "resigned_week": a.resigned_week,
-        })
-
-    return {
-        "id": state["id"],
-        "status": state["status"].value if isinstance(state["status"], SimulationStatus) else state["status"],
-        "currentRound": state["current_round"],
-        "totalRounds": state["total_rounds"],
-        "company": state["company"],
-        "agents": agents_data,
-        "messages": state["messages"],
-        "metrics": metrics,
-    }
-
-
-@router.post("/{sim_id}/intervene")
-async def intervene(sim_id: str, request: InterventionRequest):
-    """Send a God Mode intervention to an active simulation."""
-    state = await get_simulation_state(sim_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="Simulation not found")
-
-    from routers.websocket import broadcast_message
-    msg = await process_intervention(
-        sim_id, request.type, request.custom_message, ws_broadcast=broadcast_message,
-    )
-
-    # Return updated metrics
-    agents = state["agents"]
-    metrics = compute_metrics(agents)
-
-    return {
-        "message": msg,
-        "metrics": metrics,
-        "agents": [
-            {
-                "id": a.id,
-                "name": f"{a.name} ({a.role})",
-                "morale": a.state.morale,
-                "stress": a.state.stress,
-                "initials": a.initials or a.compute_initials(),
-            }
-            for a in agents
-        ],
-    }
-
-
-
+demo_report = """
 @router.get("/{sim_id}/report")
 async def get_report(sim_id: str):
     if sim_id == "demo":
@@ -219,10 +103,13 @@ async def get_report(sim_id: str):
                 {"round": 12, "company_morale": 58, "company_stress": 60, "company_productivity": 75}
             ]
         }
-    """Generate and return the post-simulation report."""
-    state = await get_simulation_state(sim_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="Simulation not found")
+    \"\"\"Generate and return the post-simulation report.\"\"\""""
 
-    report = await generate_report(state)
-    return report.model_dump()
+content = content.replace("""@router.get("/{sim_id}/report")
+async def get_report(sim_id: str):
+    \"\"\"Generate and return the post-simulation report.\"\"\"""", demo_report)
+
+with open("backend/routers/simulation.py", "w", encoding="utf-8") as f:
+    f.write(content)
+
+print("Injected DEMO endpoints successfully!")

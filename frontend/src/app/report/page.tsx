@@ -4,7 +4,10 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Download, ChevronLeft, Calendar, FileText, AlertTriangle, TrendingDown, Users, Loader2, Activity } from "lucide-react";
+import { 
+  Download, ChevronLeft, Calendar, FileText, AlertTriangle, 
+  TrendingDown, Users, Loader2, Activity, Share2, TrendingUp, AlertCircle, RefreshCw 
+} from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,6 +104,13 @@ function ReportContent() {
     }
   }, [report]);
 
+  const copyShareLink = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Shareable link copied to clipboard!");
+    }
+  };
+
   useEffect(() => {
     if (!simId) {
       setError("No simulation ID provided.");
@@ -182,19 +192,29 @@ function ReportContent() {
             <h1 className="text-3xl font-bold tracking-tight">Post-Simulation Report</h1>
             <p className="text-muted-foreground">{report.company_name} • {report.crisis_name} • Completed round {report.completed_rounds}/{report.total_rounds}</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-10"
-            onClick={exportToPDF}
-            disabled={isExporting}
-          >
-            {isExporting ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Exporting...</>
-            ) : (
-              <><Download className="w-4 h-4 mr-2" /> Export to PDF</>
-            )}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 text-primary hover:text-primary hover:bg-primary/10 border-primary/20"
+              onClick={copyShareLink}
+            >
+              <Share2 className="w-4 h-4 mr-2" /> Share Link
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10"
+              onClick={exportToPDF}
+              disabled={isExporting}
+            >
+              {isExporting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Exporting...</>
+              ) : (
+                <><Download className="w-4 h-4 mr-2" /> Export to PDF</>
+              )}
+            </Button>
+          </div>
         </div>
 
         <Separator />

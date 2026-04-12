@@ -3,7 +3,8 @@
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell } from "lucide-react";
+import { Bell, Volume2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { SimMessage } from "@/app/simulation/types";
 
 interface MessageBubbleProps {
@@ -26,6 +27,19 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
       </motion.div>
     );
   }
+  const playVoice = (text: string, stressDelta: number = 0) => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Hackathon Gamification: Change voice properties under stress!
+      const isHighlyStressed = stressDelta >= 5;
+      utterance.pitch = isHighlyStressed ? 0.6 : 1.0; // Voice drop
+      utterance.rate = isHighlyStressed ? 1.2 : 1.0;  // Speak faster
+      
+      window.speechSynthesis.speak(utterance);
+    }
+  };
 
   return (
     <div className="flex gap-4 w-full">
@@ -46,6 +60,15 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm truncate">{msg.agent || msg.agent_name}</span>
+          <Button 
+             variant="ghost" 
+             size="icon" 
+             className="h-5 w-5 ml-1 bg-transparent hover:bg-primary/20 text-muted-foreground hover:text-primary rounded-full transition-colors"
+             onClick={() => playVoice(msg.content, msg.changes?.stress || msg.state_changes?.stress || 0)}
+             title="Listen In"
+          >
+             <Volume2 className="h-3 w-3" />
+          </Button>
         </div>
         <motion.div
           initial={{ opacity: 0, x: -8 }}
