@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/contexts/auth-context";
+import { toast } from "sonner";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const MAX_ROSTER_SIZE = 8;
@@ -186,11 +187,11 @@ export default function SetupPage() {
 
   const handleStartSimulation = async () => {
     if (!crisis) {
-      alert("Please select a crisis scenario before starting.");
+      toast.warning("Please select a crisis scenario before starting.");
       return;
     }
     if (selectedAgents.length === 0) {
-      alert("Please select at least one agent.");
+      toast.warning("Please select at least one agent.");
       return;
     }
 
@@ -231,14 +232,21 @@ export default function SetupPage() {
       });
 
       if (!res.ok) {
-        throw new Error("Failed to create simulation");
+        const errData = await res.json().catch(() => null);
+        if (res.status === 403) {
+          toast.error(errData?.detail || "No simulation credits remaining.");
+          setIsLoading(false);
+          return;
+        }
+        throw new Error(errData?.detail || "Failed to create simulation");
       }
 
       const data = await res.json();
+      toast.success("Simulation created! Redirecting...");
       router.push(`/simulation?id=${data.id}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to start simulation:", err);
-      alert("Failed to start simulation. Make sure the backend server is running on port 8000.");
+      toast.error(err.message || "Failed to start simulation. Make sure the backend server is running.");
       setIsLoading(false);
     }
   };

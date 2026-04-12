@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -92,7 +93,7 @@ function ReportContent() {
       pdf.save(`TeamDynamics_Report_${report.company_name.replace(/\s+/g, "_")}.pdf`);
     } catch (err) {
       console.error("PDF export failed:", err);
-      alert("Failed to export PDF. Please try again.");
+      toast.error("Failed to export PDF. Please try again.");
     } finally {
       setIsExporting(false);
     }

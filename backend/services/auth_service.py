@@ -10,17 +10,17 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from dotenv import load_dotenv
 from jose import JWTError, jwt
 from pydantic import BaseModel
 import bcrypt
+
+load_dotenv()
 
 # JWT Configuration
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "teamdynamics-secret-key-change-in-production-" + str(uuid.uuid4()))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-
-# Admin email (no-limit account)
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
 
 
 class TokenData(BaseModel):
@@ -73,6 +73,8 @@ def decode_access_token(token: str) -> TokenData | None:
 
 def is_admin_email(email: str) -> bool:
     """Check if an email is designated as admin (no-limit)."""
-    if not ADMIN_EMAIL:
+    admin_email = os.getenv("ADMIN_EMAIL", "")
+    if not admin_email:
         return False
-    return email.lower() == ADMIN_EMAIL.lower()
+    return email.lower() == admin_email.lower()
+
