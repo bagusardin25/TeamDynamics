@@ -178,7 +178,7 @@ export default function LandingPage() {
           </div>
 
           {/* Floating UI Elements based on pressure */}
-          <div className="absolute -left-20 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-3">
+          <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-3">
              <FloatingStat icon={<Users className="w-3 h-3"/>} label="Morale" value={100 - (pressureValue * 0.8)} color="bg-emerald-500" />
              <FloatingStat icon={<Activity className="w-3 h-3"/>} label="Output" value={pressureValue < 80 ? pressureValue + 20 : 40} color="bg-blue-500" />
           </div>
