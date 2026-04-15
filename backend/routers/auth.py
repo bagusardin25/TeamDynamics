@@ -48,7 +48,8 @@ class LoginRequest(BaseModel):
 
 
 class GoogleAuthRequest(BaseModel):
-    credential: str  # Google ID token from frontend
+    credential: str  # Google access token or ID token from frontend
+    user_info: Optional[dict] = None  # Optional pre-fetched user info (will be verified server-side)
 
 
 class AuthResponse(BaseModel):
@@ -160,21 +161,33 @@ async def login(req: LoginRequest):
 
 @router.post("/google", response_model=AuthResponse)
 async def google_auth(req: GoogleAuthRequest):
-    """Authenticate with Google OAuth. Creates account if new user."""
-    # Verify the Google ID token
+    """Authenticate with Google OAuth. Supports both access token and ID token flows.
+    Creates account if new user."""
+    google_data = None
+
     try:
         async with httpx.AsyncClient() as client:
+            # Try as access token first (OAuth2 token client flow)
             resp = await client.get(
-                f"https://oauth2.googleapis.com/tokeninfo?id_token={req.credential}"
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {req.credential}"},
             )
-            if resp.status_code != 200:
-                raise HTTPException(status_code=401, detail="Invalid Google token")
-            google_data = resp.json()
+            if resp.status_code == 200:
+                google_data = resp.json()
+            else:
+                # Fallback: try as ID token (legacy flow)
+                resp2 = await client.get(
+                    f"https://oauth2.googleapis.com/tokeninfo?id_token={req.credential}"
+                )
+                if resp2.status_code == 200:
+                    google_data = resp2.json()
+                else:
+                    raise HTTPException(status_code=401, detail="Invalid Google token")
     except httpx.RequestError:
         raise HTTPException(status_code=502, detail="Failed to verify Google token")
 
     email = google_data.get("email")
-    name = google_data.get("name", email.split("@")[0])
+    name = google_data.get("name", email.split("@")[0] if email else "User")
     avatar = google_data.get("picture")
 
     if not email:
