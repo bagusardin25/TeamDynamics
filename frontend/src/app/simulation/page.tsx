@@ -69,6 +69,7 @@ function SimulationContent() {
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
         onEndSimulation={handleEndSimulation}
+        onExit={() => router.push("/dashboard")}
       />
 
       {/* Progress Bar */}

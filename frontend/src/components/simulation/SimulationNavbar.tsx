@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, LogOut } from "lucide-react";
 
 interface SimulationNavbarProps {
   status: string;
@@ -14,6 +14,7 @@ interface SimulationNavbarProps {
   soundEnabled: boolean;
   onToggleSound: () => void;
   onEndSimulation: () => void;
+  onExit: () => void;
 }
 
 export function SimulationNavbar({
@@ -25,6 +26,7 @@ export function SimulationNavbar({
   soundEnabled,
   onToggleSound,
   onEndSimulation,
+  onExit,
 }: SimulationNavbarProps) {
   return (
     <header className="h-14 border-b border-border bg-card/40 flex items-center justify-between px-6 shrink-0 z-10 backdrop-blur-md">
@@ -61,6 +63,9 @@ export function SimulationNavbar({
             <TooltipContent>{soundEnabled ? "Mute sounds" : "Enable sounds"}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <Button size="sm" variant="ghost" className="h-8 text-muted-foreground hover:text-foreground" onClick={onExit}>
+          <LogOut className="w-4 h-4 mr-1.5" /> Exit
+        </Button>
         <Button size="sm" variant="outline" className="h-8" onClick={onEndSimulation}>
           End &amp; View Report
         </Button>

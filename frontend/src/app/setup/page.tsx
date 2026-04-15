@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles, FileUp, FileText, CheckCircle2 } from "lucide-react";
+import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles, FileUp, FileText, CheckCircle2, ChevronLeft } from "lucide-react";
+import Link from "next/link";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -376,6 +377,9 @@ export default function SetupPage() {
         {/* Header & Stepper */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-border/50">
           <div>
+            <Link href="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors mb-3">
+              <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
+            </Link>
             <h1 className="text-3xl font-bold tracking-tight mb-2">Configure Simulation</h1>
             <p className="text-muted-foreground">Setup your team, inject the crisis, and watch the chaos.</p>
           </div>
