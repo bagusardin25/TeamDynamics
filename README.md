@@ -38,12 +38,13 @@ Inside your terminal, navigate to the `backend` folder and start the API:
 ```bash
 cd backend
 
-# (Optional) Create and activate a virtual environment
+# Create and activate a virtual environment
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate          # Windows
+# source venv/bin/activate    # macOS / Linux
 
-# Install dependencies (assuming requirements.txt is mapped)
-pip install fastapi "uvicorn[standard]" sqlmodel python-dotenv openai anthropic
+# Install all dependencies from requirements.txt
+pip install -r requirements.txt
 
 # Create a .env file locally with:
 # OPENROUTER_API_KEY=your_key_here

@@ -362,24 +362,24 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         if ws_broadcast:
             await _broadcast_typing(sim_id, agent, ws_broadcast)
 
-        # Build conversation history for context
+        # Build conversation history for context (expanded window for better coherence)
         conv_history = [
             {
                 "type": m.get("type", "public"),
                 "agent_name": m.get("agent_name", "System"),
                 "content": m.get("content", ""),
             }
-            for m in state["messages"][-15:]
+            for m in state["messages"][-20:]
         ]
 
         # ── Fetch agent memory ────────────────────────────────────
         try:
             raw_memory = await get_agent_memory(sim_id, agent.id)
             memory_list = json.loads(raw_memory) if raw_memory else []
-            # Format as readable text (last 5 memories)
+            # Format as readable text (last 8 memories for richer context)
             memory_text = "\n".join(
                 f"- Week {m.get('round', '?')}: {m.get('memory', '')}"
-                for m in memory_list[-5:]
+                for m in memory_list[-8:]
             ) if memory_list else ""
         except Exception:
             memory_text = ""

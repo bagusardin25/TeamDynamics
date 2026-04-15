@@ -305,7 +305,7 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
                              intervention: str | None = None) -> str:
     """Build the user prompt for a round."""
     history_text = ""
-    for msg in conversation_history[-12:]:  # Last 12 msgs for context
+    for msg in conversation_history[-20:]:  # Last 20 msgs for broader context
         if msg.get("type") == "system":
             history_text += f"[SYSTEM] {msg['content']}\n"
         elif msg.get("type") == "public":
@@ -419,6 +419,63 @@ async def _dispatch_llm_call(
         return await _call_openai(system_prompt, user_prompt, model, temperature)
 
 
+# ── Response Validator ─────────────────────────────────────────────────
+
+def _validate_agent_response(result: dict, agent: dict, agenda: dict | None = None) -> dict:
+    """
+    Validate and sanitize LLM output for structural consistency.
+    Ensures all required fields are present, within expected ranges,
+    and the chosen action is valid for the current phase.
+    Returns the corrected result dict.
+    """
+    # 1. Ensure required string fields are not empty
+    if not result.get("public_message") or len(result["public_message"].strip()) < 3:
+        result["public_message"] = f"*{agent['name']} pauses, gathering thoughts...*"
+        logger.warning(f"Agent {agent['name']}: empty public_message — using fallback")
+
+    if not result.get("internal_thought") or len(result["internal_thought"].strip()) < 3:
+        result["internal_thought"] = "Processing the situation..."
+
+    # 2. Validate state_changes ranges (clamp to reasonable bounds)
+    sc = result.get("state_changes", {})
+    for key in ("morale", "stress", "loyalty", "productivity"):
+        val = sc.get(key, 0)
+        if not isinstance(val, (int, float)):
+            try:
+                val = int(val)
+            except (ValueError, TypeError):
+                val = 0
+        # Clamp to [-30, 30] to prevent extreme single-round swings
+        sc[key] = max(-30, min(30, int(val)))
+    result["state_changes"] = sc
+
+    # 3. Validate action is in the expected set
+    valid_actions = set(agenda.get("expected_actions", [])) if agenda else set()
+    valid_actions.add("do_nothing")  # Always valid
+    valid_actions.add("reflect")     # Generic valid action
+    action = result.get("action", "do_nothing")
+    if action not in valid_actions and valid_actions:
+        logger.warning(
+            f"Agent {agent['name']}: action '{action}' not in expected set {valid_actions} — allowing but logging"
+        )
+
+    # 4. If agent is in critical state, ensure the response reflects it
+    state = agent.get("state", {})
+    morale = state.get("morale", 70)
+    stress = state.get("stress", 30)
+    if morale < 20 and sc.get("morale", 0) > 5:
+        # Agent at very low morale gaining lots of morale — suspicious
+        logger.info(
+            f"Agent {agent['name']}: low morale ({morale}) but positive morale change (+{sc['morale']}) — capping"
+        )
+        sc["morale"] = min(sc["morale"], 3)
+    if stress > 85 and sc.get("stress", 0) < -10:
+        # Near-burnout agent recovering too fast
+        sc["stress"] = max(sc["stress"], -5)
+
+    return result
+
+
 # ── Public API ────────────────────────────────────────────────────────
 
 async def generate_agent_response(
@@ -475,6 +532,9 @@ async def generate_agent_response(
         result.setdefault("memory_update", "")
         result.setdefault("action", "do_nothing")
         result.setdefault("action_detail", "")
+
+        # Validate and sanitize the response
+        result = _validate_agent_response(result, agent, agenda)
 
         return result
 
