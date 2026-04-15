@@ -15,6 +15,36 @@ interface MessageBubbleProps {
 
 export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) {
   if (msg.type === "system") {
+    const isOutcome = msg.content.includes("SIMULATION OUTCOME:");
+    const isDecision = msg.content.includes("TEAM DECISION REACHED:");
+
+    if (isOutcome) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full rounded-xl bg-gradient-to-br from-primary/10 via-card to-violet-500/5 border-2 border-primary/30 p-5 text-sm text-foreground my-4 shadow-lg shadow-primary/10"
+        >
+          <div className="leading-relaxed font-medium whitespace-pre-line">{msg.content}</div>
+        </motion.div>
+      );
+    }
+
+    if (isDecision) {
+      return (
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full rounded-xl bg-green-500/10 border border-green-500/30 p-4 flex gap-3 text-sm text-foreground my-2"
+        >
+          <Bell className="w-5 h-5 text-green-500 shrink-0" />
+          <div className="pt-0.5 leading-relaxed font-semibold">{msg.content}</div>
+        </motion.div>
+      );
+    }
+
     return (
       <motion.div
         initial={{ opacity: 0, x: -20 }}

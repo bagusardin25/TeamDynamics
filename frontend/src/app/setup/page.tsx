@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles } from "lucide-react";
+import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles, FileUp, FileText, CheckCircle2 } from "lucide-react";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +106,21 @@ export default function SetupPage() {
   // Preset picker dropdown
   const [showPresetPicker, setShowPresetPicker] = useState(false);
 
+  // Document upload state
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [docAnalysis, setDocAnalysis] = useState<{
+    filename: string;
+    analysis: {
+      summary: string;
+      key_requirements: string[];
+      team_risks: string[];
+      suggested_crisis: { title: string; description: string };
+      suggested_agents: { role: string; type: string; rationale: string }[];
+      actionable_insights: string[];
+    };
+  } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+
   // Fetch preset agents on mount
   useEffect(() => {
     fetch(`${API_BASE}/api/agents/presets`)
@@ -160,6 +175,53 @@ export default function SetupPage() {
     } finally {
       setIsGeneratingCrisis(false);
     }
+  };
+
+  const handleDocumentUpload = async (file: File) => {
+    if (!file) return;
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error("File too large. Maximum size is 10MB.");
+      return;
+    }
+    const allowedExts = [".pdf", ".docx", ".doc", ".txt", ".csv", ".xlsx", ".xls"];
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!allowedExts.includes(ext)) {
+      toast.error(`Unsupported format: ${ext}. Allowed: ${allowedExts.join(", ")}`);
+      return;
+    }
+    setIsAnalyzing(true);
+    setDocAnalysis(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_BASE}/api/document/analyze`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detail || "Analysis failed");
+      }
+      const data = await res.json();
+      setDocAnalysis({ filename: data.filename, analysis: data.analysis });
+      toast.success("Document analyzed successfully!");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Document analysis failed.");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const applyDocSuggestions = () => {
+    if (!docAnalysis) return;
+    const a = docAnalysis.analysis;
+    if (a.suggested_crisis) {
+      setCrisis("custom");
+      setCustomCrisis(`[${a.suggested_crisis.title}]\n\n${a.suggested_crisis.description}`);
+    }
+    toast.success("Suggestions applied! Check crisis and review agents.");
   };
 
   const openCreateModal = () => {
@@ -392,6 +454,129 @@ export default function SetupPage() {
                   </CardContent>
                 </Card>
 
+                {/* Document Upload & AI Analysis */}
+                <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl border-t-4 border-t-violet-500">
+                  <CardHeader>
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileUp className="w-5 h-5 text-violet-500" />
+                      <CardTitle>AI Document Analysis</CardTitle>
+                      <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-400 border-none">New</Badge>
+                    </div>
+                    <CardDescription>Upload a document (PDF, DOCX, TXT, CSV, Excel) for AI-powered requirement extraction and crisis suggestions.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Drop zone */}
+                    <div
+                      className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
+                        dragOver ? "border-violet-500 bg-violet-500/10" : "border-border/60 hover:border-violet-500/50 hover:bg-violet-500/5"
+                      } ${isAnalyzing ? "pointer-events-none opacity-60" : ""}`}
+                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                      onDragLeave={() => setDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOver(false);
+                        const file = e.dataTransfer.files[0];
+                        if (file) handleDocumentUpload(file);
+                      }}
+                      onClick={() => {
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = ".pdf,.docx,.doc,.txt,.csv,.xlsx,.xls";
+                        input.onchange = (e) => {
+                          const file = (e.target as HTMLInputElement).files?.[0];
+                          if (file) handleDocumentUpload(file);
+                        };
+                        input.click();
+                      }}
+                    >
+                      {isAnalyzing ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
+                          <p className="text-sm font-medium text-violet-400">Analyzing document...</p>
+                          <p className="text-xs text-muted-foreground">AI is extracting requirements and insights</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <FileUp className={`w-8 h-8 ${dragOver ? "text-violet-500" : "text-muted-foreground"}`} />
+                          <p className="text-sm font-medium">Drop a file here or click to upload</p>
+                          <p className="text-xs text-muted-foreground">PDF, DOCX, TXT, CSV, Excel — Max 10MB</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Analysis Results */}
+                    <AnimatePresence>
+                      {docAnalysis && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden">
+                          <div className="rounded-xl bg-violet-500/5 border border-violet-500/20 p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              <span className="text-sm font-semibold">Analysis: {docAnalysis.filename}</span>
+                            </div>
+
+                            {/* Summary */}
+                            <p className="text-sm text-muted-foreground leading-relaxed">{docAnalysis.analysis.summary}</p>
+
+                            {/* Key Requirements */}
+                            {docAnalysis.analysis.key_requirements.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Key Requirements</h4>
+                                <ul className="space-y-1">
+                                  {docAnalysis.analysis.key_requirements.map((req, i) => (
+                                    <li key={i} className="text-xs text-foreground flex gap-2"><span className="text-violet-400 shrink-0">•</span>{req}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Team Risks */}
+                            {docAnalysis.analysis.team_risks.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Team Risks</h4>
+                                <ul className="space-y-1">
+                                  {docAnalysis.analysis.team_risks.map((risk, i) => (
+                                    <li key={i} className="text-xs text-orange-400 flex gap-2"><AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{risk}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Suggested Crisis */}
+                            {docAnalysis.analysis.suggested_crisis && (
+                              <div className="rounded-lg bg-orange-500/10 border border-orange-500/20 p-3">
+                                <h4 className="text-xs font-semibold text-orange-400 mb-1">💥 Suggested Crisis</h4>
+                                <p className="text-xs font-medium">{docAnalysis.analysis.suggested_crisis.title}</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">{docAnalysis.analysis.suggested_crisis.description}</p>
+                              </div>
+                            )}
+
+                            {/* Suggested Agents */}
+                            {docAnalysis.analysis.suggested_agents.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Suggested Team Roles</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {docAnalysis.analysis.suggested_agents.map((agent, i) => (
+                                    <div key={i} className="rounded-lg bg-background/50 border border-border/50 p-2">
+                                      <div className="text-xs font-semibold">{agent.role}</div>
+                                      <Badge variant="secondary" className="text-[9px] mt-0.5">{agent.type}</Badge>
+                                      <p className="text-[10px] text-muted-foreground mt-1">{agent.rationale}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Apply Suggestions Button */}
+                            <Button size="sm" className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white" onClick={applyDocSuggestions}>
+                              <Sparkles className="w-3 h-3 mr-1" /> Apply Suggestions to Setup
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </CardContent>
+                </Card>
+
                 <div className="flex justify-end pt-4">
                   <Button onClick={() => setCurrentStep(2)} size="lg" className="w-full sm:w-auto h-12 px-8">Next: Assemble Team &rarr;</Button>
                 </div>
@@ -527,7 +712,7 @@ export default function SetupPage() {
                         <label className="font-medium">Duration (Weeks)</label>
                         <span className="text-xl font-bold text-primary">{durationWeeks}</span>
                       </div>
-                      <Slider value={[durationWeeks]} onValueChange={(val: number[]) => setDurationWeeks(val[0])} max={24} min={1} step={1} className="py-4" />
+                      <Slider value={[durationWeeks]} onValueChange={(val) => setDurationWeeks(Array.isArray(val) ? val[0] : val)} max={24} min={1} step={1} className="py-4" />
                     </div>
 
                     <div className="space-y-4">
@@ -535,7 +720,7 @@ export default function SetupPage() {
                         <label className="font-medium">Pacing Speed</label>
                         <span className="text-xl font-bold text-primary">{getPacingLabel()}</span>
                       </div>
-                      <Slider value={[pacingSpeed]} onValueChange={(val: number[]) => setPacingSpeed(val[0])} max={100} step={50} className="py-4" />
+                      <Slider value={[pacingSpeed]} onValueChange={(val) => setPacingSpeed(Array.isArray(val) ? val[0] : val)} max={100} step={50} className="py-4" />
                       <p className="text-xs text-muted-foreground">Determines how fast agents reply in the simulated chat UI.</p>
                     </div>
 

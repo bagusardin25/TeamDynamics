@@ -2,14 +2,22 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Users } from "lucide-react";
-import type { Metrics } from "@/app/simulation/types";
+import { Progress } from "@/components/ui/progress";
+import {
+  Activity, Users, Heart, Shield, TrendingUp, Zap,
+  DollarSign, Star, Clock, MessageSquare, AlertTriangle,
+} from "lucide-react";
+import type { Metrics, Agent, WorldState, DecisionStatus, MetricsSnapshot } from "@/app/simulation/types";
 
 interface MetricsDashboardProps {
   metrics: Metrics;
   prevMetrics: Metrics | null;
   status: string;
   currentRound: number;
+  agents: Agent[];
+  worldState: WorldState | null;
+  decisionStatus: DecisionStatus | null;
+  metricsHistory: MetricsSnapshot[];
 }
 
 function getMetricDelta(metrics: Metrics, prevMetrics: Metrics | null, key: keyof Metrics): number | null {
@@ -19,76 +27,120 @@ function getMetricDelta(metrics: Metrics, prevMetrics: Metrics | null, key: keyo
   return diff;
 }
 
-export function MetricsDashboard({ metrics, prevMetrics, status, currentRound }: MetricsDashboardProps) {
-  const moraleChange = getMetricDelta(metrics, prevMetrics, "avgMorale");
-  const productivityChange = getMetricDelta(metrics, prevMetrics, "productivity");
+function MetricCard({
+  label, value, unit = "%", icon: Icon, color, delta,
+}: {
+  label: string; value: number; unit?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string; delta?: number | null;
+}) {
+  return (
+    <Card className="bg-background/40 border-border/50 shadow-sm">
+      <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/20">
+        <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <Icon className={`w-3 h-3 ${color}`} />
+          {label}
+        </CardTitle>
+        {delta !== null && delta !== undefined && (
+          <Badge
+            variant="outline"
+            className={`text-[10px] ${delta < 0 ? "text-red-400 border-red-500/20" : "text-green-400 border-green-500/20"}`}
+          >
+            {`${delta > 0 ? "+" : ""}${delta}%`}
+          </Badge>
+        )}
+      </CardHeader>
+      <CardContent className="p-4 pt-3">
+        <span
+          className={`text-3xl font-bold tracking-tighter ${
+            value < 30 ? "text-red-500" :
+            value < 50 ? "text-yellow-500" :
+            value < 70 ? "text-blue-500" : "text-green-500"
+          }`}
+        >
+          {value}<span className="text-lg text-muted-foreground font-normal">{unit}</span>
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniSparkline({ data, color }: { data: number[]; color: string }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data, 100);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const width = 80;
+  const height = 24;
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width;
+    const y = height - ((v - min) / range) * height;
+    return `${x},${y}`;
+  }).join(" ");
 
   return (
-    <aside className="w-[300px] border-l border-border bg-card/20 p-4 shrink-0 hidden lg:flex flex-col overflow-y-auto custom-scroll">
-      <div className="flex items-center justify-between mb-6">
+    <svg width={width} height={height} className="opacity-60">
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function MetricsDashboard({
+  metrics, prevMetrics, status, currentRound, agents,
+  worldState, decisionStatus, metricsHistory,
+}: MetricsDashboardProps) {
+  const moraleChange = getMetricDelta(metrics, prevMetrics, "avgMorale");
+  const productivityChange = getMetricDelta(metrics, prevMetrics, "productivity");
+  const loyaltyChange = getMetricDelta(metrics, prevMetrics, "avgLoyalty");
+  const cohesionChange = getMetricDelta(metrics, prevMetrics, "teamCohesion");
+
+  const moraleData = metricsHistory.map(m => m.morale);
+  const stressData = metricsHistory.map(m => m.stress);
+
+  return (
+    <aside className="w-[300px] border-l border-border bg-card/20 shrink-0 hidden lg:flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between p-4 pb-2 shrink-0">
         <h2 className="text-sm font-semibold flex items-center gap-2">
           <Activity className="w-4 h-4 text-primary" /> Metrics
         </h2>
+        <Badge variant="secondary" className="text-[10px]">
+          W{currentRound}
+        </Badge>
       </div>
 
-      <div className="space-y-4">
-        {/* Avg Company Morale */}
-        <Card className="bg-background/40 border-border/50 shadow-sm">
-          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/20">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Avg Company Morale</CardTitle>
-            {moraleChange !== null && (
-              <Badge
-                variant="outline"
-                className={`text-[10px] ${moraleChange < 0 ? "text-red-400 border-red-500/20" : "text-green-400 border-green-500/20"}`}
-              >
-                {`${moraleChange > 0 ? "+" : ""}${moraleChange}%`}
-              </Badge>
-            )}
-          </CardHeader>
-          <CardContent className="p-4 pt-3 flex items-end gap-2">
-            <span
-              className={`text-3xl font-bold tracking-tighter ${metrics.avgMorale < 40 ? "text-red-500" : metrics.avgMorale < 60 ? "text-yellow-500" : "text-green-500"}`}
-            >
-              {metrics.avgMorale}<span className="text-lg text-muted-foreground font-normal">%</span>
-            </span>
-          </CardContent>
-        </Card>
+      <div className="flex-1 overflow-y-auto p-4 pt-2 space-y-3 custom-scroll">
+        {/* Primary Metrics */}
+        <MetricCard
+          label="Avg Morale" value={metrics.avgMorale}
+          icon={Heart} color="text-green-500" delta={moraleChange}
+        />
+        <MetricCard
+          label="Productivity" value={metrics.productivity}
+          icon={TrendingUp} color="text-blue-500" delta={productivityChange}
+        />
+        <MetricCard
+          label="Avg Stress" value={metrics.avgStress}
+          icon={Zap}
+          color={metrics.avgStress > 70 ? "text-red-500" : "text-orange-500"}
+          delta={null}
+        />
 
-        {/* Productivity Level */}
-        <Card className="bg-background/40 border-border/50 shadow-sm">
-          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/20">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Productivity Level</CardTitle>
-            {productivityChange !== null && (
-              <Badge
-                variant="outline"
-                className={`text-[10px] ${productivityChange < 0 ? "text-red-400 border-red-500/20" : "text-green-400 border-green-500/20"}`}
-              >
-                {`${productivityChange > 0 ? "+" : ""}${productivityChange}%`}
-              </Badge>
-            )}
-          </CardHeader>
-          <CardContent className="p-4 pt-3 flex items-end gap-2">
-            <span
-              className={`text-3xl font-bold tracking-tighter ${metrics.productivity < 40 ? "text-red-500" : metrics.productivity < 60 ? "text-yellow-500" : "text-green-500"}`}
-            >
-              {metrics.productivity}<span className="text-lg text-muted-foreground font-normal">%</span>
-            </span>
-          </CardContent>
-        </Card>
-
-        {/* Avg Stress Level */}
-        <Card className="bg-background/40 border-border/50 shadow-sm">
-          <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/20">
-            <CardTitle className="text-xs font-medium text-muted-foreground">Avg Stress Level</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-3 flex items-end gap-2">
-            <span
-              className={`text-3xl font-bold tracking-tighter ${metrics.avgStress > 70 ? "text-red-500" : metrics.avgStress > 50 ? "text-orange-500" : "text-blue-500"}`}
-            >
-              {metrics.avgStress}<span className="text-lg text-muted-foreground font-normal">%</span>
-            </span>
-          </CardContent>
-        </Card>
+        {/* Team Cohesion & Loyalty */}
+        <MetricCard
+          label="Team Cohesion" value={metrics.teamCohesion}
+          icon={Users} color="text-violet-500" delta={cohesionChange}
+        />
+        <MetricCard
+          label="Avg Loyalty" value={metrics.avgLoyalty}
+          icon={Shield} color="text-cyan-500" delta={loyaltyChange}
+        />
 
         {/* Resignations */}
         {metrics.resignations > 0 && (
@@ -105,8 +157,167 @@ export function MetricsDashboard({ metrics, prevMetrics, status, currentRound }:
           </Card>
         )}
 
+        {/* Trend Sparklines */}
+        {metricsHistory.length > 1 && (
+          <Card className="bg-background/40 border-border/50 shadow-sm">
+            <CardHeader className="py-3 px-4 border-b border-border/20">
+              <CardTitle className="text-xs font-medium text-muted-foreground">Trend</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">Morale</span>
+                <MiniSparkline data={moraleData} color="#22c55e" />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-muted-foreground">Stress</span>
+                <MiniSparkline data={stressData} color="#ef4444" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* World State */}
+        {worldState && (
+          <Card className="bg-background/40 border-border/50 shadow-sm">
+            <CardHeader className="py-3 px-4 border-b border-border/20">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                🌍 World State
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" /> Budget</span>
+                  <span className={`font-semibold ${worldState.budgetRemaining < 30 ? "text-red-500" : "text-foreground"}`}>{worldState.budgetRemaining}%</span>
+                </div>
+                <Progress value={worldState.budgetRemaining} className="h-1.5" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1"><Star className="w-3 h-3" /> Reputation</span>
+                  <span className={`font-semibold ${worldState.companyReputation < 30 ? "text-red-500" : "text-foreground"}`}>{worldState.companyReputation}%</span>
+                </div>
+                <Progress value={worldState.companyReputation} className="h-1.5" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> Customer Sat.</span>
+                  <span className="font-semibold">{worldState.customerSatisfaction}%</span>
+                </div>
+                <Progress value={worldState.customerSatisfaction} className="h-1.5" />
+              </div>
+              <div className="flex items-center justify-between text-xs pt-1 border-t border-border/20">
+                <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Deadline</span>
+                <span className={`font-semibold ${worldState.deadlineWeeksLeft <= 2 ? "text-red-500" : "text-foreground"}`}>
+                  {worldState.deadlineWeeksLeft}w left
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Tech Debt</span>
+                <span className={`font-semibold ${worldState.technicalDebt > 60 ? "text-orange-500" : "text-foreground"}`}>
+                  {worldState.technicalDebt}%
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Decision Progress */}
+        {decisionStatus && (
+          <Card className="bg-background/40 border-border/50 shadow-sm">
+            <CardHeader className="py-3 px-4 border-b border-border/20">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <MessageSquare className="w-3 h-3" /> Decision Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-2">
+              {decisionStatus.hasDecision ? (
+                <div className="text-xs">
+                  <Badge variant="outline" className="text-green-400 border-green-500/20 bg-green-500/10 text-[10px] mb-2">
+                    ✅ Decision Reached
+                  </Badge>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {decisionStatus.decidedProposal}
+                  </p>
+                </div>
+              ) : decisionStatus.leadingProposal ? (
+                <div className="text-xs">
+                  <Badge variant="outline" className="text-orange-400 border-orange-500/20 bg-orange-500/10 text-[10px] mb-2">
+                    📋 Leading Proposal
+                  </Badge>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {decisionStatus.leadingProposal}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-[10px] text-muted-foreground">Support:</span>
+                    <Progress value={Math.min(100, (decisionStatus.leadingSupport / 3.0) * 100)} className="h-1 flex-1" />
+                    <span className="text-[10px] font-mono">{decisionStatus.leadingSupport}/3.0</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {decisionStatus.proposalCount > 0
+                    ? `${decisionStatus.proposalCount} proposals on the table`
+                    : "No proposals yet"}
+                </p>
+              )}
+              {decisionStatus.resignThreats > 0 && (
+                <div className="flex items-center gap-1.5 text-xs text-orange-400 pt-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  {decisionStatus.resignThreats} resign threat{decisionStatus.resignThreats > 1 ? "s" : ""}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Per-Agent Status */}
+        {agents.length > 0 && (
+          <Card className="bg-background/40 border-border/50 shadow-sm">
+            <CardHeader className="py-3 px-4 border-b border-border/20">
+              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Users className="w-3 h-3" /> Agent Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 space-y-2">
+              {agents.map((agent) => (
+                <div
+                  key={agent.id}
+                  className={`flex items-center gap-2 p-2 rounded-lg ${agent.has_resigned ? "opacity-40" : "bg-background/30"}`}
+                >
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[9px] font-bold shrink-0">
+                    {agent.initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] font-medium truncate">
+                      {agent.name}
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <div className="flex-1 h-1 rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            agent.morale < 30 ? "bg-red-500" :
+                            agent.morale < 50 ? "bg-yellow-500" : "bg-green-500"
+                          }`}
+                          style={{ width: `${agent.morale}%` }}
+                        />
+                      </div>
+                      <span className="text-[8px] text-muted-foreground w-6 text-right">{agent.morale}</span>
+                    </div>
+                  </div>
+                  {agent.has_resigned && (
+                    <Badge variant="outline" className="text-[8px] text-red-400 border-red-500/20 shrink-0">
+                      Left
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Status Timeline */}
-        <div className="pt-4 space-y-3">
+        <div className="pt-2 space-y-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</h3>
           <div className="space-y-4 border-l-2 border-border/50 ml-2 pl-4 py-1">
             <div className="relative">

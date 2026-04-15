@@ -40,6 +40,8 @@ export interface Metrics {
   avgStress: number;
   productivity: number;
   resignations: number;
+  avgLoyalty: number;
+  teamCohesion: number;
 }
 
 export const DEFAULT_METRICS: Metrics = {
@@ -47,4 +49,40 @@ export const DEFAULT_METRICS: Metrics = {
   avgStress: 30,
   productivity: 75,
   resignations: 0,
+  avgLoyalty: 70,
+  teamCohesion: 70,
 };
+
+export interface WorldState {
+  budgetRemaining: number;
+  customerSatisfaction: number;
+  companyReputation: number;
+  teamCapacity: number;
+  technicalDebt: number;
+  deadlineWeeksLeft: number;
+}
+
+export interface DecisionStatus {
+  proposalCount: number;
+  hasDecision: boolean;
+  decidedProposal: string | null;
+  leadingProposal: string | null;
+  leadingSupport: number;
+  escalationCount: number;
+  resignThreats: number;
+}
+
+export interface MetricsSnapshot {
+  round: number;
+  morale: number;
+  stress: number;
+  productivity: number;
+  loyalty: number;
+  cohesion: number;
+}
+
+export interface SimulationOutcome {
+  emoji: string;
+  title: string;
+  description: string;
+}

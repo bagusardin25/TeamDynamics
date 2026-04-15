@@ -34,6 +34,10 @@ function SimulationContent() {
     isTyping,
     typingAgent,
     connectionError,
+    worldState,
+    decisionStatus,
+    metricsHistory,
+    outcome,
     sendIntervention,
   } = useSimulationSocket(simId, soundEnabled);
 
@@ -99,6 +103,9 @@ function SimulationContent() {
             typingAgent={typingAgent}
             connectionError={connectionError}
             simId={simId}
+            outcome={outcome}
+            metricsHistory={metricsHistory}
+            metrics={metrics}
           />
           <InterventionPanel status={status} onIntervene={handleIntervene} />
         </section>
@@ -109,6 +116,10 @@ function SimulationContent() {
           prevMetrics={prevMetrics}
           status={status}
           currentRound={currentRound}
+          agents={agents}
+          worldState={worldState}
+          decisionStatus={decisionStatus}
+          metricsHistory={metricsHistory}
         />
       </main>
 

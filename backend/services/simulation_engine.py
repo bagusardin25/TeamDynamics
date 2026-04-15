@@ -47,6 +47,9 @@ _active_simulations: dict[str, dict] = {}
 # In-memory world states per simulation
 _world_states: dict[str, WorldState] = {}
 
+# In-memory metrics history per simulation (for timeline charts)
+_metrics_history: dict[str, list[dict]] = {}
+
 
 async def create_simulation(request: CreateSimulationRequest, user_id: str | None = None) -> str:
     """Create a new simulation and return its ID."""
@@ -542,6 +545,9 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         pacing_delay = {"slow": 3.0, "normal": 1.5, "fast": 0.5}
         await asyncio.sleep(pacing_delay.get(state.get("pacing", "normal"), 1.5))
 
+    # Record metrics snapshot for this round
+    record_metrics_snapshot(sim_id, current_round, state["agents"])
+
     # ── Check simulation end conditions ───────────────────────────
 
     # Check if all agents resigned → immediate end
@@ -661,19 +667,53 @@ async def process_intervention(sim_id: str, intervention_type: InterventionType,
 
 
 def compute_metrics(agents: list[AgentFullState]) -> dict:
-    """Compute aggregate simulation metrics."""
+    """Compute aggregate simulation metrics with enhanced data."""
     active = [a for a in agents if not a.has_resigned]
     if not active:
-        return {"avgMorale": 0, "avgStress": 0, "productivity": 0, "resignations": len(agents)}
+        return {
+            "avgMorale": 0, "avgStress": 0, "productivity": 0,
+            "resignations": len(agents), "avgLoyalty": 0, "teamCohesion": 0,
+        }
 
     avg_morale = sum(a.state.morale for a in active) // len(active)
     avg_stress = sum(a.state.stress for a in active) // len(active)
     productivity = sum(a.state.productivity for a in active) // len(active)
+    avg_loyalty = sum(a.state.loyalty for a in active) // len(active)
     resignations = sum(1 for a in agents if a.has_resigned)
+
+    # Team cohesion: composite of loyalty, morale, and inverted stress dispersion
+    morale_values = [a.state.morale for a in active]
+    stress_values = [a.state.stress for a in active]
+    morale_dispersion = max(morale_values) - min(morale_values) if len(morale_values) > 1 else 0
+    stress_dispersion = max(stress_values) - min(stress_values) if len(stress_values) > 1 else 0
+    alignment_score = max(0, 100 - (morale_dispersion + stress_dispersion) // 2)
+    team_cohesion = (avg_loyalty + avg_morale + alignment_score) // 3
 
     return {
         "avgMorale": avg_morale,
         "avgStress": avg_stress,
         "productivity": productivity,
         "resignations": resignations,
+        "avgLoyalty": avg_loyalty,
+        "teamCohesion": team_cohesion,
     }
+
+
+def record_metrics_snapshot(sim_id: str, round_num: int, agents: list[AgentFullState]):
+    """Record a metrics snapshot for the timeline chart."""
+    if sim_id not in _metrics_history:
+        _metrics_history[sim_id] = []
+    metrics = compute_metrics(agents)
+    _metrics_history[sim_id].append({
+        "round": round_num,
+        "morale": metrics["avgMorale"],
+        "stress": metrics["avgStress"],
+        "productivity": metrics["productivity"],
+        "loyalty": metrics["avgLoyalty"],
+        "cohesion": metrics["teamCohesion"],
+    })
+
+
+def get_metrics_history(sim_id: str) -> list[dict]:
+    """Get the metrics history timeline for a simulation."""
+    return _metrics_history.get(sim_id, [])

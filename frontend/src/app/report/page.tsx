@@ -241,7 +241,7 @@ function ReportContent() {
                       contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', borderColor: '#333', borderRadius: '8px' }}
                       itemStyle={{ color: '#fff', fontSize: '12px' }}
                       labelStyle={{ color: '#888', marginBottom: '4px' }}
-                      formatter={(val: number) => [`${val}%`]}
+                      formatter={(val: any) => [`${val}%`]}
                       labelFormatter={(label) => `Week ${label}`}
                     />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />

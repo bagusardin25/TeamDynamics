@@ -9,6 +9,10 @@ import {
   DEFAULT_METRICS,
   API_BASE,
   WS_BASE,
+  WorldState,
+  DecisionStatus,
+  MetricsSnapshot,
+  SimulationOutcome,
 } from "@/app/simulation/types";
 
 const MAX_RECONNECT_ATTEMPTS = 3;
@@ -26,6 +30,10 @@ interface UseSimulationSocketReturn {
   isTyping: boolean;
   typingAgent: string | null;
   connectionError: string | null;
+  worldState: WorldState | null;
+  decisionStatus: DecisionStatus | null;
+  metricsHistory: MetricsSnapshot[];
+  outcome: SimulationOutcome | null;
   sendIntervention: (type: string, customMsg?: string) => void;
   sendInterventionRest: (type: string, customMsg?: string) => Promise<void>;
 }
@@ -46,6 +54,10 @@ export function useSimulationSocket(
   const [typingAgent, setTypingAgent] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [prevMetrics, setPrevMetrics] = useState<Metrics | null>(null);
+  const [worldState, setWorldState] = useState<WorldState | null>(null);
+  const [decisionStatus, setDecisionStatus] = useState<DecisionStatus | null>(null);
+  const [metricsHistory, setMetricsHistory] = useState<MetricsSnapshot[]>([]);
+  const [outcome, setOutcome] = useState<SimulationOutcome | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -99,8 +111,11 @@ export function useSimulationSocket(
           setTotalRounds(payload.totalRounds || 12);
           setStatus(payload.status || "idle");
           setCompanyName(payload.company?.name || "Simulation");
-          setIsTyping(true);
+          setIsTyping(payload.status !== "completed");
           setTypingAgent(null);
+          if (payload.worldState) setWorldState(payload.worldState);
+          if (payload.decisionStatus) setDecisionStatus(payload.decisionStatus);
+          if (payload.metricsHistory) setMetricsHistory(payload.metricsHistory);
         } else if (payload.type === "typing_start") {
           setIsTyping(true);
           setTypingAgent(payload.agent_name || null);
@@ -129,12 +144,20 @@ export function useSimulationSocket(
           }
           if (payload.currentRound) setCurrentRound(payload.currentRound);
           if (payload.status) setStatus(payload.status);
+          if (payload.worldState) setWorldState(payload.worldState);
+          if (payload.decisionStatus) setDecisionStatus(payload.decisionStatus);
           setIsTyping(true);
           setTypingAgent(null);
         } else if (payload.type === "completed") {
           setStatus("completed");
           setIsTyping(false);
           setTypingAgent(null);
+          if (payload.outcome) setOutcome(payload.outcome);
+          if (payload.metricsHistory) setMetricsHistory(payload.metricsHistory);
+          if (payload.metrics) {
+            setPrevMetrics(metricsRef.current);
+            setMetrics(payload.metrics);
+          }
         } else if (payload.type === "error") {
           setConnectionError(payload.message || "Simulation error");
           setIsTyping(false);
@@ -231,6 +254,10 @@ export function useSimulationSocket(
     isTyping,
     typingAgent,
     connectionError,
+    worldState,
+    decisionStatus,
+    metricsHistory,
+    outcome,
     sendIntervention,
     sendInterventionRest,
   };
