@@ -157,8 +157,23 @@ async def get_report(sim_id: str):
             "crisis_name": "Server Outage during TechCrunch Disrupt",
             "total_rounds": 12,
             "completed_rounds": 12,
-            "executive_summary": "The team experienced significant stress during the total server outage. Initial panic led to severe drops in morale, but they ultimately coordinated a fallback solution before the pitch. However, the resulting burnout was substantial.",
-            "critical_finding": "Stress levels peaked dangerously at Week 8, pushing two key engineers near resignation.",
+            "executive_summary": "A 12-week crisis simulation tested Pied Piper's 3-person team against a critical server outage during TechCrunch Disrupt. The team narrowly avoided total failure, but sustained significant burnout — final average morale settled at 50% with stress remaining elevated at 73%.",
+            "critical_finding": "Stress reached a dangerous 95% peak at Week 8 — a direct result of unresolved interpersonal blame between Dinesh and Gilfoyle that CEO Richard failed to mediate. Without intervention, two engineers were within one round of resignation.",
+            "simulation_overview": "This simulation modeled a high-stakes scenario where Pied Piper's core infrastructure failed 45 minutes before their TechCrunch Disrupt presentation. The 12-week scenario tested crisis communication, technical problem-solving under pressure, and leadership effectiveness across a 3-member engineering team.",
+            "key_metrics": {
+                "total_agents": 3,
+                "active_agents": 3,
+                "resignations": 0,
+                "avg_morale": 50,
+                "avg_stress": 73,
+                "avg_loyalty": 70,
+                "avg_productivity": 53,
+                "productivity_drop": 25,
+                "simulation_weeks": 12,
+                "total_planned_weeks": 12
+            },
+            "analysis_insights": "The simulation revealed a critical leadership vacuum during weeks 4-8 when CEO Richard Hendricks defaulted to micromanagement rather than strategic delegation. Dinesh and Gilfoyle's interpersonal conflict (visible from Week 2 onward) was never properly addressed, creating a toxic blame cycle that amplified stress across the entire team. The turning point came at Week 9 when the team organically shifted from blame to collaborative problem-solving, resulting in a partial recovery. However, the damage was already done — Dinesh's morale dropped to 35%, indicating severe burnout risk that persists beyond the simulation window.",
+            "conclusion": "Pied Piper's team survived the crisis but emerged significantly weakened. In a real-world scenario, the combination of 35% morale (Dinesh) and 95% peak stress levels would likely trigger attrition within 4-6 weeks post-crisis. The primary risk factor is the CEO's inability to mediate interpersonal conflict during high-pressure situations.",
             "productivity_drop": 25,
             "agent_reports": [
                 {
@@ -199,24 +214,26 @@ async def get_report(sim_id: str):
                 }
             ],
             "recommendations": [
-                "Implement a stricter CI/CD pipeline to avoid last-minute critical bugs.",
-                "Ensure CEO does not micromanage technical solutions during high-pressure events.",
-                "Provide immediate time-off for the engineering team post-launch."
+                "Implement a crisis communication protocol with designated roles to prevent blame cycles during high-pressure incidents.",
+                "Train the CEO on conflict mediation techniques — the failure to address the Dinesh-Gilfoyle dynamic was the primary driver of sustained stress.",
+                "Establish mandatory post-incident debrief sessions within 48 hours to prevent unresolved tensions from compounding.",
+                "Introduce a buddy system or peer support mechanism for engineers during extended crisis periods.",
+                "Deploy automated infrastructure monitoring and failover systems to reduce single-point-of-failure risk before major events."
             ],
             "timeline": [
-                {"round": 0, "company_morale": 70, "company_stress": 30, "company_productivity": 75},
-                {"round": 1, "company_morale": 68, "company_stress": 35, "company_productivity": 74},
-                {"round": 2, "company_morale": 65, "company_stress": 45, "company_productivity": 70},
-                {"round": 3, "company_morale": 60, "company_stress": 55, "company_productivity": 68},
-                {"round": 4, "company_morale": 55, "company_stress": 65, "company_productivity": 60},
-                {"round": 5, "company_morale": 50, "company_stress": 75, "company_productivity": 55},
-                {"round": 6, "company_morale": 45, "company_stress": 85, "company_productivity": 50},
-                {"round": 7, "company_morale": 42, "company_stress": 92, "company_productivity": 45},
-                {"round": 8, "company_morale": 40, "company_stress": 95, "company_productivity": 40},
-                {"round": 9, "company_morale": 42, "company_stress": 88, "company_productivity": 55},
-                {"round": 10, "company_morale": 48, "company_stress": 75, "company_productivity": 65},
-                {"round": 11, "company_morale": 52, "company_stress": 68, "company_productivity": 70},
-                {"round": 12, "company_morale": 58, "company_stress": 60, "company_productivity": 75}
+                {"round": 0, "morale": 70, "stress": 30, "output": 75},
+                {"round": 1, "morale": 68, "stress": 35, "output": 74},
+                {"round": 2, "morale": 65, "stress": 45, "output": 70},
+                {"round": 3, "morale": 60, "stress": 55, "output": 68},
+                {"round": 4, "morale": 55, "stress": 65, "output": 60},
+                {"round": 5, "morale": 50, "stress": 75, "output": 55},
+                {"round": 6, "morale": 45, "stress": 85, "output": 50},
+                {"round": 7, "morale": 42, "stress": 92, "output": 45},
+                {"round": 8, "morale": 40, "stress": 95, "output": 40},
+                {"round": 9, "morale": 42, "stress": 88, "output": 55},
+                {"round": 10, "morale": 48, "stress": 75, "output": 65},
+                {"round": 11, "morale": 52, "stress": 68, "output": 70},
+                {"round": 12, "morale": 58, "stress": 60, "output": 75}
             ]
         }
     """Generate and return the post-simulation report."""

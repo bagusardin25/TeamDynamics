@@ -158,6 +158,33 @@ async def generate_report(sim_state: dict) -> ReportResponse:
         total_rounds=sim_state.get("total_rounds", 12),
     )
 
+    # Compute structured key metrics
+    total_agents = len(agents)
+    active_agents = [a for a in agents if not a.has_resigned]
+    resigned_agents = [a for a in agents if a.has_resigned]
+
+    if active_agents:
+        final_avg_morale = sum(a.state.morale for a in active_agents) // len(active_agents)
+        final_avg_stress = sum(a.state.stress for a in active_agents) // len(active_agents)
+        final_avg_loyalty = sum(a.state.loyalty for a in active_agents) // len(active_agents)
+    else:
+        final_avg_morale = 0
+        final_avg_stress = 0
+        final_avg_loyalty = 0
+
+    key_metrics = {
+        "total_agents": total_agents,
+        "active_agents": len(active_agents),
+        "resignations": len(resigned_agents),
+        "avg_morale": final_avg_morale,
+        "avg_stress": final_avg_stress,
+        "avg_loyalty": final_avg_loyalty,
+        "avg_productivity": avg_productivity,
+        "productivity_drop": productivity_drop,
+        "simulation_weeks": completed_rounds,
+        "total_planned_weeks": sim_state.get("total_rounds", 12),
+    }
+
     return ReportResponse(
         simulation_id=sim_state["id"],
         company_name=company["name"],
@@ -166,6 +193,10 @@ async def generate_report(sim_state: dict) -> ReportResponse:
         completed_rounds=sim_state.get("current_round", 0),
         executive_summary=insights.get("executive_summary", "Simulation completed."),
         critical_finding=insights.get("critical_finding", "No critical findings."),
+        simulation_overview=insights.get("simulation_overview", ""),
+        key_metrics=key_metrics,
+        analysis_insights=insights.get("analysis_insights", ""),
+        conclusion=insights.get("conclusion", ""),
         agent_reports=agent_reports,
         productivity_drop=productivity_drop,
         recommendations=insights.get("recommendations", []),

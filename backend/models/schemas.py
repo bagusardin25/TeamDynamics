@@ -195,6 +195,10 @@ class ReportResponse(BaseModel):
     completed_rounds: int
     executive_summary: str
     critical_finding: str
+    simulation_overview: str = ""  # Detailed objective & scenario description
+    key_metrics: dict = {}  # Structured metrics: avg_morale, avg_stress, resignations, etc.
+    analysis_insights: str = ""  # In-depth analysis paragraph
+    conclusion: str = ""  # Final summary paragraph
     agent_reports: list[AgentReport]
     productivity_drop: int
     recommendations: list[str]

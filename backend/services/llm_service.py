@@ -516,7 +516,7 @@ async def generate_report_insights(
     outcome: dict | None = None,
 ) -> dict:
     """
-    Generate executive summary and recommendations for the post-sim report.
+    Generate a comprehensive, professional post-simulation report.
     Uses the global LLM provider.
     """
     agents_summary = ""
@@ -526,6 +526,8 @@ async def generate_report_insights(
             f"- {a['name']} ({a['role']}): "
             f"Morale {state.get('morale', '?')}%, "
             f"Stress {state.get('stress', '?')}%, "
+            f"Productivity {state.get('productivity', '?')}%, "
+            f"Loyalty {state.get('loyalty', '?')}%, "
             f"Resigned: {a.get('has_resigned', False)}"
         )
         if a.get("resigned_week"):
@@ -533,7 +535,7 @@ async def generate_report_insights(
         agents_summary += "\n"
 
     # Sample of key messages
-    key_msgs = [m for m in messages if m.get("type") in ("public", "system")][-15:]
+    key_msgs = [m for m in messages if m.get("type") in ("public", "system")][-20:]
     msgs_text = "\n".join(
         f"[W{m.get('round', '?')}] {m.get('agent_name', 'System')}: {m['content']}"
         for m in key_msgs
@@ -543,39 +545,77 @@ async def generate_report_insights(
     if outcome:
         outcome_section = f"\nOUTCOME: {outcome.get('emoji', '')} {outcome.get('title', 'Unknown')} — {outcome.get('description', '')}"
 
-    system_prompt = """You are an organizational psychologist AI analyzing a team simulation.
-Generate a report based on the simulation data. Respond ONLY with valid JSON:
+    # Compute quick stats for the prompt
+    total_agents = len(agents_data)
+    resigned_count = sum(1 for a in agents_data if a.get("has_resigned"))
+    avg_morale = sum(a.get("state", {}).get("morale", 50) for a in agents_data) // max(1, total_agents)
+    avg_stress = sum(a.get("state", {}).get("stress", 50) for a in agents_data) // max(1, total_agents)
+
+    system_prompt = """You are a senior organizational psychologist and management consultant writing a professional post-simulation analysis report.
+
+Your report must be structured, insightful, and actionable — suitable for presentation to C-level executives.
+
+Output Requirements (STRICT):
+- Use clear, professional language
+- Avoid long unstructured paragraphs — use concise, impactful sentences
+- Each section must add unique value — no repetition across sections
+- Output must be clean and ready for rendering
+
+Respond ONLY with valid JSON in this exact format:
 {
-  "executive_summary": "2-3 sentence summary of what happened",
-  "critical_finding": "The single most important finding (1-2 sentences)",
-  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"]
+  "executive_summary": "A concise 2-3 sentence overview: what was simulated, the key outcome, and the overall team performance verdict.",
+  "critical_finding": "The single most critical insight discovered during this simulation (1-2 sentences). This should be specific, data-backed, and actionable.",
+  "simulation_overview": "A 2-3 sentence description of the simulation objective, the scenario that was tested, and the key parameters (team size, duration, crisis type).",
+  "analysis_insights": "A 3-5 sentence analytical paragraph interpreting the results. Highlight specific bottlenecks, behavioral patterns, leadership dynamics, team cohesion issues, and any notable turning points during the simulation. Reference specific agents or weeks when relevant.",
+  "conclusion": "A 2-3 sentence final summary of overall system/team performance. State whether the team would survive a real-world version of this crisis and what the primary risk factor is.",
+  "recommendations": ["actionable recommendation 1", "actionable recommendation 2", "actionable recommendation 3", "actionable recommendation 4", "actionable recommendation 5"]
 }"""
 
     user_prompt = f"""COMPANY: {company.get('name', 'Unknown')}
 CULTURE: {company.get('culture', 'Unknown')}
-CRISIS: {crisis}
-DURATION: {total_rounds} weeks
+CRISIS SCENARIO: {crisis}
+SIMULATION DURATION: {total_rounds} weeks
+TOTAL AGENTS: {total_agents}
+RESIGNATIONS: {resigned_count}
+AVERAGE FINAL MORALE: {avg_morale}%
+AVERAGE FINAL STRESS: {avg_stress}%
 {outcome_section}
 
 AGENT FINAL STATES:
 {agents_summary}
 
-KEY CONVERSATION MOMENTS:
+KEY CONVERSATION MOMENTS (chronological):
 {msgs_text}
 
-Analyze this simulation and generate insights."""
+Analyze this simulation comprehensively and generate a professional report. Be specific — reference agent names, weeks, and metrics where relevant."""
 
     try:
-        return await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER)
+        result = await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER)
+        # Ensure all expected fields
+        result.setdefault("executive_summary", "The simulation completed successfully.")
+        result.setdefault("critical_finding", "No critical findings identified.")
+        result.setdefault("simulation_overview", "")
+        result.setdefault("analysis_insights", "")
+        result.setdefault("conclusion", "")
+        result.setdefault("recommendations", [])
+        # Ensure at least 3 recommendations
+        while len(result["recommendations"]) < 3:
+            result["recommendations"].append("Review the simulation transcript for additional insights.")
+        return result
     except Exception as e:
         logger.error(f"Report generation failed: {e}")
         return {
             "executive_summary": "The simulation completed but report generation encountered an error.",
             "critical_finding": "Unable to generate automated insights.",
+            "simulation_overview": f"A {total_rounds}-week crisis simulation was conducted for {company.get('name', 'Unknown')} with {total_agents} team members, testing team resilience under the scenario: {crisis}",
+            "analysis_insights": "Automated analysis was unavailable. Manual review of agent states and conversation history is recommended to identify behavioral patterns, stress responses, and team dynamics.",
+            "conclusion": "The simulation data has been captured successfully. A manual review is recommended to extract actionable insights from the recorded interactions and metric changes.",
             "recommendations": [
-                "Review the simulation transcript manually.",
-                "Check agent morale and stress trends.",
-                "Consider intervention strategies for future scenarios.",
+                "Review the simulation transcript manually for behavioral patterns.",
+                "Analyze agent morale and stress trends across all rounds.",
+                "Identify leadership dynamics and communication breakdowns.",
+                "Consider targeted intervention strategies for future scenarios.",
+                "Implement regular stress-check protocols for high-pressure situations.",
             ],
         }
 
