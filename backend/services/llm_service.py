@@ -322,7 +322,7 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
 
 # ── LLM Callers ───────────────────────────────────────────────────────
 
-async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9) -> dict:
+async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> dict:
     """Call OpenAI API."""
     from openai import AsyncOpenAI
 
@@ -337,14 +337,14 @@ async def _call_openai(system_prompt: str, user_prompt: str, model: str | None =
         ],
         response_format={"type": "json_object"},
         temperature=temperature,
-        max_tokens=600,
+        max_tokens=max_tokens,
     )
 
     content = response.choices[0].message.content
     return json.loads(content)
 
 
-async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9) -> dict:
+async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> dict:
     """Call Google Gemini API."""
     from google import genai
 
@@ -357,14 +357,14 @@ async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None =
         config={
             "response_mime_type": "application/json",
             "temperature": temperature,
-            "max_output_tokens": 600,
+            "max_output_tokens": max_tokens,
         },
     )
 
     return json.loads(response.text)
 
 
-async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9) -> dict:
+async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> dict:
     """Call OpenRouter API (uses OpenAI-compatible SDK)."""
     from openai import AsyncOpenAI
 
@@ -394,7 +394,7 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
         ],
         response_format={"type": "json_object"},
         temperature=temperature,
-        max_tokens=600,
+        max_tokens=max_tokens,
     )
 
     content = response.choices[0].message.content
@@ -409,14 +409,15 @@ async def _dispatch_llm_call(
     provider: str,
     model: str | None = None,
     temperature: float = 0.9,
+    max_tokens: int = 600,
 ) -> dict:
     """Route a call to the correct LLM provider."""
     if provider == "gemini":
-        return await _call_gemini(system_prompt, user_prompt, model, temperature)
+        return await _call_gemini(system_prompt, user_prompt, model, temperature, max_tokens)
     elif provider == "openrouter":
-        return await _call_openrouter(system_prompt, user_prompt, model, temperature)
+        return await _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
     else:
-        return await _call_openai(system_prompt, user_prompt, model, temperature)
+        return await _call_openai(system_prompt, user_prompt, model, temperature, max_tokens)
 
 
 # ── Response Validator ─────────────────────────────────────────────────

@@ -112,11 +112,14 @@ export default function SetupPage() {
   const [docAnalysis, setDocAnalysis] = useState<{
     filename: string;
     analysis: {
+      company_name: string;
+      company_culture: string;
       summary: string;
       key_requirements: string[];
       team_risks: string[];
       suggested_crisis: { title: string; description: string };
-      suggested_agents: { role: string; type: string; rationale: string }[];
+      suggested_agents: { name: string; role: string; type: string; rationale: string; personality: AgentPersonality }[];
+      suggested_team_rules: string[];
       actionable_insights: string[];
     };
   } | null>(null);
@@ -218,11 +221,65 @@ export default function SetupPage() {
   const applyDocSuggestions = () => {
     if (!docAnalysis) return;
     const a = docAnalysis.analysis;
+
+    // Auto-fill company info
+    const applied: string[] = [];
+    if (a.company_name) {
+      setCompanyName(a.company_name);
+      applied.push("Company Name");
+    }
+    if (a.company_culture) {
+      setCompanyCulture(a.company_culture);
+      applied.push("Company Culture");
+    }
+
+    // Auto-fill crisis
     if (a.suggested_crisis) {
       setCrisis("custom");
       setCustomCrisis(`[${a.suggested_crisis.title}]\n\n${a.suggested_crisis.description}`);
+      applied.push("Crisis Scenario");
     }
-    toast.success("Suggestions applied! Check crisis and review agents.");
+
+    // Auto-add suggested agents to roster
+    if (a.suggested_agents && a.suggested_agents.length > 0) {
+      const newAgents: PresetAgent[] = a.suggested_agents
+        .filter((_, i) => selectedAgents.length + i < MAX_ROSTER_SIZE)
+        .map((sa, i) => ({
+          id: `ai-suggested-${Date.now()}-${i}`,
+          name: sa.name || `Agent ${i + 1}`,
+          role: sa.role,
+          type: sa.type,
+          color: AGENT_COLORS[(selectedAgents.length + i) % AGENT_COLORS.length].value,
+          personality: sa.personality || { ...DEFAULT_PERSONALITY },
+        }));
+      if (newAgents.length > 0) {
+        setSelectedAgents((prev) => [...prev, ...newAgents]);
+        applied.push(`${newAgents.length} AI Agents`);
+      }
+    }
+
+    if (applied.length > 0) {
+      toast.success(`Applied: ${applied.join(", ")}`);
+    } else {
+      toast.info("No suggestions to apply from this document.");
+    }
+  };
+
+  const addSuggestedAgent = (sa: { name: string; role: string; type: string; rationale: string; personality: AgentPersonality }, index: number) => {
+    if (selectedAgents.length >= MAX_ROSTER_SIZE) {
+      toast.warning("Roster is full (max 8 agents).");
+      return;
+    }
+    const newAgent: PresetAgent = {
+      id: `ai-suggested-${Date.now()}-${index}`,
+      name: sa.name || `Agent`,
+      role: sa.role,
+      type: sa.type,
+      color: AGENT_COLORS[selectedAgents.length % AGENT_COLORS.length].value,
+      personality: sa.personality || { ...DEFAULT_PERSONALITY },
+    };
+    setSelectedAgents((prev) => [...prev, newAgent]);
+    toast.success(`${newAgent.name} (${newAgent.role}) added to roster!`);
   };
 
   const openCreateModal = () => {
@@ -518,6 +575,19 @@ export default function SetupPage() {
                               <span className="text-sm font-semibold">Analysis: {docAnalysis.filename}</span>
                             </div>
 
+                            {/* Detected Company Info */}
+                            {(docAnalysis.analysis.company_name || docAnalysis.analysis.company_culture) && (
+                              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 space-y-1">
+                                <h4 className="text-xs font-semibold text-blue-400 mb-1">🏢 Detected Company</h4>
+                                {docAnalysis.analysis.company_name && (
+                                  <p className="text-xs"><span className="text-muted-foreground">Name:</span> <span className="font-medium">{docAnalysis.analysis.company_name}</span></p>
+                                )}
+                                {docAnalysis.analysis.company_culture && (
+                                  <p className="text-xs"><span className="text-muted-foreground">Culture:</span> <span className="font-medium">{docAnalysis.analysis.company_culture}</span></p>
+                                )}
+                              </div>
+                            )}
+
                             {/* Summary */}
                             <p className="text-sm text-muted-foreground leading-relaxed">{docAnalysis.analysis.summary}</p>
 
@@ -545,6 +615,18 @@ export default function SetupPage() {
                               </div>
                             )}
 
+                            {/* Suggested Team Rules */}
+                            {docAnalysis.analysis.suggested_team_rules && docAnalysis.analysis.suggested_team_rules.length > 0 && (
+                              <div>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">📋 Suggested Team Rules</h4>
+                                <ul className="space-y-1">
+                                  {docAnalysis.analysis.suggested_team_rules.map((rule, i) => (
+                                    <li key={i} className="text-xs text-foreground flex gap-2"><span className="text-cyan-400 shrink-0">{i + 1}.</span>{rule}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
                             {/* Suggested Crisis */}
                             {docAnalysis.analysis.suggested_crisis && (
                               <div className="rounded-lg bg-orange-500/10 border border-orange-500/20 p-3">
@@ -557,22 +639,49 @@ export default function SetupPage() {
                             {/* Suggested Agents */}
                             {docAnalysis.analysis.suggested_agents.length > 0 && (
                               <div>
-                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Suggested Team Roles</h4>
+                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Suggested Team Members</h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {docAnalysis.analysis.suggested_agents.map((agent, i) => (
-                                    <div key={i} className="rounded-lg bg-background/50 border border-border/50 p-2">
-                                      <div className="text-xs font-semibold">{agent.role}</div>
-                                      <Badge variant="secondary" className="text-[9px] mt-0.5">{agent.type}</Badge>
-                                      <p className="text-[10px] text-muted-foreground mt-1">{agent.rationale}</p>
-                                    </div>
-                                  ))}
+                                  {docAnalysis.analysis.suggested_agents.map((agent, i) => {
+                                    const isAlreadyAdded = selectedAgents.some((sa) => sa.name === agent.name && sa.role === agent.role);
+                                    return (
+                                      <div key={i} className={`rounded-lg bg-background/50 border p-2 transition-all ${isAlreadyAdded ? 'border-green-500/30 bg-green-500/5' : 'border-border/50 hover:border-primary/40'}`}>
+                                        <div className="flex items-start justify-between gap-1">
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-semibold">{agent.name} — {agent.role}</div>
+                                            <Badge variant="secondary" className="text-[9px] mt-0.5">{agent.type}</Badge>
+                                          </div>
+                                          {isAlreadyAdded ? (
+                                            <Badge variant="secondary" className="text-[9px] bg-green-500/10 text-green-500 border-none shrink-0">Added</Badge>
+                                          ) : (
+                                            <button
+                                              onClick={() => addSuggestedAgent(agent, i)}
+                                              disabled={selectedAgents.length >= MAX_ROSTER_SIZE}
+                                              className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors shrink-0 disabled:opacity-30"
+                                              title={`Add ${agent.name} to roster`}
+                                            >
+                                              <Plus className="w-3 h-3" />
+                                            </button>
+                                          )}
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground mt-1">{agent.rationale}</p>
+                                        {/* Mini personality preview */}
+                                        <div className="flex gap-1 mt-1.5 flex-wrap">
+                                          {Object.entries(agent.personality || {}).map(([key, val]) => (
+                                            <span key={key} className="text-[8px] px-1 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                                              {key.slice(0, 3).toUpperCase()} {val as number}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}
 
-                            {/* Apply Suggestions Button */}
+                            {/* Apply All Suggestions Button */}
                             <Button size="sm" className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white" onClick={applyDocSuggestions}>
-                              <Sparkles className="w-3 h-3 mr-1" /> Apply Suggestions to Setup
+                              <Sparkles className="w-3 h-3 mr-1" /> Apply All Suggestions to Setup
                             </Button>
                           </div>
                         </motion.div>
@@ -597,31 +706,79 @@ export default function SetupPage() {
                       <CardTitle className="text-lg">Agent Pool</CardTitle>
                       <CardDescription>Click to add presets to your roster.</CardDescription>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-3 h-[400px] overflow-y-auto p-4 content-start">
-                      {availablePresets.map((p) => (
-                        <motion.button
-                          key={p.id}
-                          layoutId={`agent-${p.id}`}
-                          onClick={() => { addPresetAgent(p); }}
-                          className="flex flex-col text-left border border-border/40 rounded-xl p-3 bg-card hover:bg-primary/5 hover:border-primary/50 hover:shadow-md transition-all group"
-                        >
-                          <div className="flex items-center gap-2 mb-2 w-full">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-sm text-white ${p.color.replace('text-', 'bg-').replace('/20', '/80')}`}>{p.name.charAt(0)}</div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{p.name}</div>
-                              <div className="text-[10px] text-muted-foreground truncate">{p.role}</div>
-                            </div>
-                            <Plus className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <CardContent className="space-y-4 h-[400px] overflow-y-auto p-4">
+                      {/* AI Recommended Section */}
+                      {docAnalysis && docAnalysis.analysis.suggested_agents.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+                            <span className="text-xs font-semibold text-violet-400 uppercase tracking-wider">AI Recommended</span>
                           </div>
-                          <Badge variant="secondary" className="text-[9px] w-fit truncate">
-                            {p.type}
-                          </Badge>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {docAnalysis.analysis.suggested_agents.map((sa, i) => {
+                              const isAdded = selectedAgents.some((a) => a.name === sa.name && a.role === sa.role);
+                              return (
+                                <motion.button
+                                  key={`ai-pool-${i}`}
+                                  onClick={() => !isAdded && addSuggestedAgent(sa, i)}
+                                  disabled={isAdded || rosterFull}
+                                  className={`flex flex-col text-left border rounded-xl p-3 transition-all group ${
+                                    isAdded
+                                      ? 'border-green-500/30 bg-green-500/5 opacity-60 cursor-default'
+                                      : 'border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10 hover:border-violet-500/50 hover:shadow-md'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-2 w-full">
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-sm bg-violet-500/80 text-white">{sa.name?.charAt(0) || '?'}</div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-semibold truncate group-hover:text-violet-400 transition-colors">{sa.name}</div>
+                                      <div className="text-[10px] text-muted-foreground truncate">{sa.role}</div>
+                                    </div>
+                                    {isAdded ? (
+                                      <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+                                    ) : (
+                                      <Plus className="w-4 h-4 text-violet-400 group-hover:text-violet-300 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <Badge variant="secondary" className="text-[9px] w-fit truncate">{sa.type}</Badge>
+                                    <Badge variant="secondary" className="text-[8px] bg-violet-500/10 text-violet-400 border-none">AI</Badge>
+                                  </div>
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+                          <Separator className="my-2" />
+                        </div>
+                      )}
+
+                      {/* Standard Presets */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 content-start">
+                        {availablePresets.map((p) => (
+                          <motion.button
+                            key={p.id}
+                            layoutId={`agent-${p.id}`}
+                            onClick={() => { addPresetAgent(p); }}
+                            className="flex flex-col text-left border border-border/40 rounded-xl p-3 bg-card hover:bg-primary/5 hover:border-primary/50 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-center gap-2 mb-2 w-full">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-sm text-white ${p.color.replace('text-', 'bg-').replace('/20', '/80')}`}>{p.name.charAt(0)}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-semibold truncate group-hover:text-primary transition-colors">{p.name}</div>
+                                <div className="text-[10px] text-muted-foreground truncate">{p.role}</div>
+                              </div>
+                              <Plus className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                            <Badge variant="secondary" className="text-[9px] w-fit truncate">
+                              {p.type}
+                            </Badge>
+                          </motion.button>
+                        ))}
+                        <motion.button onClick={openCreateModal} layout className="flex flex-col items-center justify-center text-center border-2 border-dashed border-primary/30 rounded-xl p-4 bg-primary/5 hover:bg-primary/10 transition-colors h-[100px] gap-2 text-primary">
+                          <UserPlus className="w-5 h-5" />
+                          <span className="text-xs font-semibold">Custom Agent</span>
                         </motion.button>
-                      ))}
-                      <motion.button onClick={openCreateModal} layout className="flex flex-col items-center justify-center text-center border-2 border-dashed border-primary/30 rounded-xl p-4 bg-primary/5 hover:bg-primary/10 transition-colors h-[100px] gap-2 text-primary">
-                        <UserPlus className="w-5 h-5" />
-                        <span className="text-xs font-semibold">Custom Agent</span>
-                      </motion.button>
+                      </div>
                     </CardContent>
                   </Card>
 

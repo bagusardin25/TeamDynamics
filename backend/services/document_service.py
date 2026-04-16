@@ -89,6 +89,8 @@ async def analyze_document(text: str, filename: str) -> dict:
 
 Given a document, extract and structure the following information. Respond ONLY with valid JSON:
 {
+  "company_name": "The company or organization name mentioned in the document. If not explicitly stated, infer a suitable name from context.",
+  "company_culture": "1-2 sentence description of the company culture, work environment, or organizational context extracted from the document.",
   "summary": "A 2-3 sentence summary of what this document is about",
   "key_requirements": ["requirement 1", "requirement 2", "requirement 3"],
   "team_risks": ["risk 1", "risk 2", "risk 3"],
@@ -98,11 +100,20 @@ Given a document, extract and structure the following information. Respond ONLY 
   },
   "suggested_agents": [
     {
+      "name": "A realistic first name for this team member (e.g., Alex, Sam, Jordan)",
       "role": "Suggested team role (e.g., Tech Lead, Product Manager)",
-      "type": "Personality type (e.g., Ambitious & Driven)",
-      "rationale": "Why this role is needed based on the document"
+      "type": "Personality type descriptor (e.g., Ambitious & Driven, Strict & Methodical)",
+      "rationale": "Why this role is needed based on the document",
+      "personality": {
+        "empathy": 50,
+        "ambition": 50,
+        "stressTolerance": 50,
+        "agreeableness": 50,
+        "assertiveness": 50
+      }
     }
   ],
+  "suggested_team_rules": ["rule 1", "rule 2", "rule 3"],
   "actionable_insights": ["insight 1", "insight 2", "insight 3"]
 }
 
@@ -112,7 +123,11 @@ Rules:
 3. The suggested crisis should be realistic and derived from document context
 4. Suggest 2-4 team roles that would be relevant to this document's content
 5. Keep all text concise and actionable
-6. If the document is not related to business/team/project, still try to extract useful team simulation insights"""
+6. If the document is not related to business/team/project, still try to extract useful team simulation insights
+7. For company_name: extract the actual company name from the document. If no company name is found, create a meaningful name based on the document's industry/context
+8. For company_culture: describe the work environment and organizational dynamics based on what the document reveals
+9. For each suggested agent, assign personality trait values (0-100) that realistically match their role and type. A Tech Lead might have high assertiveness, a Junior Dev might have high ambition but low stress tolerance, etc.
+10. For suggested_team_rules: extract or infer 2-4 team operating rules/norms that would be relevant based on the document context"""
 
     user_prompt = f"""Analyze this document for team dynamics simulation setup:
 
@@ -121,28 +136,45 @@ FILENAME: {filename}
 DOCUMENT CONTENT:
 {truncated}
 
-Generate structured analysis."""
+Generate structured analysis. Pay special attention to extracting the company/organization name, describing the company culture, and suggesting realistic team members with appropriate personality traits."""
 
     try:
-        result = await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER)
+        result = await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER, max_tokens=2000)
 
         # Ensure all expected fields exist
+        result.setdefault("company_name", "")
+        result.setdefault("company_culture", "")
         result.setdefault("summary", "Document analyzed successfully.")
         result.setdefault("key_requirements", [])
         result.setdefault("team_risks", [])
         result.setdefault("suggested_crisis", {"title": "Custom Crisis", "description": "A crisis derived from the document."})
         result.setdefault("suggested_agents", [])
+        result.setdefault("suggested_team_rules", [])
         result.setdefault("actionable_insights", [])
+
+        # Ensure each suggested agent has all expected fields
+        for agent in result.get("suggested_agents", []):
+            agent.setdefault("name", "Agent")
+            agent.setdefault("role", "Team Member")
+            agent.setdefault("type", "Versatile")
+            agent.setdefault("rationale", "")
+            agent.setdefault("personality", {
+                "empathy": 50, "ambition": 50, "stressTolerance": 50,
+                "agreeableness": 50, "assertiveness": 50,
+            })
 
         return result
 
     except Exception as e:
         logger.error(f"Document analysis LLM call failed: {e}")
         return {
+            "company_name": "",
+            "company_culture": "",
             "summary": "Document was uploaded but AI analysis encountered an error.",
             "key_requirements": ["Unable to extract requirements automatically."],
             "team_risks": ["Retry the analysis or review the document manually."],
             "suggested_crisis": {"title": "Custom Crisis", "description": "Please define a crisis scenario manually."},
             "suggested_agents": [],
+            "suggested_team_rules": [],
             "actionable_insights": ["Review the document manually for simulation setup."],
         }
