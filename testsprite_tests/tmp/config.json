@@ -1,0 +1,20 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3000",
+  "loginUser": "bagusardinp@gmail.com",
+  "loginPassword": "bagus123456",
+  "executionArgs": {
+    "projectName": "TeamDynamics",
+    "projectPath": "C:\\Coding\\TeamDynamics",
+    "testIds": [],
+    "additionalInstruction": "",
+    "serverMode": "production",
+    "envs": {
+      "API_KEY": "sk-user-UmCD1_MeTVfKTKB9bi06bw9NbV79a2ftK8uagyFWFyWQxs1TMZW-pb-WBtJwLlmWIwYOIv_sxQCG6zk7_rA--k23mOe8mCWpildmpkRi8SsihAdUm0eEhIIwZdR2hHAp00E"
+    }
+  },
+  "serverPort": 57230,
+  "proxy": "http://aec5f58a-86c8-4577-99c0-81df61168307:peCbTSQtN50nG249OCENeDGKlS1fWNfU@tun.testsprite.com:8080"
+}

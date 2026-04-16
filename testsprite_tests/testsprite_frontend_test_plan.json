@@ -1,0 +1,786 @@
+[
+  {
+    "id": "TC001",
+    "title": "Register a new account and reach the dashboard",
+    "description": "Verifies a new user can register with valid details and is redirected to the authenticated dashboard.",
+    "category": "User Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill a new full name into the full name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a unique email address into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid password of at least 6 characters into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user lands on the dashboard"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "View dashboard summary and credits",
+    "description": "Verifies an authenticated user can access the dashboard and see simulation stats, history, and remaining credits displayed.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the dashboard to finish loading"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify dashboard summary stats and credits remaining are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a simulation history list is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "View executive summary and critical findings in a report",
+    "description": "Verifies that a user can open a report and see an executive summary section rendered successfully.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an executive summary section is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "Login with email and password and reach the dashboard",
+    "description": "Verifies a returning user can log in with valid credentials and is redirected to the dashboard.",
+    "category": "User Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user lands on the dashboard"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Start a new simulation from dashboard",
+    "description": "Verifies an authenticated user can start a new simulation from the dashboard and arrive at the setup wizard.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the action to create a new simulation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the simulation setup wizard is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Inspect key metrics and agent performance cards in a report",
+    "description": "Verifies that a user can open a report and view key metrics along with individual agent performance cards.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify key metrics and agent performance cards are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Start a first simulation from the landing page CTA",
+    "description": "Verifies a visitor can start from the landing page and reach the simulation setup flow via the primary CTA.",
+    "category": "Landing Page Pressure Simulator",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Drag the pressure slider to a desired level"
+      },
+      {
+        "type": "action",
+        "description": "Click the call-to-action to run the first simulation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user lands on the simulation setup wizard"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Open an existing simulation from dashboard history",
+    "description": "Verifies an authenticated user can open a simulation from history and land on the live simulation view.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Wait for the simulation history list to load"
+      },
+      {
+        "type": "action",
+        "description": "Click a simulation in the history list"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the live simulation view is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Export the report as a PDF from the report page",
+    "description": "Verifies that a user can start the PDF export flow from the report page and sees an export-in-progress or confirmation UI state.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "action",
+        "description": "Start the PDF export action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a PDF export progress or confirmation state is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "View the timeline chart of morale, stress, and output over rounds",
+    "description": "Verifies that a user can view a timeline chart visualization within the report.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a timeline chart is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Open the live demo report from the landing page CTA",
+    "description": "Verifies a visitor can open the demo report from the landing page and see a complete report view rendered.",
+    "category": "Landing Page Pressure Simulator",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the call-to-action to view the live demo report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a post-simulation report is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC012",
+    "title": "Redirect to login when visiting dashboard unauthenticated",
+    "description": "Verifies unauthenticated users cannot access the dashboard and are sent to a login experience.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /dashboard"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a login experience is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC013",
+    "title": "View the demo report from a landing CTA-compatible route",
+    "description": "Verifies that a visitor can load the demo report via a demo query parameter and see the report content rendered.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "action",
+        "description": "Fill demo into the report id field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the report load action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify report content is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC014",
+    "title": "View AI-generated recommendations in the report",
+    "description": "Verifies that a user can view recommendations content rendered in the report.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify recommendations content is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC015",
+    "title": "Explore pressure slider effects on landing page",
+    "description": "Verifies a visitor can adjust the pressure level and the landing page reflects the changed simulator state.",
+    "category": "Landing Page Pressure Simulator",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Drag the pressure slider to a low value"
+      },
+      {
+        "type": "action",
+        "description": "Drag the pressure slider to a high value"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the simulator visuals update to reflect the high pressure state"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC016",
+    "title": "Logout from dashboard",
+    "description": "Verifies an authenticated user can log out from the dashboard and is returned to an unauthenticated state.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the logout control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user is no longer on an authenticated dashboard view"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC017",
+    "title": "Toggle password visibility during login and still sign in",
+    "description": "Verifies a user can toggle password visibility during login without disrupting successful authentication.",
+    "category": "User Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Toggle password visibility"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the user lands on the dashboard"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC018",
+    "title": "Handle missing report id input with a validation error",
+    "description": "Verifies that attempting to load a report without providing a report id shows a validation or empty-state error in the UI.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /report"
+      },
+      {
+        "type": "action",
+        "description": "Clear the report id field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the report load action"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a report id validation error or empty state is visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC019",
+    "title": "Prevent duplicate email registration",
+    "description": "Verifies a user cannot register a second account with an email that is already in use and sees an error state.",
+    "category": "User Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill a full name into the full name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a unique email address into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid password of at least 6 characters into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "action",
+        "description": "Click the logout action from the authenticated area"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill a full name into the full name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill the previously used email address into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a valid password of at least 6 characters into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an error message is visible indicating the email cannot be used"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC020",
+    "title": "Toggle theme on the dashboard after logging in",
+    "description": "Verifies that an authenticated user can toggle the theme on the dashboard and the UI updates immediately.",
+    "category": "Theme Toggle",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the theme"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the UI theme changes"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC021",
+    "title": "Block registration with an invalid short password",
+    "description": "Verifies registration prevents submitting a password that does not meet minimum length requirements and shows a validation error.",
+    "category": "User Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill a full name into the full name field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a unique email address into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill a password shorter than 6 characters into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a password validation error is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC022",
+    "title": "Reject login with invalid credentials",
+    "description": "Verifies login fails with incorrect credentials and an error state is shown without reaching the dashboard.",
+    "category": "User Login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the email field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with an incorrect password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a login error message is visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC023",
+    "title": "Toggle theme from dashboard",
+    "description": "Verifies a user can toggle between light and dark theme from the dashboard and the UI theme updates.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the theme toggle control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the application theme changes"
+      },
+      {
+        "type": "action",
+        "description": "Click the theme toggle control"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the application theme changes again"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC024",
+    "title": "Toggle theme on the landing page",
+    "description": "Verifies that a visitor can toggle between light and dark theme on the landing page and the UI updates immediately.",
+    "category": "Theme Toggle",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the theme"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the UI theme changes"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC025",
+    "title": "Block registration with missing required fields",
+    "description": "Verifies registration requires all mandatory fields and shows validation errors when attempting to submit incomplete information.",
+    "category": "User Registration",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /register"
+      },
+      {
+        "type": "action",
+        "description": "Fill a unique email address into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the registration form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify required-field validation errors are visible"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC026",
+    "title": "Dashboard remains usable after theme toggle and navigation to setup",
+    "description": "Verifies a user can toggle theme and still successfully start a new simulation without losing dashboard functionality.",
+    "category": "Dashboard",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_USER}} into the email field"
+      },
+      {
+        "type": "action",
+        "description": "Fill {{LOGIN_PASSWORD}} into the password field"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the theme toggle control"
+      },
+      {
+        "type": "action",
+        "description": "Click the action to create a new simulation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the simulation setup wizard is displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC027",
+    "title": "Theme choice persists when navigating from landing to another route",
+    "description": "Verifies that the selected theme remains applied after navigating from the landing page to another page within the app.",
+    "category": "Theme Toggle",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Toggle the theme"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to view documentation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the previously selected theme remains applied"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC028",
+    "title": "Navigate to docs from the landing page",
+    "description": "Verifies a visitor can reach the documentation page from the landing page navigation.",
+    "category": "Landing Page Pressure Simulator",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /"
+      },
+      {
+        "type": "action",
+        "description": "Click the navigation link to view documentation"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the documentation page content is displayed"
+      }
+    ],
+    "priority": "Low"
+  }
+]

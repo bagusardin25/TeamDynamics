@@ -1,0 +1,214 @@
+version: "2"
+type: frontend
+tech_stack:
+  - TypeScript
+  - Next.js 16
+  - React 19
+  - Tailwind CSS 4
+  - shadcn/ui
+  - Framer Motion
+  - Recharts
+  - Sonner (toast notifications)
+  - FastAPI (Python backend)
+  - SQLite (database)
+  - WebSocket (real-time simulation)
+routes:
+  - path: /
+    file: src/app/page.tsx
+    auth_required: false
+    description: Landing page with interactive pressure slider, feature highlights, and CTA buttons
+  - path: /login
+    file: src/app/login/page.tsx
+    auth_required: false
+    description: User login page with email/password and Google OAuth
+  - path: /register
+    file: src/app/register/page.tsx
+    auth_required: false
+    description: User registration page with name, email, and password
+  - path: /dashboard
+    file: src/app/dashboard/page.tsx
+    auth_required: true
+    description: User dashboard showing simulation history, stats, credits, and new simulation button
+  - path: /setup
+    file: src/app/setup/page.tsx
+    auth_required: false
+    description: Multi-step simulation configuration wizard (company profile, agent roster, simulation params)
+  - path: /simulation
+    file: src/app/simulation/page.tsx
+    auth_required: false
+    description: Live simulation view with real-time WebSocket agent chat, metrics, and God Mode interventions
+  - path: /report
+    file: src/app/report/page.tsx
+    auth_required: false
+    description: Post-simulation report with executive summary, agent analysis, timeline chart, and PDF export
+  - path: /docs
+    file: src/app/docs/page.tsx
+    auth_required: false
+    description: Documentation page explaining the simulation engine architecture
+features:
+  - name: User Registration
+    description: Create a new account with name, email, and password (min 6 chars)
+    files:
+      - src/app/register/page.tsx
+      - src/contexts/auth-context.tsx
+    entry_route: /register
+    user_interactions:
+      - Fill full name input field
+      - Fill email input field
+      - Fill password input field (min 6 characters)
+      - Click Create Account button
+      - See error message on duplicate email or validation failure
+      - Redirect to dashboard on success
+    api_calls:
+      - method: POST
+        endpoint: /api/auth/register
+    auth_required: false
+  - name: User Login
+    description: Login with email and password credentials
+    files:
+      - src/app/login/page.tsx
+      - src/contexts/auth-context.tsx
+    entry_route: /login
+    user_interactions:
+      - Fill email input field
+      - Fill password input field
+      - Click Sign In button
+      - Toggle password visibility
+      - See error message on invalid credentials
+      - Redirect to dashboard on success
+    api_calls:
+      - method: POST
+        endpoint: /api/auth/login
+    auth_required: false
+  - name: Google OAuth Login
+    description: Login or register using Google OAuth token client
+    files:
+      - src/app/login/page.tsx
+      - src/contexts/auth-context.tsx
+    entry_route: /login
+    user_interactions:
+      - Click Continue with Google button
+      - Google popup opens for authentication
+      - Redirect to dashboard on success
+    api_calls:
+      - method: POST
+        endpoint: /api/auth/google
+    auth_required: false
+  - name: Dashboard
+    description: View simulation history, quick stats, credits, and create new simulations
+    files:
+      - src/app/dashboard/page.tsx
+    entry_route: /dashboard
+    user_interactions:
+      - View total simulations, completed, running stats
+      - View credits remaining
+      - Toggle dark/light theme
+      - Click New Simulation button to go to /setup
+      - Click on a simulation card to view/resume it
+      - Click logout button
+    api_calls:
+      - method: GET
+        endpoint: /api/auth/me/simulations
+    auth_required: true
+  - name: Simulation Setup Wizard
+    description: Multi-step wizard to configure company profile, assemble agent team, and set simulation parameters
+    files:
+      - src/app/setup/page.tsx
+      - src/components/ui/radar-chart.tsx
+    entry_route: /setup
+    user_interactions:
+      - "Step 1: Fill company name and culture description"
+      - "Step 1: Select a crisis scenario from dropdown or enter custom crisis"
+      - "Step 1: Click Auto-Generate button to AI-generate a crisis"
+      - "Step 1: Upload a document for AI analysis (drag-drop or click)"
+      - "Step 1: Apply document suggestions to setup"
+      - "Step 2: Click preset agents from pool to add to roster"
+      - "Step 2: Create custom agent with name, role, personality sliders"
+      - "Step 2: Edit or remove agents from roster"
+      - "Step 2: View agent personality radar chart"
+      - "Step 3: Adjust duration slider (1-24 weeks)"
+      - "Step 3: Adjust pacing speed slider (slow/normal/fast)"
+      - "Step 3: View estimated API calls and cost"
+      - "Step 3: Click Launch Simulation button"
+    api_calls:
+      - method: GET
+        endpoint: /api/agents/presets
+      - method: POST
+        endpoint: /api/simulation/generate-crisis
+      - method: POST
+        endpoint: /api/document/analyze
+      - method: POST
+        endpoint: /api/simulation/create
+    auth_required: false
+  - name: Live Simulation
+    description: Real-time simulation with WebSocket-powered agent chat, metrics dashboard, and God Mode interventions
+    files:
+      - src/app/simulation/page.tsx
+      - src/components/simulation/MessageFeed.tsx
+      - src/components/simulation/AgentSidebar.tsx
+      - src/components/simulation/SimulationNavbar.tsx
+    entry_route: /simulation
+    user_interactions:
+      - Watch real-time agent messages appear in chat feed
+      - View agent internal thoughts vs public messages
+      - Monitor morale, stress, loyalty, productivity metrics per agent
+      - Use God Mode to send interventions (morale boost, fire agent, etc.)
+      - Navigate to report when simulation completes
+    api_calls:
+      - method: GET
+        endpoint: /api/simulation/{id}/status
+      - method: POST
+        endpoint: /api/simulation/{id}/intervene
+    auth_required: false
+  - name: Simulation Report
+    description: Post-simulation analytics report with executive summary, agent breakdown, timeline chart, and PDF export
+    files:
+      - src/app/report/page.tsx
+    entry_route: /report
+    user_interactions:
+      - View executive summary and critical findings
+      - View key metrics (agents, morale, stress, productivity)
+      - View individual agent performance cards
+      - View timeline chart of morale, stress, and output over rounds
+      - View AI-generated recommendations
+      - Export report as PDF
+    api_calls:
+      - method: GET
+        endpoint: /api/simulation/{id}/report
+    auth_required: false
+  - name: Landing Page Pressure Simulator
+    description: Interactive landing page with pressure slider that dynamically changes UI colors and animations
+    files:
+      - src/app/page.tsx
+    entry_route: /
+    user_interactions:
+      - Drag pressure slider from 0 to 100
+      - Watch headline color change from calm to warning
+      - See floating morale/output stats change
+      - Click Run First Simulation CTA
+      - Click Live Demo Report CTA
+      - Toggle theme between dark and light mode
+      - Click Docs link in navbar
+    api_calls: []
+    auth_required: false
+  - name: Theme Toggle
+    description: Dark/light mode toggle available on landing page and dashboard
+    files:
+      - src/components/theme-provider.tsx
+      - src/app/page.tsx
+      - src/app/dashboard/page.tsx
+    entry_route: /
+    user_interactions:
+      - Click sun/moon icon to toggle theme
+    api_calls: []
+    auth_required: false
+known_limitations:
+  - issue: Google OAuth requires GOOGLE_CLIENT_ID environment variable to be configured
+    location: src/app/login/page.tsx
+    impact: Google login button shows error if NEXT_PUBLIC_GOOGLE_CLIENT_ID is not set in .env.local
+  - issue: Simulation setup page does not require authentication
+    location: src/app/setup/page.tsx
+    impact: Users can access setup without logging in, though credit deduction requires auth
+  - issue: Demo report data is hardcoded in the backend
+    location: backend/routers/simulation.py
+    impact: The /report?id=demo route returns static demo data, not from a real simulation
