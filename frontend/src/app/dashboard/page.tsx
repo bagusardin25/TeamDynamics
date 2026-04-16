@@ -44,7 +44,7 @@ const SPARKLINE_DATA = [
 export default function DashboardPage() {
   const router = useRouter();
   const { user, token, isLoading, isAdmin, logout } = useAuth();
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const [simulations, setSimulations] = useState<SimulationRecord[]>([]);
   const [loadingSims, setLoadingSims] = useState(true);
 
@@ -122,10 +122,12 @@ export default function DashboardPage() {
               variant="ghost"
               size="icon"
               className="h-9 w-9 text-muted-foreground hover:text-foreground"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              aria-label={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              <span className="sr-only">{resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}</span>
             </Button>
 
             {/* User */}

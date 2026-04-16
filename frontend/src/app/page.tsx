@@ -12,11 +12,12 @@ import { useAuth } from "@/contexts/auth-context";
 
 export default function LandingPage() {
   const [pressure, setPressure] = useState([20]);
-  const { theme, setTheme } = useTheme();
+  const { resolvedTheme, setTheme } = useTheme();
   const { user } = useAuth();
 
   // Dynamic styles based on pressure
   const pressureValue = pressure[0];
+  const isDark = resolvedTheme === "dark";
   const isHighPressure = pressureValue > 70;
   const isExtreme = pressureValue > 90;
 
@@ -59,11 +60,12 @@ export default function LandingPage() {
               variant="ghost"
               size="icon"
               className="h-9 w-9 text-muted-foreground hover:text-foreground"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              onClick={() => setTheme(isDark ? 'light' : 'dark')}
+              aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Toggle theme</span>
+              <span className="sr-only">{isDark ? 'Switch to light theme' : 'Switch to dark theme'}</span>
             </Button>
             {user ? (
               <Link href="/dashboard">
