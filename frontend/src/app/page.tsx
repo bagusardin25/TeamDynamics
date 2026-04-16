@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle, Sun, Moon, LogIn } from "lucide-react";
@@ -48,10 +49,10 @@ export default function LandingPage() {
         <div className="w-full max-w-7xl flex justify-between items-center px-6 py-3 rounded-2xl border border-border/40 backdrop-blur-md bg-background/60 shadow-sm">
           <div className="flex items-center gap-3 group cursor-pointer">
             <motion.div 
-              whileHover={{ rotate: 15 }}
-              className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20"
+              whileHover={{ scale: 1.05 }}
+              className="relative w-10 h-10 flex items-center justify-center rounded-xl overflow-hidden bg-[#18181b] shadow-lg shadow-violet-500/20 border border-violet-500/30"
             >
-              <Users className="w-5 h-5 text-primary-foreground" />
+              <Image src="/logo.svg" alt="TeamDynamics Logo" width={28} height={28} className="object-cover scale-[1.15]" priority />
             </motion.div>
             <div className="flex items-center gap-2">
               <span className="font-bold text-xl tracking-tight text-foreground">TeamDynamics</span>

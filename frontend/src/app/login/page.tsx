@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Users, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -153,10 +154,12 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Users className="w-6 h-6 text-primary-foreground" />
+          <div className="relative w-12 h-12 flex items-center justify-center rounded-xl overflow-hidden bg-[#18181b] shadow-lg shadow-violet-500/20 border border-violet-500/30">
+            <Image src="/logo.svg" alt="TeamDynamics Logo" width={32} height={32} className="object-cover scale-[1.15]" priority />
           </div>
-          <span className="font-bold text-2xl tracking-tight">TeamDynamics</span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-2xl tracking-tight">TeamDynamics</span>
+          </div>
         </div>
 
         {/* Card */}

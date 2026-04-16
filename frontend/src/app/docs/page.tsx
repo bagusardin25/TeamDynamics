@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
@@ -336,8 +337,8 @@ export default function DocsPage() {
         <div className="max-w-[1400px] mx-auto flex items-center justify-between px-6 h-16">
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-3 group">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:rotate-12 transition-transform">
-                <Users className="w-4 h-4 text-primary-foreground" />
+              <div className="relative w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden bg-[#18181b] shadow-lg shadow-violet-500/20 border border-violet-500/30 group-hover:scale-105 transition-transform">
+                <Image src="/logo.svg" alt="TeamDynamics Logo" width={22} height={22} className="object-cover scale-[1.15]" priority />
               </div>
               <span className="font-bold text-lg tracking-tight">
                 TeamDynamics
