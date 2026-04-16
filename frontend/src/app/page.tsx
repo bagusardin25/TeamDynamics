@@ -159,7 +159,7 @@ export default function LandingPage() {
               "text-2xl font-black tabular-nums transition-colors",
               isHighPressure ? "text-orange-500" : "text-primary"
             )}>
-              {pressureValue}%
+              Pressure: {pressureValue}
             </span>
           </div>
           
@@ -171,13 +171,41 @@ export default function LandingPage() {
             className="mb-4"
           />
           
-          <div className="flex justify-between text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tighter">
+          <div className="flex justify-between text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tighter mb-5">
             <span>Chill Culture</span>
             <span>Crunch Time</span>
             <span>Mass Resignation</span>
           </div>
 
-          {/* Floating UI Elements based on pressure */}
+          {/* Reactive stats based on pressure */}
+          <div className="flex justify-between gap-3">
+            <div className={cn(
+              "flex-1 rounded-xl p-3 flex items-center gap-3 border transition-colors duration-300",
+              pressureValue > 70 ? "bg-red-500/10 border-red-500/20" : "bg-emerald-500/10 border-emerald-500/20"
+            )}>
+              <div className={cn("p-1.5 rounded-lg text-white", pressureValue > 70 ? "bg-red-500" : "bg-emerald-500")}>
+                <Users className="w-3 h-3" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold uppercase text-muted-foreground">Morale</span>
+                <span className="text-sm font-black tabular-nums">{Math.max(0, Math.round(100 - (pressureValue * 0.8)))}%</span>
+              </div>
+            </div>
+            <div className={cn(
+              "flex-1 rounded-xl p-3 flex items-center gap-3 border transition-colors duration-300",
+              pressureValue >= 80 ? "bg-orange-500/10 border-orange-500/20" : "bg-blue-500/10 border-blue-500/20"
+            )}>
+              <div className={cn("p-1.5 rounded-lg text-white", pressureValue >= 80 ? "bg-orange-500" : "bg-blue-500")}>
+                <Activity className="w-3 h-3" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-bold uppercase text-muted-foreground">Output</span>
+                <span className="text-sm font-black tabular-nums">{Math.max(0, Math.round(pressureValue < 80 ? pressureValue + 20 : 40))}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating UI Elements based on pressure (bonus for large screens) */}
           <div className="absolute right-full mr-4 top-1/2 -translate-y-1/2 hidden lg:flex flex-col gap-3">
              <FloatingStat icon={<Users className="w-3 h-3"/>} label="Morale" value={100 - (pressureValue * 0.8)} color="bg-emerald-500" />
              <FloatingStat icon={<Activity className="w-3 h-3"/>} label="Output" value={pressureValue < 80 ? pressureValue + 20 : 40} color="bg-blue-500" />
