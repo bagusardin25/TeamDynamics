@@ -82,7 +82,7 @@ export default function SetupPage() {
   const [companyCulture, setCompanyCulture] = useState(
     "A fast-paced tech startup running low on funding. Everyone is stressed but highly motivated to ship v2.0."
   );
-  const [crisis, setCrisis] = useState("");
+  const [crisis, setCrisis] = useState("rnd1");
   const [customCrisis, setCustomCrisis] = useState("");
   const [isGeneratingCrisis, setIsGeneratingCrisis] = useState(false);
   const [durationWeeks, setDurationWeeks] = useState(12);

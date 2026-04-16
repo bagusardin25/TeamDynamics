@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -112,6 +112,7 @@ function MetricCard({ icon: Icon, label, value, suffix, trend, color }: {
 
 function ReportContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const simId = searchParams.get("id");
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
@@ -178,8 +179,8 @@ function ReportContent() {
 
   useEffect(() => {
     if (!simId) {
-      setError("No simulation ID provided.");
-      setLoading(false);
+      // Redirect to demo report when no simulation ID is provided
+      router.replace("/report?id=demo");
       return;
     }
 
@@ -197,7 +198,7 @@ function ReportContent() {
         setError("Failed to load report. Make sure the backend is running.");
         setLoading(false);
       });
-  }, [simId]);
+  }, [simId, router]);
 
   if (loading) {
     return (
