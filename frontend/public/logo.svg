@@ -1,17 +1,59 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
-  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-    <feGaussianBlur stdDeviation="4" result="blur" />
-    <feComponentTransfer in="blur" result="glow">
-      <feFuncA type="linear" slope="0.5" />
-    </feComponentTransfer>
-    <feMerge>
-      <feMergeNode in="glow" />
-      <feMergeNode in="SourceGraphic" />
-    </feMerge>
-  </filter>
+  <defs>
+    <!-- Top Face Gradients -->
+    <linearGradient id="topFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/> <!-- sky-400 -->
+      <stop offset="100%" stop-color="#3b82f6"/> <!-- blue-500 -->
+    </linearGradient>
+    <linearGradient id="topStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bae6fd"/> <!-- sky-200 -->
+      <stop offset="100%" stop-color="#60a5fa"/> <!-- blue-400 -->
+    </linearGradient>
 
-  <g filter="url(#glow)">
-    <path d="M 15 25 L 55 25 M 35 25 L 35 85" stroke="#c4b5fd" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" />
-    <path d="M 35 25 C 90 25, 90 85, 35 85" stroke="#8b5cf6" stroke-width="14" stroke-linecap="round" />
+    <!-- Left Face Gradients -->
+    <linearGradient id="leftFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/> <!-- indigo-500 -->
+      <stop offset="100%" stop-color="#4338ca"/> <!-- indigo-700 -->
+    </linearGradient>
+    <linearGradient id="leftStroke" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/> <!-- indigo-400 -->
+      <stop offset="100%" stop-color="#4f46e5"/> <!-- indigo-600 -->
+    </linearGradient>
+
+    <!-- Right Face Gradients -->
+    <linearGradient id="rightFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#d946ef"/> <!-- fuchsia-500 -->
+      <stop offset="100%" stop-color="#a21caf"/> <!-- fuchsia-700 -->
+    </linearGradient>
+    <linearGradient id="rightStroke" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f0abfc"/> <!-- fuchsia-300 -->
+      <stop offset="100%" stop-color="#c026d3"/> <!-- fuchsia-600 -->
+    </linearGradient>
+
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="5" flood-opacity="0.15" flood-color="#000" />
+    </filter>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <!-- Right Face -->
+    <path d="M 55 53 L 81 38 L 81 68 L 55 83 Z" fill="url(#rightFill)" stroke="url(#rightStroke)" stroke-width="5" stroke-linejoin="round" />
+    
+    <!-- Left Face -->
+    <path d="M 45 53 L 19 38 L 19 68 L 45 83 Z" fill="url(#leftFill)" stroke="url(#leftStroke)" stroke-width="5" stroke-linejoin="round" />
+    
+    <!-- Top Face -->
+    <path d="M 50 15 L 75 29.5 L 50 44 L 25 29.5 Z" fill="url(#topFill)" stroke="url(#topStroke)" stroke-width="5" stroke-linejoin="round" />
   </g>
+
+  <!-- Glowing Core / Spark -->
+  <circle cx="50" cy="50" r="3.5" fill="#ffffff" filter="url(#glow)"/>
 </svg>
