@@ -153,7 +153,7 @@ cp .env.example .env
 python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-> **📝 API Docs:** Swagger UI available at [http://localhost:8000/docs](http://localhost:8000/docs)
+> **📝 API Docs:** Swagger UI available at [https://teamdynamics.vercel.app/docs](https://teamdynamics.vercel.app/docs)
 
 ### 3. Frontend Setup (Next.js)
 
@@ -171,7 +171,7 @@ npm run dev
 
 ### 4. Launch
 
-Navigate to [http://localhost:3000](http://localhost:3000) — create an account, set up a team, trigger a crisis, and watch the chaos unfold!
+Navigate to [https://teamdynamics.vercel.app](https://teamdynamics.vercel.app) — create an account, set up a team, trigger a crisis, and watch the chaos unfold!
 
 ---
 
@@ -192,7 +192,7 @@ OPENROUTER_DEFAULT_MODEL=meta-llama/llama-3.1-8b-instruct:free
 # ─── Server ───
 HOST=0.0.0.0
 PORT=8000
-FRONTEND_URL=http://localhost:3000
+FRONTEND_URL=https://teamdynamics.vercel.app
 
 # ─── Authentication ───
 JWT_SECRET_KEY=your-secret-key         # change this in production
