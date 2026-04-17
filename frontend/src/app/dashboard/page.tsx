@@ -93,7 +93,8 @@ export default function DashboardPage() {
     completed: { icon: <CheckCircle className="w-3.5 h-3.5" />, color: "text-green-400 border-green-500/20 bg-green-500/10", label: "Completed" },
   };
 
-  const getSimulationHref = (sim: SimulationRecord) => `/simulation?id=${sim.id}`;
+  const getSimulationHref = (sim: SimulationRecord) =>
+    sim.status === "completed" ? `/report?id=${sim.id}` : `/simulation?id=${sim.id}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,12 +149,14 @@ export default function DashboardPage() {
                 <div className="text-[10px] text-muted-foreground mt-0.5">{user.email}</div>
               </div>
               <Button
+                id="logout-button"
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-red-400"
+                aria-label="Sign out"
                 onClick={() => {
                   logout();
-                  router.replace("/login");
+                  window.location.href = "/login";
                 }}
               >
                 <LogOut className="w-4 h-4" />
@@ -294,6 +297,8 @@ export default function DashboardPage() {
                   <Card
                     role="link"
                     tabIndex={0}
+                    data-testid={`simulation-card-${sim.id}`}
+                    aria-label={`Open simulation ${sim.company_name}`}
                     onClick={() => router.push(href)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
@@ -336,9 +341,10 @@ export default function DashboardPage() {
                           <Link
                             href={href}
                             onClick={(e) => e.stopPropagation()}
+                            aria-label={`Open ${sim.company_name}`}
                             className="inline-flex h-7 items-center justify-center rounded-full bg-secondary px-2.5 text-[0.8rem] font-medium text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/80"
                           >
-                            Open
+                            {sim.status === "completed" ? "View Report" : "Open"}
                           </Link>
                         </div>
                       </div>
