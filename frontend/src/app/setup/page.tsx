@@ -43,15 +43,15 @@ interface PresetAgent {
 const POPULAR_MODELS = [
   { label: "Default (Global)", value: "__default__" },
   { label: "GPT-4o Mini", value: "gpt-4o-mini" },
-  { label: "GPT-4o", value: "gpt-4o" },
-  { label: "Claude 3.7 Sonnet", value: "anthropic/claude-3.7-sonnet" },
+  // { label: "GPT-4o", value: "gpt-4o" },
+  { label: "minimax-m2.5", value: "minimax/minimax-m2.5:free" },
   { label: "Claude 3 Haiku", value: "anthropic/claude-3-haiku" },
-  { label: "Llama 3.1 8B (Free)", value: "meta-llama/llama-3.1-8b-instruct:free" },
+  { label: "Llama 3.1 8B", value: "meta-llama/llama-3.1-8b-instruct:free" },
   { label: "Kimi K2.5", value: "moonshotai/kimi-k2.5" },
-  { label: "Mistral 7B (Free)", value: "mistralai/mistral-7b-instruct:free" },
-  { label: "Deepseek", value: "deepseek/deepseek-v3.2" },
+  { label: "Mistral 7B", value: "mistralai/mistral-7b-instruct:free" },
+  { label: "Deepseek-v3.2", value: "deepseek/deepseek-v3.2" },
   { label: "Gemini 2.0 Flash", value: "gemini-2.0-flash" },
-  { label: "Custom...", value: "__custom__" },
+  // { label: "Custom...", value: "__custom__" },
 ];
 
 const AGENT_COLORS = [
@@ -437,14 +437,29 @@ export default function SetupPage() {
             <Link href="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors mb-3">
               <ChevronLeft className="w-4 h-4 mr-1" /> Back to Dashboard
             </Link>
-            <h1 className="text-3xl font-bold tracking-tight mb-2">Configure Simulation</h1>
-            <p className="text-muted-foreground">Setup your team, inject the crisis, and watch the chaos.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight mb-2 bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+              Configure Simulation
+            </h1>
+            <p className="text-muted-foreground max-w-lg">
+              Setup your team, inject the crisis, and watch the chaos unfold.
+            </p>
           </div>
           <div className="flex gap-2">
             {[1, 2, 3].map((step) => (
               <div key={step} className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${currentStep === step ? 'bg-primary text-primary-foreground shadow-[0_0_15px_rgba(var(--primary),0.5)] scale-110' : currentStep > step ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>{currentStep > step ? '✓' : step}</div>
-                {step < 3 && <div className={`w-6 sm:w-12 h-1 rounded-full transition-colors duration-300 ${currentStep > step ? 'bg-primary/50' : 'bg-muted'}`} />}
+                <div className={`relative w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-500 ${currentStep === step ? 'bg-primary text-primary-foreground scale-110 ring-4 ring-primary/20 shadow-[0_0_15px_rgba(var(--primary),0.6)]' : currentStep > step ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-muted/50 text-muted-foreground border border-border/50 hover:bg-muted'}`}>
+                  {currentStep > step ? <CheckCircle2 className="w-4 h-4" /> : step}
+                </div>
+                {step < 3 && (
+                  <div className="relative w-6 sm:w-12 h-1 bg-muted/50 rounded-full overflow-hidden">
+                    <motion.div
+                      className="absolute left-0 top-0 h-full bg-primary"
+                      initial={{ width: 0 }}
+                      animate={{ width: currentStep > step ? '100%' : '0%' }}
+                      transition={{ duration: 0.5, ease: "easeInOut" }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -455,243 +470,281 @@ export default function SetupPage() {
             {/* Step 1 */}
             {currentStep === 1 && (
               <motion.div key="step1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8 max-w-3xl mx-auto">
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl">
-                  <CardHeader>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Briefcase className="w-5 h-5 text-primary" />
-                      <CardTitle>Company Profile</CardTitle>
-                    </div>
-                    <CardDescription>Define the tone and context of your startup.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Company Name</label>
-                      <Input placeholder="e.g. Acme Corp" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="bg-background/50" />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Company Culture / Context</label>
-                      <Textarea placeholder="Describe the current state of the company..." value={companyCulture} onChange={(e) => setCompanyCulture(e.target.value)} className="min-h-[100px] bg-background/50" />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl border-t-4 border-t-orange-500">
-                  <CardHeader>
-                    <div className="flex items-center gap-2 mb-1">
-                      <AlertTriangle className="w-5 h-5 text-orange-500" />
-                      <CardTitle>Crisis Injection</CardTitle>
-                    </div>
-                    <CardDescription>What event triggers this simulation?</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                       <div className="flex items-center justify-between">
-                         <label className="text-sm font-medium">Select Scenario</label>
-                         <Button variant="ghost" size="sm" onClick={handleGenerateCrisis} disabled={isGeneratingCrisis} className="h-7 text-xs text-orange-500 hover:text-orange-600 hover:bg-orange-500/10">
-                           {isGeneratingCrisis ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
-                           Auto-Generate
-                         </Button>
-                       </div>
-                      <Select value={crisis} onValueChange={(val) => setCrisis(val || "")}>
-                        <SelectTrigger className="w-full bg-background/50">
-                          <SelectValue placeholder="Choose a crisis..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="rnd1">Mandatory Weekend Coding for v2.0</SelectItem>
-                          <SelectItem value="rnd2">Budget Cut: 30% Layoffs Required</SelectItem>
-                          <SelectItem value="rnd3">CEO Resigns Unexpectedly</SelectItem>
-                          <SelectItem value="rnd4">Critical Database Deleted on Friday</SelectItem>
-                          <SelectItem value="custom">Custom Crisis...</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {crisis === "custom" && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-2 pt-2">
-                        <label className="text-sm font-medium">Describe Custom Event</label>
-                        <Textarea placeholder="e.g. We just lost our biggest client and everyone's panic-blaming each other..." value={customCrisis} onChange={(e) => setCustomCrisis(e.target.value)} className="min-h-[100px] bg-background/50" />
-                      </motion.div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Document Upload & AI Analysis */}
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm shadow-xl border-t-4 border-t-violet-500">
-                  <CardHeader>
-                    <div className="flex items-center gap-2 mb-1">
-                      <FileUp className="w-5 h-5 text-violet-500" />
-                      <CardTitle>AI Document Analysis</CardTitle>
-                      <Badge variant="secondary" className="text-[10px] bg-violet-500/10 text-violet-400 border-none">New</Badge>
-                    </div>
-                    <CardDescription>Upload a document (PDF, DOCX, TXT, CSV, Excel) for AI-powered requirement extraction and crisis suggestions.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Drop zone */}
-                    <div
-                      className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${
-                        dragOver ? "border-violet-500 bg-violet-500/10" : "border-border/60 hover:border-violet-500/50 hover:bg-violet-500/5"
-                      } ${isAnalyzing ? "pointer-events-none opacity-60" : ""}`}
-                      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                      onDragLeave={() => setDragOver(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setDragOver(false);
-                        const file = e.dataTransfer.files[0];
-                        if (file) handleDocumentUpload(file);
-                      }}
-                      onClick={() => {
-                        const input = document.createElement("input");
-                        input.type = "file";
-                        input.accept = ".pdf,.docx,.doc,.txt,.csv,.xlsx,.xls";
-                        input.onchange = (e) => {
-                          const file = (e.target as HTMLInputElement).files?.[0];
-                          if (file) handleDocumentUpload(file);
-                        };
-                        input.click();
-                      }}
-                    >
-                      {isAnalyzing ? (
-                        <div className="flex flex-col items-center gap-2">
-                          <Loader2 className="w-8 h-8 text-violet-500 animate-spin" />
-                          <p className="text-sm font-medium text-violet-400">Analyzing document...</p>
-                          <p className="text-xs text-muted-foreground">AI is extracting requirements and insights</p>
+                <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.2 }}>
+                  <Card className="relative overflow-hidden border-border/40 bg-card/40 backdrop-blur-xl shadow-2xl hover:border-primary/30 transition-colors duration-500 group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                    <CardHeader className="relative z-10 pb-4 border-b border-border/30 bg-card/30">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
+                          <Briefcase className="w-5 h-5" />
                         </div>
-                      ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          <FileUp className={`w-8 h-8 ${dragOver ? "text-violet-500" : "text-muted-foreground"}`} />
-                          <p className="text-sm font-medium">Drop a file here or click to upload</p>
-                          <p className="text-xs text-muted-foreground">PDF, DOCX, TXT, CSV, Excel — Max 10MB</p>
+                        <div>
+                          <CardTitle className="text-lg">Company Profile</CardTitle>
+                          <CardDescription className="mt-0.5 text-xs">Define the tone and context of your startup.</CardDescription>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="relative z-10 space-y-4 pt-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Company Name</label>
+                        <Input placeholder="e.g. Acme Corp" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="bg-background/50 border-border/50 focus-visible:ring-primary/50 text-sm transition-all" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Company Culture / Context</label>
+                        <Textarea placeholder="Describe the current state of the company..." value={companyCulture} onChange={(e) => setCompanyCulture(e.target.value)} className="min-h-[100px] bg-background/50 border-border/50 focus-visible:ring-primary/50 text-sm leading-relaxed resize-y transition-all" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-                    {/* Analysis Results */}
-                    <AnimatePresence>
-                      {docAnalysis && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden">
-                          <div className="rounded-xl bg-violet-500/5 border border-violet-500/20 p-4 space-y-3">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 className="w-4 h-4 text-green-500" />
-                              <span className="text-sm font-semibold">Analysis: {docAnalysis.filename}</span>
-                            </div>
+                <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.2 }}>
+                  <Card className="relative overflow-hidden border-border/40 bg-card/40 backdrop-blur-xl shadow-2xl hover:border-orange-500/30 transition-colors duration-500 group">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 to-orange-600" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                    <CardHeader className="relative z-10 pb-4 border-b border-border/30 bg-card/30">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-500 shadow-inner">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">Crisis Injection</CardTitle>
+                          <CardDescription className="mt-0.5 text-xs">What catastrophic event triggers this simulation?</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="relative z-10 space-y-4 pt-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Select Scenario</label>
+                          <Button variant="ghost" size="sm" onClick={handleGenerateCrisis} disabled={isGeneratingCrisis} className="h-7 text-[11px] font-semibold text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 rounded-full px-2.5 transition-all">
+                            {isGeneratingCrisis ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                            Auto-Generate
+                          </Button>
+                        </div>
+                        <Select value={crisis} onValueChange={(val) => setCrisis(val || "")}>
+                          <SelectTrigger className="w-full bg-background/50 border-border/50 focus:ring-orange-500/50 text-sm transition-all">
+                            <SelectValue placeholder="Choose a crisis..." />
+                          </SelectTrigger>
+                          <SelectContent className="backdrop-blur-xl bg-background/95 border-white/10 shadow-2xl">
+                            <SelectItem value="rnd1" className="cursor-pointer focus:bg-orange-500/10 focus:text-orange-500 transition-colors text-sm">Mandatory Weekend Coding for v2.0</SelectItem>
+                            <SelectItem value="rnd2" className="cursor-pointer focus:bg-orange-500/10 focus:text-orange-500 transition-colors text-sm">Budget Cut: 30% Layoffs Required</SelectItem>
+                            <SelectItem value="rnd3" className="cursor-pointer focus:bg-orange-500/10 focus:text-orange-500 transition-colors text-sm">CEO Resigns Unexpectedly</SelectItem>
+                            <SelectItem value="rnd4" className="cursor-pointer focus:bg-orange-500/10 focus:text-orange-500 transition-colors text-sm">Critical Database Deleted on Friday</SelectItem>
+                            <SelectItem value="custom" className="cursor-pointer font-bold text-primary focus:bg-primary/10 transition-colors text-sm">Custom Crisis...</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                            {/* Detected Company Info */}
-                            {(docAnalysis.analysis.company_name || docAnalysis.analysis.company_culture) && (
-                              <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 space-y-1">
-                                <h4 className="text-xs font-semibold text-blue-400 mb-1">🏢 Detected Company</h4>
-                                {docAnalysis.analysis.company_name && (
-                                  <p className="text-xs"><span className="text-muted-foreground">Name:</span> <span className="font-medium">{docAnalysis.analysis.company_name}</span></p>
-                                )}
-                                {docAnalysis.analysis.company_culture && (
-                                  <p className="text-xs"><span className="text-muted-foreground">Culture:</span> <span className="font-medium">{docAnalysis.analysis.company_culture}</span></p>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Summary */}
-                            <p className="text-sm text-muted-foreground leading-relaxed">{docAnalysis.analysis.summary}</p>
-
-                            {/* Key Requirements */}
-                            {docAnalysis.analysis.key_requirements.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Key Requirements</h4>
-                                <ul className="space-y-1">
-                                  {docAnalysis.analysis.key_requirements.map((req, i) => (
-                                    <li key={i} className="text-xs text-foreground flex gap-2"><span className="text-violet-400 shrink-0">•</span>{req}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* Team Risks */}
-                            {docAnalysis.analysis.team_risks.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Team Risks</h4>
-                                <ul className="space-y-1">
-                                  {docAnalysis.analysis.team_risks.map((risk, i) => (
-                                    <li key={i} className="text-xs text-orange-400 flex gap-2"><AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{risk}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* Suggested Team Rules */}
-                            {docAnalysis.analysis.suggested_team_rules && docAnalysis.analysis.suggested_team_rules.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">📋 Suggested Team Rules</h4>
-                                <ul className="space-y-1">
-                                  {docAnalysis.analysis.suggested_team_rules.map((rule, i) => (
-                                    <li key={i} className="text-xs text-foreground flex gap-2"><span className="text-cyan-400 shrink-0">{i + 1}.</span>{rule}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {/* Suggested Crisis */}
-                            {docAnalysis.analysis.suggested_crisis && (
-                              <div className="rounded-lg bg-orange-500/10 border border-orange-500/20 p-3">
-                                <h4 className="text-xs font-semibold text-orange-400 mb-1">💥 Suggested Crisis</h4>
-                                <p className="text-xs font-medium">{docAnalysis.analysis.suggested_crisis.title}</p>
-                                <p className="text-xs text-muted-foreground mt-0.5">{docAnalysis.analysis.suggested_crisis.description}</p>
-                              </div>
-                            )}
-
-                            {/* Suggested Agents */}
-                            {docAnalysis.analysis.suggested_agents.length > 0 && (
-                              <div>
-                                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Suggested Team Members</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  {docAnalysis.analysis.suggested_agents.map((agent, i) => {
-                                    const isAlreadyAdded = selectedAgents.some((sa) => sa.name === agent.name && sa.role === agent.role);
-                                    return (
-                                      <div key={i} className={`rounded-lg bg-background/50 border p-2 transition-all ${isAlreadyAdded ? 'border-green-500/30 bg-green-500/5' : 'border-border/50 hover:border-primary/40'}`}>
-                                        <div className="flex items-start justify-between gap-1">
-                                          <div className="flex-1 min-w-0">
-                                            <div className="text-xs font-semibold">{agent.name} — {agent.role}</div>
-                                            <Badge variant="secondary" className="text-[9px] mt-0.5">{agent.type}</Badge>
-                                          </div>
-                                          {isAlreadyAdded ? (
-                                            <Badge variant="secondary" className="text-[9px] bg-green-500/10 text-green-500 border-none shrink-0">Added</Badge>
-                                          ) : (
-                                            <button
-                                              onClick={() => addSuggestedAgent(agent, i)}
-                                              disabled={selectedAgents.length >= MAX_ROSTER_SIZE}
-                                              className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors shrink-0 disabled:opacity-30"
-                                              title={`Add ${agent.name} to roster`}
-                                            >
-                                              <Plus className="w-3 h-3" />
-                                            </button>
-                                          )}
-                                        </div>
-                                        <p className="text-[10px] text-muted-foreground mt-1">{agent.rationale}</p>
-                                        {/* Mini personality preview */}
-                                        <div className="flex gap-1 mt-1.5 flex-wrap">
-                                          {Object.entries(agent.personality || {}).map(([key, val]) => (
-                                            <span key={key} className="text-[8px] px-1 py-0.5 rounded bg-muted/50 text-muted-foreground">
-                                              {key.slice(0, 3).toUpperCase()} {val as number}
-                                            </span>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Apply All Suggestions Button */}
-                            <Button size="sm" className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white" onClick={applyDocSuggestions}>
-                              <Sparkles className="w-3 h-3 mr-1" /> Apply All Suggestions to Setup
-                            </Button>
-                          </div>
+                      {crisis === "custom" && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="space-y-1.5 pt-1">
+                          <label className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase">Describe Custom Event</label>
+                          <Textarea placeholder="e.g. We just lost our biggest client and everyone's panic-blaming each other..." value={customCrisis} onChange={(e) => setCustomCrisis(e.target.value)} className="min-h-[100px] bg-background/50 border-border/50 focus-visible:ring-orange-500/50 text-sm leading-relaxed transition-all" />
                         </motion.div>
                       )}
-                    </AnimatePresence>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </motion.div>
 
-                <div className="flex justify-end pt-4">
-                  <Button onClick={() => setCurrentStep(2)} size="lg" className="w-full sm:w-auto h-12 px-8">Next: Assemble Team &rarr;</Button>
+                {/* Document Upload & AI Analysis */}
+                <motion.div whileHover={{ y: -2 }} transition={{ duration: 0.2 }}>
+                  <Card className="relative overflow-hidden border-border/40 bg-card/40 backdrop-blur-xl shadow-2xl hover:border-violet-500/30 transition-colors duration-500 group">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-400 to-violet-600" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                    <CardHeader className="relative z-10 pb-4 border-b border-border/30 bg-card/30">
+                      <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-500 relative shadow-inner">
+                          <FileUp className="w-5 h-5 relative z-10" />
+                          <div className="absolute inset-0 bg-violet-500/20 blur-xl rounded-full" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-3">
+                            <CardTitle className="text-lg">AI Document Analysis</CardTitle>
+                            <Badge variant="secondary" className="px-1.5 py-0 text-[9px] bg-violet-500 text-white border-none shadow-[0_0_10px_rgba(139,92,246,0.5)] animate-pulse">NEW</Badge>
+                          </div>
+                          <CardDescription className="mt-0.5 text-xs">Upload PRD/OKR (PDF, DOCX) for AI requirement extraction.</CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="relative z-10 space-y-4 pt-4">
+                      {/* Drop zone */}
+                      <div
+                        className={`relative border-2 border-dashed rounded-xl p-6 text-center transition-all duration-300 cursor-pointer overflow-hidden ${dragOver ? "border-violet-500 bg-violet-500/20 scale-[0.99] shadow-inner" : "border-border/60 hover:border-violet-500/50 hover:bg-violet-500/5"
+                          } ${isAnalyzing ? "pointer-events-none opacity-50 backdrop-blur-sm" : ""}`}
+                        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                        onDragLeave={() => setDragOver(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setDragOver(false);
+                          const file = e.dataTransfer.files[0];
+                          if (file) handleDocumentUpload(file);
+                        }}
+                        onClick={() => {
+                          const input = document.createElement("input");
+                          input.type = "file";
+                          input.accept = ".pdf,.docx,.doc,.txt,.csv,.xlsx,.xls";
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) handleDocumentUpload(file);
+                          };
+                          input.click();
+                        }}
+                      >
+                        {isAnalyzing ? (
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="relative">
+                              <Loader2 className="w-8 h-8 text-violet-400 animate-spin relative z-10" />
+                              <div className="absolute inset-0 bg-violet-500/40 blur-xl rounded-full animate-pulse" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-violet-400">Analyzing Document...</p>
+                              <p className="text-xs text-muted-foreground mt-0.5">Extracting contexts, risks, and building AI agents</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-3 relative z-10">
+                            <div className={`p-3 rounded-full transition-colors duration-300 ${dragOver ? "bg-violet-500/30 text-violet-400 shadow-[0_0_20px_rgba(139,92,246,0.3)]" : "bg-card/50 shadow-sm border border-white/5 text-muted-foreground"}`}>
+                              <FileUp className={`w-6 h-6 transition-colors ${dragOver ? "text-violet-400" : ""}`} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">Click to browse or drag and drop</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 tracking-wide">Supports PDF, DOCX, TXT, CSV, Excel (Max 10MB)</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Analysis Results */}
+                      <AnimatePresence>
+                        {docAnalysis && (
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden">
+                            <div className="rounded-xl bg-violet-500/5 border border-violet-500/20 p-4 space-y-3">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                <span className="text-sm font-semibold">Analysis: {docAnalysis.filename}</span>
+                              </div>
+
+                              {/* Detected Company Info */}
+                              {(docAnalysis.analysis.company_name || docAnalysis.analysis.company_culture) && (
+                                <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 p-3 space-y-1">
+                                  <h4 className="text-xs font-semibold text-blue-400 mb-1">🏢 Detected Company</h4>
+                                  {docAnalysis.analysis.company_name && (
+                                    <p className="text-xs"><span className="text-muted-foreground">Name:</span> <span className="font-medium">{docAnalysis.analysis.company_name}</span></p>
+                                  )}
+                                  {docAnalysis.analysis.company_culture && (
+                                    <p className="text-xs"><span className="text-muted-foreground">Culture:</span> <span className="font-medium">{docAnalysis.analysis.company_culture}</span></p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Summary */}
+                              <p className="text-sm text-muted-foreground leading-relaxed">{docAnalysis.analysis.summary}</p>
+
+                              {/* Key Requirements */}
+                              {docAnalysis.analysis.key_requirements.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Key Requirements</h4>
+                                  <ul className="space-y-1">
+                                    {docAnalysis.analysis.key_requirements.map((req, i) => (
+                                      <li key={i} className="text-xs text-foreground flex gap-2"><span className="text-violet-400 shrink-0">•</span>{req}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Team Risks */}
+                              {docAnalysis.analysis.team_risks.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Team Risks</h4>
+                                  <ul className="space-y-1">
+                                    {docAnalysis.analysis.team_risks.map((risk, i) => (
+                                      <li key={i} className="text-xs text-orange-400 flex gap-2"><AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />{risk}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Suggested Team Rules */}
+                              {docAnalysis.analysis.suggested_team_rules && docAnalysis.analysis.suggested_team_rules.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">📋 Suggested Team Rules</h4>
+                                  <ul className="space-y-1">
+                                    {docAnalysis.analysis.suggested_team_rules.map((rule, i) => (
+                                      <li key={i} className="text-xs text-foreground flex gap-2"><span className="text-cyan-400 shrink-0">{i + 1}.</span>{rule}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Suggested Crisis */}
+                              {docAnalysis.analysis.suggested_crisis && (
+                                <div className="rounded-lg bg-orange-500/10 border border-orange-500/20 p-3">
+                                  <h4 className="text-xs font-semibold text-orange-400 mb-1">💥 Suggested Crisis</h4>
+                                  <p className="text-xs font-medium">{docAnalysis.analysis.suggested_crisis.title}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">{docAnalysis.analysis.suggested_crisis.description}</p>
+                                </div>
+                              )}
+
+                              {/* Suggested Agents */}
+                              {docAnalysis.analysis.suggested_agents.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Suggested Team Members</h4>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {docAnalysis.analysis.suggested_agents.map((agent, i) => {
+                                      const isAlreadyAdded = selectedAgents.some((sa) => sa.name === agent.name && sa.role === agent.role);
+                                      return (
+                                        <div key={i} className={`rounded-lg bg-background/50 border p-2 transition-all ${isAlreadyAdded ? 'border-green-500/30 bg-green-500/5' : 'border-border/50 hover:border-primary/40'}`}>
+                                          <div className="flex items-start justify-between gap-1">
+                                            <div className="flex-1 min-w-0">
+                                              <div className="text-xs font-semibold">{agent.name} — {agent.role}</div>
+                                              <Badge variant="secondary" className="text-[9px] mt-0.5">{agent.type}</Badge>
+                                            </div>
+                                            {isAlreadyAdded ? (
+                                              <Badge variant="secondary" className="text-[9px] bg-green-500/10 text-green-500 border-none shrink-0">Added</Badge>
+                                            ) : (
+                                              <button
+                                                onClick={() => addSuggestedAgent(agent, i)}
+                                                disabled={selectedAgents.length >= MAX_ROSTER_SIZE}
+                                                className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-primary-foreground transition-colors shrink-0 disabled:opacity-30"
+                                                title={`Add ${agent.name} to roster`}
+                                              >
+                                                <Plus className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                          <p className="text-[10px] text-muted-foreground mt-1">{agent.rationale}</p>
+                                          {/* Mini personality preview */}
+                                          <div className="flex gap-1 mt-1.5 flex-wrap">
+                                            {Object.entries(agent.personality || {}).map(([key, val]) => (
+                                              <span key={key} className="text-[8px] px-1 py-0.5 rounded bg-muted/50 text-muted-foreground">
+                                                {key.slice(0, 3).toUpperCase()} {val as number}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Apply All Suggestions Button */}
+                              <Button size="sm" className="w-full h-9 bg-violet-600 hover:bg-violet-700 text-white" onClick={applyDocSuggestions}>
+                                <Sparkles className="w-3 h-3 mr-1" /> Apply All Suggestions to Setup
+                              </Button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </CardContent>
+                  </Card>
+
+                </motion.div>
+
+                <div className="flex justify-end pt-4 pb-2">
+                  <Button onClick={() => setCurrentStep(2)} className="w-full sm:w-auto h-11 px-8 rounded-xl text-sm font-semibold bg-primary hover:bg-primary/90 shadow-[0_8px_30px_rgba(var(--primary),0.3)] hover:shadow-[0_8px_30px_rgba(var(--primary),0.5)] transition-all hover:-translate-y-1 group">
+                    Next: Assemble Team
+                    <ChevronDown className="w-4 h-4 ml-1.5 -rotate-90 group-hover:translate-x-1 transition-transform" />
+                  </Button>
                 </div>
               </motion.div>
             )}
@@ -722,11 +775,10 @@ export default function SetupPage() {
                                   key={`ai-pool-${i}`}
                                   onClick={() => !isAdded && addSuggestedAgent(sa, i)}
                                   disabled={isAdded || rosterFull}
-                                  className={`flex flex-col text-left border rounded-xl p-3 transition-all group ${
-                                    isAdded
-                                      ? 'border-green-500/30 bg-green-500/5 opacity-60 cursor-default'
-                                      : 'border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10 hover:border-violet-500/50 hover:shadow-md'
-                                  }`}
+                                  className={`flex flex-col text-left border rounded-xl p-3 transition-all group ${isAdded
+                                    ? 'border-green-500/30 bg-green-500/5 opacity-60 cursor-default'
+                                    : 'border-violet-500/30 bg-violet-500/5 hover:bg-violet-500/10 hover:border-violet-500/50 hover:shadow-md'
+                                    }`}
                                 >
                                   <div className="flex items-center gap-2 mb-2 w-full">
                                     <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 shadow-sm bg-violet-500/80 text-white">{sa.name?.charAt(0) || '?'}</div>
@@ -830,9 +882,9 @@ export default function SetupPage() {
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-1.5 mt-2">
-                               <Badge variant="secondary" className={`${agent.color.includes('border') ? agent.color : agent.color + " border-none"} font-medium text-[10px]`}>{agent.type}</Badge>
-                               {agent.model && <Badge variant="outline" className="text-[9px] bg-violet-500/10 text-violet-400 border-violet-500/20"><Cpu className="w-2.5 h-2.5 mr-1" />Custom AI</Badge>}
-                               {agent.expertise && <Badge variant="outline" className="text-[9px]">🎯 Expert</Badge>}
+                              <Badge variant="secondary" className={`${agent.color.includes('border') ? agent.color : agent.color + " border-none"} font-medium text-[10px]`}>{agent.type}</Badge>
+                              {agent.model && <Badge variant="outline" className="text-[9px] bg-violet-500/10 text-violet-400 border-violet-500/20"><Cpu className="w-2.5 h-2.5 mr-1" />Custom AI</Badge>}
+                              {agent.expertise && <Badge variant="outline" className="text-[9px]">🎯 Expert</Badge>}
                             </div>
 
                             {/* Radar Chart (expanded) */}
@@ -840,7 +892,7 @@ export default function SetupPage() {
                               {expandedAgent === agent.id && (
                                 <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
                                   <div className="mt-3 pt-3 border-t border-border/50 flex flex-col items-center">
-                                    <RadarChart size={160} data={[ { label: "EMP", value: agent.personality.empathy }, { label: "AMB", value: agent.personality.ambition }, { label: "RES", value: agent.personality.stressTolerance }, { label: "AGR", value: agent.personality.agreeableness }, { label: "ASR", value: agent.personality.assertiveness } ]} />
+                                    <RadarChart size={160} data={[{ label: "EMP", value: agent.personality.empathy }, { label: "AMB", value: agent.personality.ambition }, { label: "RES", value: agent.personality.stressTolerance }, { label: "AGR", value: agent.personality.agreeableness }, { label: "ASR", value: agent.personality.assertiveness }]} />
                                   </div>
                                 </motion.div>
                               )}
