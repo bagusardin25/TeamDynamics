@@ -93,6 +93,8 @@ export default function DashboardPage() {
     completed: { icon: <CheckCircle className="w-3.5 h-3.5" />, color: "text-green-400 border-green-500/20 bg-green-500/10", label: "Completed" },
   };
 
+  const getSimulationHref = (sim: SimulationRecord) => `/simulation?id=${sim.id}`;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -149,7 +151,10 @@ export default function DashboardPage() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                onClick={() => { logout(); router.push("/"); }}
+                onClick={() => {
+                  logout();
+                  router.replace("/login");
+                }}
               >
                 <LogOut className="w-4 h-4" />
               </Button>
@@ -278,6 +283,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             {simulations.map((sim, idx) => {
               const cfg = statusConfig[sim.status] || statusConfig.idle;
+              const href = getSimulationHref(sim);
               return (
                 <motion.div
                   key={sim.id}
@@ -285,52 +291,59 @@ export default function DashboardPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                 >
-                  <Link href={sim.status === "completed" ? `/simulation?id=${sim.id}` : `/simulation?id=${sim.id}`}>
-                    <Card className="bg-card/40 border-border/50 hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
-                      <CardContent className="p-5 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          {/* Status icon */}
-                          <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${cfg.color} transition-transform group-hover:scale-110`}>
-                            {cfg.icon}
+                  <Card
+                    role="link"
+                    tabIndex={0}
+                    onClick={() => router.push(href)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        router.push(href);
+                      }
+                    }}
+                    className="bg-card/40 border-border/50 hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
+                    <CardContent className="p-5 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${cfg.color} transition-transform group-hover:scale-110`}>
+                          {cfg.icon}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-4">
+                          <div className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
+                            {sim.company_name}
                           </div>
-
-                          {/* Info */}
-                          <div className="flex-1 min-w-0 pr-4">
-                            <div className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
-                              {sim.company_name}
-                            </div>
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1">
-                              <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:block">
-                                {CRISIS_LABELS[sim.crisis_scenario] || sim.crisis_scenario}
-                              </span>
-                              <div className="flex items-center gap-1.5 flex-1 max-w-[150px]">
-                                <Progress value={(sim.current_round / sim.total_rounds) * 100} className="h-1.5" />
-                                <span className="text-[10px] text-muted-foreground font-mono">{Math.round((sim.current_round / sim.total_rounds) * 100)}%</span>
-                              </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1">
+                            <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:block">
+                              {CRISIS_LABELS[sim.crisis_scenario] || sim.crisis_scenario}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-1 max-w-[150px]">
+                              <Progress value={(sim.current_round / sim.total_rounds) * 100} className="h-1.5" />
+                              <span className="text-[10px] text-muted-foreground font-mono">{Math.round((sim.current_round / sim.total_rounds) * 100)}%</span>
                             </div>
                           </div>
                         </div>
+                      </div>
 
-                        <div className="flex items-center gap-4 shrink-0">
-                          {/* Date */}
-                          <div className="text-[10px] text-muted-foreground hidden md:block text-right">
-                            {sim.created_at ? new Date(sim.created_at).toLocaleDateString() : ""}
-                          </div>
-
-                          {/* Action Button & Badge */}
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={`text-[10px] font-semibold transition-opacity group-hover:opacity-0 sm:group-hover:flex ${cfg.color}`}>
-                              {cfg.label}
-                            </Badge>
-                            <Button size="sm" variant="secondary" className="hidden group-hover:flex h-7 text-xs rounded-full shadow-sm mx-2 absolute right-0 opacity-0 group-hover:opacity-100 transition-all translate-x-2 group-hover:translate-x-0">
-                              {sim.status === "completed" ? "View Report" : "Resume"}
-                            </Button>
-                          </div>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="text-[10px] text-muted-foreground hidden md:block text-right">
+                          {sim.created_at ? new Date(sim.created_at).toLocaleDateString() : ""}
                         </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`text-[10px] font-semibold ${cfg.color}`}>
+                            {cfg.label}
+                          </Badge>
+                          <Link
+                            href={href}
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex h-7 items-center justify-center rounded-full bg-secondary px-2.5 text-[0.8rem] font-medium text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/80"
+                          >
+                            Open
+                          </Link>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </motion.div>
               );
             })}
