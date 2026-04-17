@@ -1,13 +1,16 @@
 """
 PostgreSQL database layer using asyncpg with connection pooling.
+Supports Supabase (with SSL) and local PostgreSQL.
 """
 
 from __future__ import annotations
 
 import os
+import ssl
 import json
 import logging
 import asyncpg
+from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -27,11 +30,29 @@ async def get_pool() -> asyncpg.Pool:
     """Get or create the connection pool."""
     global _pool
     if _pool is None:
+        # Detect if SSL is needed (Supabase, cloud PostgreSQL)
+        parsed = urlparse(DATABASE_URL)
+        qs = parse_qs(parsed.query)
+        needs_ssl = (
+            "sslmode" in qs
+            or "supabase" in (parsed.hostname or "")
+            or os.getenv("DB_SSL", "").lower() in ("true", "1", "require")
+        )
+
+        # Strip sslmode from URL since asyncpg handles it via ssl parameter
+        clean_url = DATABASE_URL.split("?")[0]
+
+        ssl_ctx = ssl.create_default_context() if needs_ssl else None
+        if ssl_ctx:
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+
         _pool = await asyncpg.create_pool(
-            DATABASE_URL,
+            clean_url,
             min_size=2,
             max_size=10,
             command_timeout=30,
+            ssl=ssl_ctx,
         )
     return _pool
 
