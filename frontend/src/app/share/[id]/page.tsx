@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
-  Download, ChevronLeft, FileText, AlertTriangle,
-  TrendingDown, Users, Loader2, Activity, Share2,
+  Download, FileText, AlertTriangle,
+  TrendingDown, Users, Loader2, Activity,
   BarChart3, Target, Shield, Zap, CheckCircle2,
   ArrowUpRight, ArrowDownRight, Minus, Clock, Building2,
   BookOpen, Lightbulb, Flag
@@ -110,11 +110,9 @@ function MetricCard({ icon: Icon, label, value, suffix, trend, color }: {
   );
 }
 
-function ReportContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const isDemo = searchParams.get("demo") === "true";
-  const simId = searchParams.get("id") || (isDemo ? "demo" : null);
+export default function SharedReportPage() {
+  const params = useParams();
+  const simId = params.id as string;
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +136,6 @@ function ReportContent() {
       let pageNum = 1;
       const km = report.key_metrics;
 
-      // ── Color palette ──
       const C = {
         black: [30, 30, 30] as [number, number, number],
         dark: [50, 50, 50] as [number, number, number],
@@ -152,7 +149,6 @@ function ReportContent() {
         tableBorder: [210, 215, 220] as [number, number, number],
       };
 
-      // ── Page footer ──
       const drawPageFooter = () => {
         pdf.setFontSize(7.5);
         pdf.setFont("helvetica", "normal");
@@ -164,7 +160,6 @@ function ReportContent() {
         pdf.line(margin, pageHeight - 14, rightMargin, pageHeight - 14);
       };
 
-      // ── Page break ──
       const checkPage = (needed: number) => {
         if (y + needed > pageHeight - 20) {
           drawPageFooter();
@@ -174,7 +169,6 @@ function ReportContent() {
         }
       };
 
-      // ── Horizontal rule ──
       const drawRule = () => {
         checkPage(10);
         y += 3;
@@ -184,7 +178,6 @@ function ReportContent() {
         y += 5;
       };
 
-      // ── Write wrapped text ──
       const writeText = (text: string, fontSize: number = 9.5, color: [number, number, number] = C.body, font: string = "normal", indent: number = 0) => {
         pdf.setFontSize(fontSize);
         pdf.setFont("helvetica", font);
@@ -199,18 +192,15 @@ function ReportContent() {
         y += 2;
       };
 
-      // ── Section header ──
       const writeSection = (num: string, title: string) => {
         checkPage(18);
         y += 6;
-        // Section number badge
         pdf.setFillColor(...C.accent);
         pdf.roundedRect(margin, y - 4.5, 7, 6, 1, 1, "F");
         pdf.setFontSize(8);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(255, 255, 255);
         pdf.text(num, margin + 3.5, y, { align: "center" });
-        // Title
         pdf.setFontSize(13);
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(...C.black);
@@ -218,19 +208,7 @@ function ReportContent() {
         y += 8;
       };
 
-      // ── Sub-label ──
-      const writeLabel = (text: string) => {
-        checkPage(8);
-        pdf.setFontSize(8);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(...C.muted);
-        pdf.text(text.toUpperCase(), margin, y);
-        y += 5;
-      };
-
-      // ═══════════════════════════════════════════════════════
-      // COVER / TITLE BLOCK
-      // ═══════════════════════════════════════════════════════
+      // Cover
       y = 35;
       pdf.setFontSize(8.5);
       pdf.setFont("helvetica", "normal");
@@ -251,24 +229,20 @@ function ReportContent() {
       pdf.text("Analysis Report", margin, y);
       y += 14;
 
-      // Metadata block
       const meta = [
         ["Company", report.company_name],
         ["Crisis Scenario", report.crisis_name],
         ["Duration", `${report.completed_rounds} of ${report.total_rounds} weeks completed`],
         ["Team Size", `${km?.total_agents || report.agent_reports.length} agents`],
         ["Resignations", `${km?.resignations ?? 0}`],
-        ["Simulation ID", report.simulation_id],
       ];
       const labelColW = 35;
       const valueColW = contentWidth - labelColW;
       pdf.setFontSize(9);
       for (const [label, value] of meta) {
-        // Label
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(...C.muted);
         pdf.text(`${label}:`, margin, y);
-        // Value (wrapped for long text)
         pdf.setFont("helvetica", "bold");
         pdf.setTextColor(...C.dark);
         const valueLines = pdf.splitTextToSize(value, valueColW);
@@ -282,16 +256,13 @@ function ReportContent() {
 
       drawRule();
 
-      // ═══════════════════════════════════════════════════════
-      // 1. EXECUTIVE SUMMARY
-      // ═══════════════════════════════════════════════════════
+      // 1. Executive Summary
       writeSection("1", "Executive Summary");
       writeText(report.executive_summary);
 
       if (report.critical_finding) {
         checkPage(14);
         y += 2;
-        // Red-accented box
         pdf.setDrawColor(...C.danger);
         pdf.setLineWidth(0.6);
         pdf.line(margin, y, margin, y + 12);
@@ -313,20 +284,15 @@ function ReportContent() {
 
       drawRule();
 
-      // ═══════════════════════════════════════════════════════
-      // 2. SIMULATION OVERVIEW
-      // ═══════════════════════════════════════════════════════
+      // 2. Overview
       if (report.simulation_overview) {
         writeSection("2", "Simulation Overview");
         writeText(report.simulation_overview);
         drawRule();
       }
 
-      // ═══════════════════════════════════════════════════════
-      // 3. KEY METRICS (Table)
-      // ═══════════════════════════════════════════════════════
+      // 3. Key Metrics Table
       writeSection("3", "Key Performance Metrics");
-
       const metricsData = [
         ["Metric", "Value"],
         ["Average Morale", `${km?.avg_morale ?? 50}%`],
@@ -338,181 +304,93 @@ function ReportContent() {
         ["Resignations", `${km?.resignations ?? 0}`],
         ["Simulation Duration", `${report.completed_rounds} / ${report.total_rounds} weeks`],
       ];
-
       const colWidths = [contentWidth * 0.6, contentWidth * 0.4];
       const rowH = 7;
       const tableX = margin;
-
       for (let r = 0; r < metricsData.length; r++) {
         checkPage(rowH + 2);
         const row = metricsData[r];
         const isHeader = r === 0;
         const isEven = r % 2 === 0;
-
-        // Row background
-        if (isHeader) {
-          pdf.setFillColor(...C.accent);
-          pdf.rect(tableX, y - 4.5, contentWidth, rowH, "F");
-        } else if (isEven) {
-          pdf.setFillColor(...C.tableBg);
-          pdf.rect(tableX, y - 4.5, contentWidth, rowH, "F");
-        }
-
-        // Row text
+        if (isHeader) { pdf.setFillColor(...C.accent); pdf.rect(tableX, y - 4.5, contentWidth, rowH, "F"); }
+        else if (isEven) { pdf.setFillColor(...C.tableBg); pdf.rect(tableX, y - 4.5, contentWidth, rowH, "F"); }
         pdf.setFontSize(isHeader ? 8.5 : 9);
         pdf.setFont("helvetica", isHeader ? "bold" : "normal");
         pdf.setTextColor(isHeader ? 255 : C.dark[0], isHeader ? 255 : C.dark[1], isHeader ? 255 : C.dark[2]);
         pdf.text(row[0], tableX + 3, y);
-        pdf.setFont("helvetica", isHeader ? "bold" : "bold");
+        pdf.setFont("helvetica", "bold");
         pdf.text(row[1], tableX + colWidths[0] + 3, y);
         y += rowH;
       }
-
-      // Table border
       pdf.setDrawColor(...C.tableBorder);
       pdf.setLineWidth(0.2);
       pdf.rect(tableX, y - (metricsData.length * rowH) - 4.5, contentWidth, metricsData.length * rowH, "S");
       y += 4;
-
       drawRule();
 
-      // ═══════════════════════════════════════════════════════
-      // 4. AGENT PERFORMANCE (Table)
-      // ═══════════════════════════════════════════════════════
+      // 4. Agent Performance Table
       writeSection("4", "Agent Performance Summary");
-
-      // Table header
       const agentCols = [35, 30, 24, 24, 22, contentWidth - 135];
       const agentHeaders = ["Name", "Role", "Morale", "Peak Stress", "Status", "Notes"];
       checkPage(10);
-
       pdf.setFillColor(...C.accent);
       pdf.rect(margin, y - 4.5, contentWidth, 7, "F");
       pdf.setFontSize(8);
       pdf.setFont("helvetica", "bold");
       pdf.setTextColor(255, 255, 255);
       let colX = margin + 2;
-      for (let c = 0; c < agentHeaders.length; c++) {
-        pdf.text(agentHeaders[c], colX, y);
-        colX += agentCols[c];
-      }
+      for (let c = 0; c < agentHeaders.length; c++) { pdf.text(agentHeaders[c], colX, y); colX += agentCols[c]; }
       y += 7;
-
-      // Agent rows
       for (let r = 0; r < report.agent_reports.length; r++) {
         const agent = report.agent_reports[r];
         checkPage(9);
-
-        if (r % 2 === 0) {
-          pdf.setFillColor(...C.tableBg);
-          pdf.rect(margin, y - 4.5, contentWidth, 7, "F");
-        }
-
+        if (r % 2 === 0) { pdf.setFillColor(...C.tableBg); pdf.rect(margin, y - 4.5, contentWidth, 7, "F"); }
         pdf.setFontSize(8.5);
         colX = margin + 2;
-
-        // Name
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(...C.dark);
-        pdf.text(agent.name, colX, y);
-        colX += agentCols[0];
-
-        // Role
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(...C.body);
-        pdf.text(agent.role, colX, y);
-        colX += agentCols[1];
-
-        // Morale
-        pdf.setFont("helvetica", "normal");
+        pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark); pdf.text(agent.name, colX, y); colX += agentCols[0];
+        pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.body); pdf.text(agent.role, colX, y); colX += agentCols[1];
         const moraleColor: [number, number, number] = agent.ending_morale < 30 ? C.danger : agent.ending_morale < 50 ? [180, 130, 30] : [40, 140, 70];
-        pdf.setTextColor(...moraleColor);
-        pdf.text(`${agent.starting_morale} > ${agent.ending_morale}%`, colX, y);
-        colX += agentCols[2];
-
-        // Peak Stress
+        pdf.setTextColor(...moraleColor); pdf.text(`${agent.starting_morale} > ${agent.ending_morale}%`, colX, y); colX += agentCols[2];
         const stressColor: [number, number, number] = agent.peak_stress > 80 ? C.danger : agent.peak_stress > 60 ? [180, 130, 30] : C.body;
-        pdf.setTextColor(...stressColor);
-        pdf.text(`${agent.peak_stress}%`, colX, y);
-        colX += agentCols[3];
-
-        // Status
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(...C.dark);
-        pdf.text(agent.status, colX, y);
-        colX += agentCols[4];
-
-        // Notes
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(...C.muted);
+        pdf.setTextColor(...stressColor); pdf.text(`${agent.peak_stress}%`, colX, y); colX += agentCols[3];
+        pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark); pdf.text(agent.status, colX, y); colX += agentCols[4];
+        pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.muted);
         const note = agent.has_resigned ? `Resigned Wk ${agent.resigned_week}` : agent.status_label;
-        const truncNote = note.length > 30 ? note.slice(0, 28) + ".." : note;
-        pdf.text(truncNote, colX, y);
-
+        pdf.text(note.length > 30 ? note.slice(0, 28) + ".." : note, colX, y);
         y += 7;
       }
-
-      // Table border
       const tableH = (report.agent_reports.length + 1) * 7;
-      pdf.setDrawColor(...C.tableBorder);
-      pdf.setLineWidth(0.2);
+      pdf.setDrawColor(...C.tableBorder); pdf.setLineWidth(0.2);
       pdf.rect(margin, y - tableH - 4.5, contentWidth, tableH, "S");
       y += 4;
-
       drawRule();
 
-      // ═══════════════════════════════════════════════════════
-      // 5. ANALYSIS & INSIGHTS
-      // ═══════════════════════════════════════════════════════
-      if (report.analysis_insights) {
-        writeSection("5", "Analysis & Insights");
-        writeText(report.analysis_insights);
-        drawRule();
-      }
+      // 5. Analysis
+      if (report.analysis_insights) { writeSection("5", "Analysis & Insights"); writeText(report.analysis_insights); drawRule(); }
 
-      // ═══════════════════════════════════════════════════════
-      // 6. RECOMMENDATIONS
-      // ═══════════════════════════════════════════════════════
+      // 6. Recommendations
       writeSection("6", "Recommendations");
-
       for (let i = 0; i < report.recommendations.length; i++) {
         checkPage(12);
-        // Number circle
-        pdf.setFillColor(...C.accent);
-        pdf.circle(margin + 2.5, y - 1.5, 2.5, "F");
-        pdf.setFontSize(7);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(255, 255, 255);
+        pdf.setFillColor(...C.accent); pdf.circle(margin + 2.5, y - 1.5, 2.5, "F");
+        pdf.setFontSize(7); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255, 255, 255);
         pdf.text(`${i + 1}`, margin + 2.5, y - 0.8, { align: "center" });
-        // Recommendation text
         writeText(report.recommendations[i], 9.5, C.body, "normal", 9);
         y += 1;
       }
-
       drawRule();
 
-      // ═══════════════════════════════════════════════════════
-      // 7. CONCLUSION
-      // ═══════════════════════════════════════════════════════
-      if (report.conclusion) {
-        writeSection("7", "Conclusion");
-        writeText(report.conclusion);
-      }
+      // 7. Conclusion
+      if (report.conclusion) { writeSection("7", "Conclusion"); writeText(report.conclusion); }
 
-      // ── Final footer on last page ──
       drawPageFooter();
-
-      // ── Add footers to all previous pages ──
       const totalPages = pdf.getNumberOfPages();
       for (let p = 1; p < totalPages; p++) {
         pdf.setPage(p);
-        pdf.setFontSize(7.5);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(...C.light);
+        pdf.setFontSize(7.5); pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.light);
         pdf.text("TeamDynamics | AI-Powered Team Simulation", margin, pageHeight - 10);
         pdf.text(`Page ${p}`, rightMargin, pageHeight - 10, { align: "right" });
-        pdf.setDrawColor(...C.rule);
-        pdf.setLineWidth(0.2);
+        pdf.setDrawColor(...C.rule); pdf.setLineWidth(0.2);
         pdf.line(margin, pageHeight - 14, rightMargin, pageHeight - 14);
       }
 
@@ -526,20 +404,8 @@ function ReportContent() {
     }
   }, [report]);
 
-  const copyShareLink = () => {
-    if (typeof window !== "undefined") {
-      const shareUrl = `${window.location.origin}/share/${simId}`;
-      navigator.clipboard.writeText(shareUrl);
-      toast.success("Shareable link copied to clipboard!");
-    }
-  };
-
   useEffect(() => {
-    if (!simId) {
-      // Redirect to demo report when no simulation ID is provided
-      router.replace("/report?id=demo");
-      return;
-    }
+    if (!simId) return;
 
     fetch(`${API_BASE}/api/simulation/${simId}/report`)
       .then((res) => {
@@ -552,17 +418,17 @@ function ReportContent() {
       })
       .catch((err) => {
         console.error("Failed to load report:", err);
-        setError("Failed to load report. Make sure the backend is running.");
+        setError("Report not found or unavailable.");
         setLoading(false);
       });
-  }, [simId, router]);
+  }, [simId]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Generating professional report with AI insights...</p>
+          <p className="text-muted-foreground">Loading report...</p>
         </div>
       </div>
     );
@@ -574,8 +440,8 @@ function ReportContent() {
         <div className="text-center space-y-4">
           <AlertTriangle className="w-8 h-8 text-destructive mx-auto" />
           <p className="text-muted-foreground">{error || "Report not found."}</p>
-          <Link href="/setup">
-            <Button variant="outline">Back to Setup</Button>
+          <Link href="/">
+            <Button variant="outline">Go to Home</Button>
           </Link>
         </div>
       </div>
@@ -608,21 +474,14 @@ function ReportContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top Navigation Bar */}
+      {/* Top Navigation Bar — Public / Shared View */}
       <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link href={`/simulation?id=${simId}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <ChevronLeft className="w-4 h-4 mr-1" /> Back to Simulation
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
+            <Building2 className="w-4 h-4" />
+            TeamDynamics
           </Link>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-9 text-primary hover:text-primary hover:bg-primary/10 border-primary/20"
-              onClick={copyShareLink}
-            >
-              <Share2 className="w-4 h-4 mr-2" /> Share
-            </Button>
             <Button
               size="sm"
               className="h-9"
@@ -642,18 +501,26 @@ function ReportContent() {
       {/* Report Content */}
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-10" ref={reportRef}>
 
+        {/* ─── Shared Badge ─── */}
+        <div className="flex justify-center">
+          <Badge variant="outline" className="border-primary/30 text-primary px-3 py-1 text-xs tracking-wide">
+            <FileText className="w-3 h-3 mr-1.5" />
+            Shared Report
+          </Badge>
+        </div>
+
         {/* ─── Report Header ─── */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center space-y-4 py-6"
+          className="text-center space-y-4 py-2"
         >
           <div className="flex items-center justify-center gap-2 text-primary mb-2">
             <Building2 className="w-5 h-5" />
             <span className="text-sm font-medium tracking-widest uppercase">{report.company_name}</span>
           </div>
           <h1 className="text-4xl font-bold tracking-tight">
-            {simId === "demo" ? "Demo Report" : "Post-Simulation Analysis Report"}
+            Post-Simulation Analysis Report
           </h1>
           <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" /> {report.crisis_name}</span>
@@ -726,66 +593,14 @@ function ReportContent() {
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <SectionHeader number="03" icon={BarChart3} title="Key Metrics" subtitle="Quantitative performance indicators" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            <MetricCard
-              icon={Shield}
-              label="Avg. Morale"
-              value={km?.avg_morale ?? 50}
-              suffix="%"
-              trend={km?.avg_morale >= 60 ? "up" : km?.avg_morale < 40 ? "down" : "neutral"}
-              color="bg-emerald-500/10 text-emerald-500"
-            />
-            <MetricCard
-              icon={Zap}
-              label="Avg. Stress"
-              value={km?.avg_stress ?? 50}
-              suffix="%"
-              trend={km?.avg_stress > 60 ? "down" : km?.avg_stress < 40 ? "up" : "neutral"}
-              color="bg-red-500/10 text-red-500"
-            />
-            <MetricCard
-              icon={Activity}
-              label="Avg. Productivity"
-              value={km?.avg_productivity ?? 50}
-              suffix="%"
-              trend={km?.avg_productivity >= 60 ? "up" : km?.avg_productivity < 40 ? "down" : "neutral"}
-              color="bg-blue-500/10 text-blue-500"
-            />
-            <MetricCard
-              icon={TrendingDown}
-              label="Productivity Drop"
-              value={report.productivity_drop}
-              suffix="%"
-              trend="down"
-              color="bg-orange-500/10 text-orange-500"
-            />
-            <MetricCard
-              icon={Users}
-              label="Active Agents"
-              value={km?.active_agents ?? report.agent_reports.length}
-              color="bg-violet-500/10 text-violet-500"
-            />
-            <MetricCard
-              icon={AlertTriangle}
-              label="Resignations"
-              value={km?.resignations ?? 0}
-              trend={km?.resignations > 0 ? "down" : "up"}
-              color="bg-rose-500/10 text-rose-500"
-            />
-            <MetricCard
-              icon={Shield}
-              label="Avg. Loyalty"
-              value={km?.avg_loyalty ?? 50}
-              suffix="%"
-              trend={km?.avg_loyalty >= 60 ? "up" : km?.avg_loyalty < 40 ? "down" : "neutral"}
-              color="bg-cyan-500/10 text-cyan-500"
-            />
-            <MetricCard
-              icon={Clock}
-              label="Weeks Completed"
-              value={report.completed_rounds}
-              suffix={`/${report.total_rounds}`}
-              color="bg-amber-500/10 text-amber-500"
-            />
+            <MetricCard icon={Shield} label="Avg. Morale" value={km?.avg_morale ?? 50} suffix="%" trend={km?.avg_morale >= 60 ? "up" : km?.avg_morale < 40 ? "down" : "neutral"} color="bg-emerald-500/10 text-emerald-500" />
+            <MetricCard icon={Zap} label="Avg. Stress" value={km?.avg_stress ?? 50} suffix="%" trend={km?.avg_stress > 60 ? "down" : km?.avg_stress < 40 ? "up" : "neutral"} color="bg-red-500/10 text-red-500" />
+            <MetricCard icon={Activity} label="Avg. Productivity" value={km?.avg_productivity ?? 50} suffix="%" trend={km?.avg_productivity >= 60 ? "up" : km?.avg_productivity < 40 ? "down" : "neutral"} color="bg-blue-500/10 text-blue-500" />
+            <MetricCard icon={TrendingDown} label="Productivity Drop" value={report.productivity_drop} suffix="%" trend="down" color="bg-orange-500/10 text-orange-500" />
+            <MetricCard icon={Users} label="Active Agents" value={km?.active_agents ?? report.agent_reports.length} color="bg-violet-500/10 text-violet-500" />
+            <MetricCard icon={AlertTriangle} label="Resignations" value={km?.resignations ?? 0} trend={km?.resignations > 0 ? "down" : "up"} color="bg-rose-500/10 text-rose-500" />
+            <MetricCard icon={Shield} label="Avg. Loyalty" value={km?.avg_loyalty ?? 50} suffix="%" trend={km?.avg_loyalty >= 60 ? "up" : km?.avg_loyalty < 40 ? "down" : "neutral"} color="bg-cyan-500/10 text-cyan-500" />
+            <MetricCard icon={Clock} label="Weeks Completed" value={report.completed_rounds} suffix={`/${report.total_rounds}`} color="bg-amber-500/10 text-amber-500" />
           </div>
         </motion.section>
 
@@ -837,7 +652,6 @@ function ReportContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {/* Morale bar */}
                     <div>
                       <div className="flex justify-between text-sm mb-1.5">
                         <span className="text-muted-foreground">Morale</span>
@@ -859,7 +673,6 @@ function ReportContent() {
                         />
                       </div>
                     </div>
-                    {/* Peak Stress bar */}
                     <div>
                       <div className="flex justify-between text-sm mb-1.5">
                         <span className="text-muted-foreground">Peak Stress</span>
@@ -878,7 +691,6 @@ function ReportContent() {
                         />
                       </div>
                     </div>
-                    {/* Resigned indicator */}
                     {agent.has_resigned && (
                       <div className="flex items-center gap-2 text-sm text-red-400 mt-2 bg-red-500/10 rounded-lg px-3 py-2">
                         <AlertTriangle className="w-4 h-4" />
@@ -943,27 +755,13 @@ function ReportContent() {
         <Separator className="opacity-30" />
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 text-sm text-muted-foreground">
           <p>Generated by <span className="text-foreground font-medium">TeamDynamics</span> • AI-Powered Team Simulation Platform</p>
-          <div className="flex gap-3">
-            <Link href="/setup">
-              <Button variant="outline" size="sm" className="h-9">
-                Run Another Simulation
-              </Button>
-            </Link>
-          </div>
+          <Link href="/">
+            <Button variant="outline" size="sm" className="h-9">
+              Learn More
+            </Button>
+          </Link>
         </div>
       </div>
     </div>
-  );
-}
-
-export default function ReportPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    }>
-      <ReportContent />
-    </Suspense>
   );
 }
