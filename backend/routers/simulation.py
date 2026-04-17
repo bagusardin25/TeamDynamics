@@ -236,10 +236,28 @@ async def get_report(sim_id: str):
                 {"round": 12, "morale": 58, "stress": 60, "output": 75}
             ]
         }
-    """Generate and return the post-simulation report."""
+    """Generate and return the post-simulation report.
+    
+    Reports are generated once by AI and then persisted to the database.
+    Subsequent requests return the saved version for consistency.
+    """
+    import json
+    from models.database import get_saved_report, save_report
+
+    # Check for a previously saved report first
+    saved = await get_saved_report(sim_id)
+    if saved:
+        return json.loads(saved)
+
+    # No saved report — generate it fresh
     state = await get_simulation_state(sim_id)
     if not state:
         raise HTTPException(status_code=404, detail="Simulation not found")
 
     report = await generate_report(state)
-    return report.model_dump()
+    report_dict = report.model_dump()
+
+    # Persist the generated report so future requests get the same content
+    await save_report(sim_id, json.dumps(report_dict))
+
+    return report_dict

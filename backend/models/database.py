@@ -139,6 +139,14 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS reports (
+                simulation_id TEXT PRIMARY KEY REFERENCES simulations(id),
+                report_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
     logger.info("✅ PostgreSQL database initialized")
 
 
@@ -343,3 +351,28 @@ async def get_messages(sim_id: str) -> list[dict]:
             sim_id
         )
         return [_record_to_dict(r) for r in rows]
+
+
+# ── Report Operations ─────────────────────────────────────────────────
+
+async def save_report(sim_id: str, report_json: str):
+    """Save a generated report JSON for a simulation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO reports (simulation_id, report_json)
+               VALUES ($1, $2)
+               ON CONFLICT (simulation_id) DO UPDATE SET report_json=$2""",
+            sim_id, report_json
+        )
+
+
+async def get_saved_report(sim_id: str) -> str | None:
+    """Get a previously saved report JSON, or None if not yet generated."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT report_json FROM reports WHERE simulation_id=$1",
+            sim_id
+        )
+        return row["report_json"] if row else None
