@@ -122,43 +122,398 @@ function ReportContent() {
   const reportRef = useRef<HTMLDivElement>(null);
 
   const exportToPDF = useCallback(async () => {
-    if (!reportRef.current || !report) return;
+    if (!report) return;
     setIsExporting(true);
 
     try {
-      const html2canvas = (await import("html2canvas-pro")).default;
       const { jsPDF } = await import("jspdf");
 
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#0a0a1a",
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = pageWidth - 16;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const margin = 18;
+      const rightMargin = pageWidth - margin;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+      let pageNum = 1;
+      const km = report.key_metrics;
 
-      let heightLeft = imgHeight;
-      let position = 8;
+      // ── Color palette ──
+      const C = {
+        black: [30, 30, 30] as [number, number, number],
+        dark: [50, 50, 50] as [number, number, number],
+        body: [55, 55, 55] as [number, number, number],
+        muted: [120, 120, 120] as [number, number, number],
+        light: [160, 160, 160] as [number, number, number],
+        accent: [45, 90, 160] as [number, number, number],
+        danger: [180, 50, 50] as [number, number, number],
+        rule: [200, 200, 200] as [number, number, number],
+        tableBg: [245, 247, 250] as [number, number, number],
+        tableBorder: [210, 215, 220] as [number, number, number],
+      };
 
-      pdf.addImage(imgData, "PNG", 8, position, imgWidth, imgHeight);
-      heightLeft -= (pageHeight - 16);
+      // ── Page footer ──
+      const drawPageFooter = () => {
+        pdf.setFontSize(7.5);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(...C.light);
+        pdf.text("TeamDynamics | AI-Powered Team Simulation", margin, pageHeight - 10);
+        pdf.text(`Page ${pageNum}`, rightMargin, pageHeight - 10, { align: "right" });
+        pdf.setDrawColor(...C.rule);
+        pdf.setLineWidth(0.2);
+        pdf.line(margin, pageHeight - 14, rightMargin, pageHeight - 14);
+      };
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 8;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 8, position, imgWidth, imgHeight);
-        heightLeft -= (pageHeight - 16);
+      // ── Page break ──
+      const checkPage = (needed: number) => {
+        if (y + needed > pageHeight - 20) {
+          drawPageFooter();
+          pdf.addPage();
+          pageNum++;
+          y = margin;
+        }
+      };
+
+      // ── Horizontal rule ──
+      const drawRule = () => {
+        checkPage(10);
+        y += 3;
+        pdf.setDrawColor(...C.rule);
+        pdf.setLineWidth(0.3);
+        pdf.line(margin, y, rightMargin, y);
+        y += 5;
+      };
+
+      // ── Write wrapped text ──
+      const writeText = (text: string, fontSize: number = 9.5, color: [number, number, number] = C.body, font: string = "normal", indent: number = 0) => {
+        pdf.setFontSize(fontSize);
+        pdf.setFont("helvetica", font);
+        pdf.setTextColor(...color);
+        const lines = pdf.splitTextToSize(text, contentWidth - indent);
+        const lineH = fontSize * 0.5;
+        for (const line of lines) {
+          checkPage(lineH + 1);
+          pdf.text(line, margin + indent, y);
+          y += lineH;
+        }
+        y += 2;
+      };
+
+      // ── Section header ──
+      const writeSection = (num: string, title: string) => {
+        checkPage(18);
+        y += 6;
+        // Section number badge
+        pdf.setFillColor(...C.accent);
+        pdf.roundedRect(margin, y - 4.5, 7, 6, 1, 1, "F");
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(num, margin + 3.5, y, { align: "center" });
+        // Title
+        pdf.setFontSize(13);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(...C.black);
+        pdf.text(title, margin + 10, y);
+        y += 8;
+      };
+
+      // ── Sub-label ──
+      const writeLabel = (text: string) => {
+        checkPage(8);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(...C.muted);
+        pdf.text(text.toUpperCase(), margin, y);
+        y += 5;
+      };
+
+      // ═══════════════════════════════════════════════════════
+      // COVER / TITLE BLOCK
+      // ═══════════════════════════════════════════════════════
+      y = 35;
+      pdf.setFontSize(8.5);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(...C.light);
+      pdf.text("TEAMDYNAMICS", margin, y);
+      pdf.text(new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), rightMargin, y, { align: "right" });
+      y += 4;
+      pdf.setDrawColor(...C.accent);
+      pdf.setLineWidth(0.8);
+      pdf.line(margin, y, margin + 40, y);
+      y += 12;
+
+      pdf.setFontSize(22);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(...C.black);
+      pdf.text("Post-Simulation", margin, y);
+      y += 9;
+      pdf.text("Analysis Report", margin, y);
+      y += 14;
+
+      // Metadata block
+      const meta = [
+        ["Company", report.company_name],
+        ["Crisis Scenario", report.crisis_name],
+        ["Duration", `${report.completed_rounds} of ${report.total_rounds} weeks completed`],
+        ["Team Size", `${km?.total_agents || report.agent_reports.length} agents`],
+        ["Resignations", `${km?.resignations ?? 0}`],
+        ["Simulation ID", report.simulation_id],
+      ];
+      const labelColW = 35;
+      const valueColW = contentWidth - labelColW;
+      pdf.setFontSize(9);
+      for (const [label, value] of meta) {
+        // Label
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(...C.muted);
+        pdf.text(`${label}:`, margin, y);
+        // Value (wrapped for long text)
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(...C.dark);
+        const valueLines = pdf.splitTextToSize(value, valueColW);
+        for (let vl = 0; vl < valueLines.length; vl++) {
+          if (vl > 0) checkPage(5);
+          pdf.text(valueLines[vl], margin + labelColW, y);
+          if (vl < valueLines.length - 1) y += 4.5;
+        }
+        y += 5.5;
+      }
+
+      drawRule();
+
+      // ═══════════════════════════════════════════════════════
+      // 1. EXECUTIVE SUMMARY
+      // ═══════════════════════════════════════════════════════
+      writeSection("1", "Executive Summary");
+      writeText(report.executive_summary);
+
+      if (report.critical_finding) {
+        checkPage(14);
+        y += 2;
+        // Red-accented box
+        pdf.setDrawColor(...C.danger);
+        pdf.setLineWidth(0.6);
+        pdf.line(margin, y, margin, y + 12);
+        pdf.setFontSize(8);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(...C.danger);
+        pdf.text("CRITICAL FINDING", margin + 3, y + 3);
+        pdf.setFontSize(9);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(...C.body);
+        const cfLines = pdf.splitTextToSize(report.critical_finding, contentWidth - 5);
+        let cfY = y + 7;
+        for (const line of cfLines) {
+          pdf.text(line, margin + 3, cfY);
+          cfY += 4;
+        }
+        y = cfY + 3;
+      }
+
+      drawRule();
+
+      // ═══════════════════════════════════════════════════════
+      // 2. SIMULATION OVERVIEW
+      // ═══════════════════════════════════════════════════════
+      if (report.simulation_overview) {
+        writeSection("2", "Simulation Overview");
+        writeText(report.simulation_overview);
+        drawRule();
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // 3. KEY METRICS (Table)
+      // ═══════════════════════════════════════════════════════
+      writeSection("3", "Key Performance Metrics");
+
+      const metricsData = [
+        ["Metric", "Value"],
+        ["Average Morale", `${km?.avg_morale ?? 50}%`],
+        ["Average Stress", `${km?.avg_stress ?? 50}%`],
+        ["Average Productivity", `${km?.avg_productivity ?? 50}%`],
+        ["Average Loyalty", `${km?.avg_loyalty ?? 50}%`],
+        ["Productivity Drop", `-${report.productivity_drop}%`],
+        ["Active Agents", `${km?.active_agents ?? report.agent_reports.length} of ${km?.total_agents || report.agent_reports.length}`],
+        ["Resignations", `${km?.resignations ?? 0}`],
+        ["Simulation Duration", `${report.completed_rounds} / ${report.total_rounds} weeks`],
+      ];
+
+      const colWidths = [contentWidth * 0.6, contentWidth * 0.4];
+      const rowH = 7;
+      const tableX = margin;
+
+      for (let r = 0; r < metricsData.length; r++) {
+        checkPage(rowH + 2);
+        const row = metricsData[r];
+        const isHeader = r === 0;
+        const isEven = r % 2 === 0;
+
+        // Row background
+        if (isHeader) {
+          pdf.setFillColor(...C.accent);
+          pdf.rect(tableX, y - 4.5, contentWidth, rowH, "F");
+        } else if (isEven) {
+          pdf.setFillColor(...C.tableBg);
+          pdf.rect(tableX, y - 4.5, contentWidth, rowH, "F");
+        }
+
+        // Row text
+        pdf.setFontSize(isHeader ? 8.5 : 9);
+        pdf.setFont("helvetica", isHeader ? "bold" : "normal");
+        pdf.setTextColor(isHeader ? 255 : C.dark[0], isHeader ? 255 : C.dark[1], isHeader ? 255 : C.dark[2]);
+        pdf.text(row[0], tableX + 3, y);
+        pdf.setFont("helvetica", isHeader ? "bold" : "bold");
+        pdf.text(row[1], tableX + colWidths[0] + 3, y);
+        y += rowH;
+      }
+
+      // Table border
+      pdf.setDrawColor(...C.tableBorder);
+      pdf.setLineWidth(0.2);
+      pdf.rect(tableX, y - (metricsData.length * rowH) - 4.5, contentWidth, metricsData.length * rowH, "S");
+      y += 4;
+
+      drawRule();
+
+      // ═══════════════════════════════════════════════════════
+      // 4. AGENT PERFORMANCE (Table)
+      // ═══════════════════════════════════════════════════════
+      writeSection("4", "Agent Performance Summary");
+
+      // Table header
+      const agentCols = [35, 30, 24, 24, 22, contentWidth - 135];
+      const agentHeaders = ["Name", "Role", "Morale", "Peak Stress", "Status", "Notes"];
+      checkPage(10);
+
+      pdf.setFillColor(...C.accent);
+      pdf.rect(margin, y - 4.5, contentWidth, 7, "F");
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(255, 255, 255);
+      let colX = margin + 2;
+      for (let c = 0; c < agentHeaders.length; c++) {
+        pdf.text(agentHeaders[c], colX, y);
+        colX += agentCols[c];
+      }
+      y += 7;
+
+      // Agent rows
+      for (let r = 0; r < report.agent_reports.length; r++) {
+        const agent = report.agent_reports[r];
+        checkPage(9);
+
+        if (r % 2 === 0) {
+          pdf.setFillColor(...C.tableBg);
+          pdf.rect(margin, y - 4.5, contentWidth, 7, "F");
+        }
+
+        pdf.setFontSize(8.5);
+        colX = margin + 2;
+
+        // Name
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(...C.dark);
+        pdf.text(agent.name, colX, y);
+        colX += agentCols[0];
+
+        // Role
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(...C.body);
+        pdf.text(agent.role, colX, y);
+        colX += agentCols[1];
+
+        // Morale
+        pdf.setFont("helvetica", "normal");
+        const moraleColor: [number, number, number] = agent.ending_morale < 30 ? C.danger : agent.ending_morale < 50 ? [180, 130, 30] : [40, 140, 70];
+        pdf.setTextColor(...moraleColor);
+        pdf.text(`${agent.starting_morale} > ${agent.ending_morale}%`, colX, y);
+        colX += agentCols[2];
+
+        // Peak Stress
+        const stressColor: [number, number, number] = agent.peak_stress > 80 ? C.danger : agent.peak_stress > 60 ? [180, 130, 30] : C.body;
+        pdf.setTextColor(...stressColor);
+        pdf.text(`${agent.peak_stress}%`, colX, y);
+        colX += agentCols[3];
+
+        // Status
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(...C.dark);
+        pdf.text(agent.status, colX, y);
+        colX += agentCols[4];
+
+        // Notes
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(...C.muted);
+        const note = agent.has_resigned ? `Resigned Wk ${agent.resigned_week}` : agent.status_label;
+        const truncNote = note.length > 30 ? note.slice(0, 28) + ".." : note;
+        pdf.text(truncNote, colX, y);
+
+        y += 7;
+      }
+
+      // Table border
+      const tableH = (report.agent_reports.length + 1) * 7;
+      pdf.setDrawColor(...C.tableBorder);
+      pdf.setLineWidth(0.2);
+      pdf.rect(margin, y - tableH - 4.5, contentWidth, tableH, "S");
+      y += 4;
+
+      drawRule();
+
+      // ═══════════════════════════════════════════════════════
+      // 5. ANALYSIS & INSIGHTS
+      // ═══════════════════════════════════════════════════════
+      if (report.analysis_insights) {
+        writeSection("5", "Analysis & Insights");
+        writeText(report.analysis_insights);
+        drawRule();
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // 6. RECOMMENDATIONS
+      // ═══════════════════════════════════════════════════════
+      writeSection("6", "Recommendations");
+
+      for (let i = 0; i < report.recommendations.length; i++) {
+        checkPage(12);
+        // Number circle
+        pdf.setFillColor(...C.accent);
+        pdf.circle(margin + 2.5, y - 1.5, 2.5, "F");
+        pdf.setFontSize(7);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(255, 255, 255);
+        pdf.text(`${i + 1}`, margin + 2.5, y - 0.8, { align: "center" });
+        // Recommendation text
+        writeText(report.recommendations[i], 9.5, C.body, "normal", 9);
+        y += 1;
+      }
+
+      drawRule();
+
+      // ═══════════════════════════════════════════════════════
+      // 7. CONCLUSION
+      // ═══════════════════════════════════════════════════════
+      if (report.conclusion) {
+        writeSection("7", "Conclusion");
+        writeText(report.conclusion);
+      }
+
+      // ── Final footer on last page ──
+      drawPageFooter();
+
+      // ── Add footers to all previous pages ──
+      const totalPages = pdf.getNumberOfPages();
+      for (let p = 1; p < totalPages; p++) {
+        pdf.setPage(p);
+        pdf.setFontSize(7.5);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(...C.light);
+        pdf.text("TeamDynamics | AI-Powered Team Simulation", margin, pageHeight - 10);
+        pdf.text(`Page ${p}`, rightMargin, pageHeight - 10, { align: "right" });
+        pdf.setDrawColor(...C.rule);
+        pdf.setLineWidth(0.2);
+        pdf.line(margin, pageHeight - 14, rightMargin, pageHeight - 14);
       }
 
       pdf.save(`TeamDynamics_Report_${report.company_name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
