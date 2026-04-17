@@ -77,6 +77,7 @@ export function InterventionPanel({ status, onIntervene, metrics, worldState }: 
                return (
                   <TooltipProvider key={s.id}>
                     <Tooltip>
+                      {/* @ts-expect-error TooltipTrigger asChild not properly typed in Base UI */}
                       <TooltipTrigger asChild>
                         <span
                           role="button"
