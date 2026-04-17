@@ -33,7 +33,7 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'View Interactive Demo Report' button to open the demo report, then check the page for an Executive Summary section.
+        # -> Click the 'View Interactive Demo Report' button to open the report page (/report) so we can verify the Executive Summary section is displayed.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/main/div/div/div[3]/a[2]/button').nth(0)

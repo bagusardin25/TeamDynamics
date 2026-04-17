@@ -33,7 +33,7 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to /dashboard and verify that unauthenticated users are shown a login experience (redirect or login page).
+        # -> Navigate to http://localhost:3000/dashboard and observe whether an unauthenticated user is redirected to or shown a login experience (look for login form, 'Sign in' text, or authentication prompts).
         await page.goto("http://localhost:3000/dashboard")
         
         # --> Test passed — verified by AI agent

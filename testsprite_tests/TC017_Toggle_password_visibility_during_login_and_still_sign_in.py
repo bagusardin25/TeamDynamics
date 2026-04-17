@@ -33,10 +33,10 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to http://localhost:3000/login and wait for the login form to appear (email, password, visibility toggle, and submit).
+        # -> Navigate to http://localhost:3000/login to load the login page and reveal interactive fields.
         await page.goto("http://localhost:3000/login")
         
-        # -> Fill the email field (index 214) with the provided username, then fill the password (index 215), toggle visibility (index 218), and submit (index 219).
+        # -> Fill the email field with the provided username and proceed to fill password, toggle visibility, then submit the form.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
@@ -52,10 +52,16 @@ async def run_test():
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[2]/div/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click the password visibility toggle to change the password field to hidden, wait for the UI to update, then submit the login form and verify the user lands on the dashboard.
+        # -> Click the password visibility toggle (index 407) to change the password field type, then click Sign In (index 338) to submit and verify navigation to the dashboard.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
+        await asyncio.sleep(3); await elem.click()
+        
+        # -> Open the profile menu so I can log out and then re-run the login with a visibility toggle to verify it doesn't disrupt authentication.
+        frame = context.pages[-1]
+        # Click element
+        elem = frame.locator('xpath=/html/body/div[2]/header/div/div/div[2]/div/span').nth(0)
         await asyncio.sleep(3); await elem.click()
         
         # --> Test passed — verified by AI agent

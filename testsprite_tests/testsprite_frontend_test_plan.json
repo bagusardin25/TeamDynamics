@@ -782,5 +782,148 @@
       }
     ],
     "priority": "Low"
+  },
+  {
+    "id": "TC029",
+    "title": "Open a shared report from the public share route",
+    "description": "Verifies a visitor can open a report using the public share URL and see the report content render.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /share/demo"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shared report content is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC030",
+    "title": "Open the setup wizard directly from the app route",
+    "description": "Verifies a visitor can navigate directly to the setup wizard and see the company configuration flow.",
+    "category": "Simulation Setup",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /setup"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the setup wizard loads with the company and agent configuration UI"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC031",
+    "title": "Display the 404 page for an unknown route",
+    "description": "Verifies that visiting an invalid route shows the custom not-found page rather than a blank or broken screen.",
+    "category": "Routing",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /this-route-does-not-exist"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the custom 404 page is displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC032",
+    "title": "Auto-generate a custom crisis from the setup wizard",
+    "description": "Verifies the setup wizard can generate a tailored crisis scenario and switch the crisis selection to custom.",
+    "category": "Simulation Setup",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /setup"
+      },
+      {
+        "type": "action",
+        "description": "Click the Auto-Generate crisis button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the crisis selection switches to custom and a generated crisis description appears"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC033",
+    "title": "Create a custom agent and add it to the roster",
+    "description": "Verifies a user can open the custom agent modal, define a new agent, and add it to the simulation roster.",
+    "category": "Simulation Setup",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /setup"
+      },
+      {
+        "type": "action",
+        "description": "Click the Custom Agent tile"
+      },
+      {
+        "type": "action",
+        "description": "Fill the agent name, role, and personality type fields"
+      },
+      {
+        "type": "action",
+        "description": "Click Add to Roster"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new agent appears in the active roster"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC034",
+    "title": "Export a shared report as a PDF",
+    "description": "Verifies a visitor can open a shared report and trigger the PDF export action from the public share page.",
+    "category": "Simulation Report",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /share/demo"
+      },
+      {
+        "type": "action",
+        "description": "Click Export PDF"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a PDF export progress or success state is shown"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC035",
+    "title": "Navigate docs and open the architecture section",
+    "description": "Verifies a visitor can open the documentation page and jump directly to the architecture section.",
+    "category": "Docs",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /docs"
+      },
+      {
+        "type": "action",
+        "description": "Click the Architecture navigation item"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the System Architecture section is displayed"
+      }
+    ],
+    "priority": "Medium"
   }
 ]

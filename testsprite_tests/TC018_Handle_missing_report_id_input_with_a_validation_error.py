@@ -33,13 +33,24 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to http://localhost:3000/report and wait for the page to load so we can check for a report-id validation or empty-state error.
+        # -> Navigate to http://localhost:3000/report and wait for the page to load so we can check for the report id field or an empty-state error.
         await page.goto("http://localhost:3000/report")
         
-        # --> Test passed — verified by AI agent
+        # -> Navigate to /report (no query param) and wait for the UI to settle so we can check for a report-id validation or empty-state message.
+        await page.goto("http://localhost:3000/report")
+        
+        # -> Navigate to http://localhost:3000/report (no query param) and wait for the UI to settle so we can check for a report-id validation error or empty-state message.
+        await page.goto("http://localhost:3000/report")
+        
+        # -> Navigate to /report (no query param), wait for the UI to settle, then check whether a report-id validation or an empty-state error is shown.
+        await page.goto("http://localhost:3000/report")
+        
+        # -> Navigate to /report (no query param), wait for the UI to settle, then check whether a report-id validation or an empty-state message is shown.
+        await page.goto("http://localhost:3000/report")
+        
+        # --> Assertions to verify final state
         frame = context.pages[-1]
-        current_url = await frame.evaluate("() => window.location.href")
-        assert current_url is not None, "Test completed successfully"
+        assert await frame.locator("xpath=//*[contains(., 'Report ID is required')]").nth(0).is_visible(), "The UI should display a report id validation error after attempting to load a report without providing an id"
         await asyncio.sleep(5)
 
     finally:

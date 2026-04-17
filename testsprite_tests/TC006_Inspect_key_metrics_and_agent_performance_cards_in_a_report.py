@@ -33,7 +33,7 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'View Interactive Demo Report' button to navigate to the report page, then verify key metrics and individual agent performance cards are displayed.
+        # -> Open the interactive demo report (navigate to /report) by clicking the 'View Interactive Demo Report' button.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/main/div/div/div[3]/a[2]/button').nth(0)

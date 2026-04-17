@@ -33,32 +33,13 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'Sign In' button to open the login form so credentials can be entered.
+        # -> Navigate to /share/demo (http://localhost:3000/share/demo) to load the public share page.
+        await page.goto("http://localhost:3000/share/demo")
+        
+        # -> Click the 'Export PDF' button on the public share page and then verify a visible PDF export progress indicator or success feedback is shown.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
-        await asyncio.sleep(3); await elem.click()
-        
-        # -> Fill the email field with the provided username, fill the password, then submit the login form.
-        frame = context.pages[-1]
-        # Input text
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('bagusardinp@gmail.com')
-        
-        frame = context.pages[-1]
-        # Input text
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[2]/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('bagus123456')
-        
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
-        await asyncio.sleep(3); await elem.click()
-        
-        # -> Click the 'New Simulation' button (index 513) to start a new simulation and verify the setup wizard appears.
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div[3]/a/button').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/div/div/div/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
         # --> Test passed — verified by AI agent

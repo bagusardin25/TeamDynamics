@@ -33,13 +33,13 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'View Interactive Demo Report' button to open the report page.
+        # -> Open the demo report page so I can start the PDF export flow (click the 'View Interactive Demo Report' button).
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/main/div/div/div[3]/a[2]/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click the 'Export PDF' button to start the PDF export, then wait for the UI to show an export-in-progress indicator or confirmation state.
+        # -> Click the 'Export PDF' button and wait for the UI to show an export-in-progress or confirmation state (toast, modal, spinner, or button state change).
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/div/div/div/button[2]').nth(0)

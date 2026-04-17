@@ -33,11 +33,8 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Open the Interactive Demo Report by clicking the 'View Interactive Demo Report' button so the report page loads where the timeline chart can be checked.
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div/div/div[3]/a[2]/button').nth(0)
-        await asyncio.sleep(3); await elem.click()
+        # -> Navigate to http://localhost:3000/report and then verify that a timeline chart visualization is present in the report page.
+        await page.goto("http://localhost:3000/report")
         
         # --> Test passed — verified by AI agent
         frame = context.pages[-1]

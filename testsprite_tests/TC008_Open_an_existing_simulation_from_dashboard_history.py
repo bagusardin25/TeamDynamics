@@ -33,16 +33,10 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'Sign In' button to open the login form.
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
-        await asyncio.sleep(3); await elem.click()
-        
-        # -> Open the login page (navigate to /login) so I can fill credentials and sign in.
+        # -> Navigate to /login to access the login form.
         await page.goto("http://localhost:3000/login")
         
-        # -> Fill the email field with the provided username, fill the password field, and submit the login form.
+        # -> Fill the Email field with bagusardinp@gmail.com, fill the Password field with bagus123456, and click Sign In.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
@@ -58,22 +52,27 @@ async def run_test():
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click a simulation from the Simulation History to open it and verify the live simulation view (click the 'Manshowproject' entry).
+        # -> Click a simulation entry from the Simulation History (e.g., 'Manshowproject') to open the live simulation view, then verify the live simulation page loads.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/main/div[4]/div/a/div/div').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click the 'Manshowproject' simulation entry to open it and verify the live simulation view loads.
+        # -> Click the 'Manshowproject' simulation entry (index 724) to open the live simulation view, then wait for the page to load and verify the live view appears.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div[3]/a').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/main/div[4]/div/a/div/div').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # --> Test passed — verified by AI agent
+        # -> Click the 'Manshowproject' simulation entry (index 724), wait for the page to load, then verify the live simulation view appears.
         frame = context.pages[-1]
-        current_url = await frame.evaluate("() => window.location.href")
-        assert current_url is not None, "Test completed successfully"
+        # Click element
+        elem = frame.locator('xpath=/html/body/div[2]/main/div[4]/div/a/div/div').nth(0)
+        await asyncio.sleep(3); await elem.click()
+        
+        # --> Assertions to verify final state
+        frame = context.pages[-1]
+        assert await frame.locator("xpath=//*[contains(., 'Manshowproject')]").nth(0).is_visible(), "The live simulation view should display the simulation title Manshowproject after opening it from history."
         await asyncio.sleep(5)
 
     finally:

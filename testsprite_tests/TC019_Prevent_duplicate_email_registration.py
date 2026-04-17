@@ -33,10 +33,10 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Wait for the SPA to finish loading; then navigate to /register to begin the registration test.
+        # -> Navigate to /register to load the registration form and reveal interactive fields so I can proceed with the first registration attempt.
         await page.goto("http://localhost:3000/register")
         
-        # -> Fill the registration form (Full Name, Email, Password) and submit to create the first account.
+        # -> Fill the full name, email, and password fields and submit the registration form (first attempt).
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
@@ -52,7 +52,7 @@ async def run_test():
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[3]/div/input').nth(0)
         await asyncio.sleep(3); await elem.fill('bagus123456')
         
-        # -> Click the 'Create Account' button to submit the first registration form and wait for the app to respond.
+        # -> Submit the registration form for the first account by clicking the 'Create Account' button (index 341), then wait for the app to navigate/update.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)

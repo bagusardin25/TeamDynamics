@@ -33,22 +33,9 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the pressure slider (index 154) to focus, send the Home key to set low pressure, then verify the simulator UI updated.
+        # --> Assertions to verify final state
         frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div/div[2]/div[2]/span/span[2]/span').nth(0)
-        await asyncio.sleep(3); await elem.click()
-        
-        # -> Click the pressure slider (index 154), send the End key to set high pressure, then wait for the UI to update.
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div/div[2]/div[2]/span/span[2]/span').nth(0)
-        await asyncio.sleep(3); await elem.click()
-        
-        # --> Test passed — verified by AI agent
-        frame = context.pages[-1]
-        current_url = await frame.evaluate("() => window.location.href")
-        assert current_url is not None, "Test completed successfully"
+        assert await frame.locator("xpath=//*[contains(., 'High Pressure')]").nth(0).is_visible(), "The simulator should display High Pressure after setting the pressure slider to a high value."
         await asyncio.sleep(5)
 
     finally:

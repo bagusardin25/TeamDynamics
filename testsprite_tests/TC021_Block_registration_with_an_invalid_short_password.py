@@ -33,32 +33,32 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Open the app's auth/registration page by clicking the 'Launch App' button to reach the registration form.
+        # -> Open the registration/signup page (click the 'Start Simulation' / signup button) so I can observe the registration form fields.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[4]/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Open the registration page (/register) so the registration form is visible and can be tested for password length validation.
+        # -> Navigate to /register and wait for the registration form to load so I can observe the fields.
         await page.goto("http://localhost:3000/register")
         
-        # -> Fill the Full Name field with a test name, enter a unique email, enter a password shorter than 6 characters, and submit the form to trigger and observe the password validation error.
+        # -> Fill the registration form (full name, unique email, short password) and submit the form to trigger and observe the password length validation error.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('Auto Test')
+        await asyncio.sleep(3); await elem.fill('Test User')
         
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[2]/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('autotest+1@example.com')
+        await asyncio.sleep(3); await elem.fill('testuser+shortpass@example.com')
         
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[3]/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('12345')
+        await asyncio.sleep(3); await elem.fill('abc')
         
-        # -> Click the 'Create Account' submit button to attempt registration and observe whether a password length validation error is shown.
+        # -> Click the 'Create Account' button to submit the form and verify a visible password length validation error.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)

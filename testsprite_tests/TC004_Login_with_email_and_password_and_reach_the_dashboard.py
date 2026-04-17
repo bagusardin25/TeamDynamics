@@ -33,16 +33,13 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'Sign In' button to open the login page or modal.
+        # -> Click the 'Sign In' button to open the login page, then wait for the login form to appear.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Navigate to http://localhost:3000/login, wait for the login page to load, then observe all visible email/password fields before filling them.
-        await page.goto("http://localhost:3000/login")
-        
-        # -> Fill the email and password fields with the provided credentials, submit the form, then wait for the page to load so we can verify redirection to the dashboard.
+        # -> Fill the Email field with bagusardinp@gmail.com, fill the Password field with bagus123456, then submit the form by clicking 'Sign In'.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)

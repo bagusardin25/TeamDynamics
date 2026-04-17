@@ -10,11 +10,11 @@
     "projectPath": "C:\\Coding\\TeamDynamics",
     "testIds": [],
     "additionalInstruction": "",
-    "serverMode": "development",
+    "serverMode": "production",
     "envs": {
       "API_KEY": "sk-user-v3H3fkIJOv3p3kLOK7nNHkXs5wL-w2AsgbLZmpTUsHiddWJCdCpa5N-RFZYLmpPe9g9yCb3WnMqqdUHAbeGg3T1moO43roZMj-GsgviXVjIy6ajXorW3yCtUDU05ayNC1vM"
     }
   },
-  "serverPort": 58122,
-  "proxy": "http://af226f29-ffb2-4ef5-98db-bc63d46194d4:KaeeCefVNuD95THYBABd95XY4pUNeFQ0@tun.testsprite.com:8080"
+  "serverPort": 58350,
+  "proxy": "http://47d335d3-82ad-48a3-ad26-598bef1b609b:XsGNYpOzwqptC8tuLGRibQtvxLWMnm6c@tun.testsprite.com:8080"
 }

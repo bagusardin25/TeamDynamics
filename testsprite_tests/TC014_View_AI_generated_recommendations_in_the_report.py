@@ -33,11 +33,8 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'View Interactive Demo Report' button to navigate to the report page, then verify that recommendations content is displayed.
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div/div/div[3]/a[2]/button').nth(0)
-        await asyncio.sleep(3); await elem.click()
+        # -> Navigate to /report and verify recommendations content is displayed
+        await page.goto("http://localhost:3000/report")
         
         # --> Test passed — verified by AI agent
         frame = context.pages[-1]

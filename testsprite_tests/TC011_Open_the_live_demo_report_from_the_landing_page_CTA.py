@@ -33,7 +33,7 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'View Interactive Demo Report' button (index 141) to open the demo report page and verify a post-simulation report is displayed.
+        # -> Click the 'View Interactive Demo Report' button (index 119) to open the demo report.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/main/div/div/div[3]/a[2]/button').nth(0)

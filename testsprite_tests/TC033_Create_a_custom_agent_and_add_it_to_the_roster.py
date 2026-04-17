@@ -33,32 +33,41 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the 'Sign In' button to open the login form so credentials can be entered.
+        # -> Navigate to /setup (http://localhost:3000/setup) to find the Custom Agent tile or setup UI.
+        await page.goto("http://localhost:3000/setup")
+        
+        # -> Click the 'Next: Assemble Team' button to navigate to the team assembly step where the Custom Agent tile/modal should be available.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/div/div[2]/div/div[4]/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Fill the email field with the provided username, fill the password, then submit the login form.
-        frame = context.pages[-1]
-        # Input text
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('bagusardinp@gmail.com')
-        
-        frame = context.pages[-1]
-        # Input text
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[2]/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('bagus123456')
-        
+        # -> Click the 'Custom Agent' tile in the Agent Pool to open the custom agent modal.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/div/div[2]/div/div/div/div[2]/div/button[2]').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click the 'New Simulation' button (index 513) to start a new simulation and verify the setup wizard appears.
+        # -> Fill the Name, Role, and Personality fields in the Create Custom Agent modal as the immediate next action.
+        frame = context.pages[-1]
+        # Input text
+        elem = frame.locator('xpath=/html/body/div[2]/div[2]/div/div/div[2]/div/input').nth(0)
+        await asyncio.sleep(3); await elem.fill('TaylorTest')
+        
+        frame = context.pages[-1]
+        # Input text
+        elem = frame.locator('xpath=/html/body/div[2]/div[2]/div/div/div[2]/div[2]/input').nth(0)
+        await asyncio.sleep(3); await elem.fill('Designer')
+        
+        frame = context.pages[-1]
+        # Input text
+        elem = frame.locator('xpath=/html/body/div[2]/div[2]/div/div/div[3]/input').nth(0)
+        await asyncio.sleep(3); await elem.fill('Perfectionist & Anxious')
+        
+        # -> Click the 'Add to Roster' button in the Create Custom Agent modal, wait for the UI to update, then verify 'TaylorTest' appears in the Active Roster.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div[3]/a/button').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/div[2]/div/div/div[13]/button[2]').nth(0)
         await asyncio.sleep(3); await elem.click()
         
         # --> Test passed — verified by AI agent

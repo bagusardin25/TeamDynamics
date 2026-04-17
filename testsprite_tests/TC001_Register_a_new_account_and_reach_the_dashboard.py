@@ -33,10 +33,10 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to /register and wait for the registration page to load.
+        # -> Navigate to the registration page at /register
         await page.goto("http://localhost:3000/register")
         
-        # -> Fill the Full Name field (index 373) with 'Bagus Ardin', then fill email and password, and submit the form.
+        # -> Fill the Full Name field with 'Bagus Ardin' and then complete the form (email, password) and submit.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
@@ -52,28 +52,17 @@ async def run_test():
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[3]/div/input').nth(0)
         await asyncio.sleep(3); await elem.fill('bagus123456')
         
-        # -> Click the 'Create Account' button to submit the registration form, then wait for the page to load and verify the user is redirected to the authenticated dashboard.
+        # -> Click the 'Create Account' button to submit the registration form and then verify the site redirects to the authenticated dashboard.
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Replace the email with a unique address and submit the registration form again to verify redirection to the dashboard.
+        # -> Replace the email with a unique address and submit the registration form again to verify dashboard redirect.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[2]/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('bagusardinp+test1@gmail.com')
-        
-        frame = context.pages[-1]
-        # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
-        await asyncio.sleep(3); await elem.click()
-        
-        # -> Replace the email with another unique address and submit the registration form, then wait for the app to redirect to the authenticated dashboard or display an error.
-        frame = context.pages[-1]
-        # Input text
-        elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div[2]/div/input').nth(0)
-        await asyncio.sleep(3); await elem.fill('bagusardinp+test2@gmail.com')
+        await asyncio.sleep(3); await elem.fill('bagusardinp+1@gmail.com')
         
         frame = context.pages[-1]
         # Click element

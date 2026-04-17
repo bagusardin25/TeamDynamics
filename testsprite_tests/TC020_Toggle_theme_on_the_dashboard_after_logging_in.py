@@ -33,10 +33,13 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to the login page (/login) so I can sign in with the provided credentials.
-        await page.goto("http://localhost:3000/login")
+        # -> Click the 'Sign In' button to open the login page or modal.
+        frame = context.pages[-1]
+        # Click element
+        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
+        await asyncio.sleep(3); await elem.click()
         
-        # -> Fill the email and password fields with the provided credentials and submit the login form.
+        # -> Fill the email and password fields and submit the login form (click Sign In). After the page updates, locate the theme toggle on the dashboard and toggle it to verify the UI changes.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
@@ -52,7 +55,7 @@ async def run_test():
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click the theme toggle control in the header to switch the theme, then wait for the UI to update and verify the visual change.
+        # -> Click the theme toggle (element index 480) to switch to the light theme and verify the UI updates (page background and theme-related labels should change).
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/header/div/div/button').nth(0)
