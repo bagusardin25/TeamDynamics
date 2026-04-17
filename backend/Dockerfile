@@ -2,19 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
+# Install dependencies from the backend folder
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy all backend code into /app
+COPY backend/ .
 
 # Expose port
 EXPOSE 8000
 
-# Production server: gunicorn with uvicorn workers
-# --timeout 120: prevent WebSocket connections from being killed during long simulations
-# --graceful-timeout 30: allow in-flight requests to complete on shutdown
+# Production server
 CMD ["gunicorn", "main:app", \
      "-w", "2", \
      "-k", "uvicorn.workers.UvicornWorker", \
