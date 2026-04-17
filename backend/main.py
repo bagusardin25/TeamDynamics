@@ -4,6 +4,7 @@ Multi-agent AI simulation engine for team dynamics.
 """
 
 import os
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -22,15 +23,37 @@ from routers.document import router as document_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+DB_MAX_RETRIES = int(os.getenv("DB_MAX_RETRIES", "5"))
+DB_RETRY_DELAY = int(os.getenv("DB_RETRY_DELAY", "3"))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle."""
+    """Startup and shutdown lifecycle with resilient DB connection."""
     logger.info("🚀 Initializing TeamDynamics Backend...")
-    await init_db()
-    logger.info("✅ Database initialized (PostgreSQL)")
     logger.info(f"🤖 LLM Provider: {os.getenv('LLM_PROVIDER', 'openai')}")
+
+    # Retry database connection — Railway/cloud DBs may not be ready immediately
+    db_ready = False
+    for attempt in range(1, DB_MAX_RETRIES + 1):
+        try:
+            await init_db()
+            logger.info("✅ Database initialized (PostgreSQL)")
+            db_ready = True
+            break
+        except Exception as e:
+            logger.warning(
+                f"⚠️ DB connection attempt {attempt}/{DB_MAX_RETRIES} failed: {e}"
+            )
+            if attempt < DB_MAX_RETRIES:
+                await asyncio.sleep(DB_RETRY_DELAY)
+
+    if not db_ready:
+        logger.error("❌ Could not connect to database after all retries. "
+                      "App will start but DB operations will fail.")
+
     yield
+
     logger.info("👋 Shutting down TeamDynamics Backend")
     await close_db()
 

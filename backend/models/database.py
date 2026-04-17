@@ -47,11 +47,15 @@ async def get_pool() -> asyncpg.Pool:
             ssl_ctx.check_hostname = False
             ssl_ctx.verify_mode = ssl.CERT_NONE
 
+        logger.info(f"🔌 Connecting to database at {parsed.hostname}:{parsed.port or 5432}...")
+
         _pool = await asyncpg.create_pool(
             clean_url,
-            min_size=2,
+            min_size=1,
             max_size=10,
             command_timeout=30,
+            timeout=15,  # Connection timeout — prevents worker hanging on cold start
+            statement_cache_size=0,  # Required for PgBouncer/Supavisor (Supabase/Railway pooler)
             ssl=ssl_ctx,
         )
     return _pool
