@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install dependencies first (Docker layer caching)
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy all backend source code
-COPY . .
+COPY backend/ .
 
 # Railway injects $PORT at runtime, default to 8000 for local
 ENV PORT=8000
