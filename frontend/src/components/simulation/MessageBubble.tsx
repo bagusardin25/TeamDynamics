@@ -27,8 +27,8 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
       const titleLine = rawLines.length > 0 ? rawLines[0] : "Outcome";
       const statsIndex = rawLines.findIndex(l => l.toUpperCase().includes("FINAL WORLD STATE"));
       
-      let bodyLines = [];
-      let statLines = [];
+      let bodyLines: string[] = [];
+      let statLines: string[] = [];
       
       if (statsIndex !== -1) {
          bodyLines = rawLines.slice(1, statsIndex);
