@@ -2,22 +2,15 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
+# Install dependencies (build context = repo root)
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy all backend code into /app
+COPY backend/ .
 
-# Expose port
-EXPOSE 8000
+# Railway uses dynamic $PORT, default to 8000 for local dev
+ENV PORT=8000
 
-# Production server: gunicorn with uvicorn workers
-# --timeout 120: prevent WebSocket connections from being killed during long simulations
-# --graceful-timeout 30: allow in-flight requests to complete on shutdown
-CMD ["gunicorn", "main:app", \
-     "-w", "2", \
-     "-k", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "--graceful-timeout", "30"]
+# Production server — shell form so $PORT is evaluated at runtime
+CMD sh -c "gunicorn main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --timeout 120 --graceful-timeout 30"
