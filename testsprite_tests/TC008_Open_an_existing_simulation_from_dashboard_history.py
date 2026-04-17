@@ -33,10 +33,16 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to /login and load the login page so we can submit credentials.
+        # -> Click the 'Sign In' button to open the login form.
+        frame = context.pages[-1]
+        # Click element
+        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
+        await asyncio.sleep(3); await elem.click()
+        
+        # -> Open the login page (navigate to /login) so I can fill credentials and sign in.
         await page.goto("http://localhost:3000/login")
         
-        # -> Fill the Email and Password fields and submit the Sign In form.
+        # -> Fill the email field with the provided username, fill the password field, and submit the login form.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
@@ -52,16 +58,16 @@ async def run_test():
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click a simulation entry in the Simulation History (the 'codex' entry) to open its live simulation view and verify the live view loads.
+        # -> Click a simulation from the Simulation History to open it and verify the live simulation view (click the 'Manshowproject' entry).
         frame = context.pages[-1]
         # Click element
         elem = frame.locator('xpath=/html/body/div[2]/main/div[4]/div/a/div/div').nth(0)
         await asyncio.sleep(3); await elem.click()
         
-        # -> Click the 'codex' simulation entry in Simulation History to open its live simulation view, then verify the live simulation UI loads.
+        # -> Click the 'Manshowproject' simulation entry to open it and verify the live simulation view loads.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div[4]/div/a/div/div[2]/div/div[2]/div[2]/div/div/div/div').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/main/div[3]/a').nth(0)
         await asyncio.sleep(3); await elem.click()
         
         # --> Test passed — verified by AI agent

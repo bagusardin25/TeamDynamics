@@ -33,10 +33,10 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Click the primary CTA 'Run First Simulation' (element index 124) to reach the simulation setup wizard, then verify the user lands on the simulation setup flow.
+        # -> Click the primary CTA labeled 'Start Simulation' in the header to begin the simulation setup flow.
         frame = context.pages[-1]
         # Click element
-        elem = frame.locator('xpath=/html/body/div[2]/main/div[4]/a/button').nth(0)
+        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[4]/button').nth(0)
         await asyncio.sleep(3); await elem.click()
         
         # --> Test passed — verified by AI agent

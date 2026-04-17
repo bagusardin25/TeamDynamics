@@ -33,10 +33,19 @@ async def run_test():
         # -> Navigate to http://localhost:3000
         await page.goto("http://localhost:3000")
         
-        # -> Navigate to /login so the login form can be located and filled.
-        await page.goto("http://localhost:3000/login")
+        # -> Click the 'Sign In' button to navigate to the login page.
+        frame = context.pages[-1]
+        # Click element
+        elem = frame.locator('xpath=/html/body/div[2]/header/div/nav/a[3]/button').nth(0)
+        await asyncio.sleep(3); await elem.click()
         
-        # -> Fill the email and password fields with provided credentials and submit the form (attempt login).
+        # -> Click 'Back to Dashboard' to open the dashboard, wait for it to load, then verify summary stats, remaining credits, and simulation history are visible.
+        frame = context.pages[-1]
+        # Click element
+        elem = frame.locator('xpath=/html/body/div[2]/div/div/div/a').nth(0)
+        await asyncio.sleep(3); await elem.click()
+        
+        # -> Fill the email field with bagusardinp@gmail.com, fill the password with bagus123456, then submit the Sign In form and wait for the dashboard to load.
         frame = context.pages[-1]
         # Input text
         elem = frame.locator('xpath=/html/body/div[2]/div[4]/div[2]/form/div/div/input').nth(0)
