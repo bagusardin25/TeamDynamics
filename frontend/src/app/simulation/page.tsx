@@ -57,20 +57,39 @@ function SimulationContent() {
     }
   }, [status, simId, router]);
 
+  // Ambient calculation
+  const isCrisis = metrics?.avgStress > 75;
+  const isWarning = metrics?.avgStress > 50 && metrics?.avgStress <= 75;
+
   return (
-    <div className="h-screen w-full bg-background flex flex-col overflow-hidden">
+    <div className="h-screen w-full bg-background flex flex-col overflow-hidden relative">
+      {/* Ambient Vignette Overlay */}
+      {status !== "completed" && (
+        <div 
+          className={`pointer-events-none absolute inset-0 z-0 transition-opacity duration-1000 ${isCrisis ? "opacity-100 animate-pulse" : isWarning ? "opacity-100" : "opacity-0"}`}
+          style={{
+            backgroundImage: isCrisis 
+              ? "radial-gradient(ellipse at center, transparent 40%, rgba(220,38,38,0.18) 100%)"
+              : "radial-gradient(ellipse at center, transparent 50%, rgba(245,158,11,0.12) 100%)",
+            boxShadow: isCrisis ? "inset 0 0 100px rgba(220,38,38,0.1)" : "none"
+          }}
+        />
+      )}
+
       {/* Navbar */}
-      <SimulationNavbar
-        status={status}
-        companyName={companyName}
-        currentRound={currentRound}
-        totalRounds={totalRounds}
-        isConnected={isConnected}
-        soundEnabled={soundEnabled}
-        onToggleSound={() => setSoundEnabled(!soundEnabled)}
-        onEndSimulation={handleEndSimulation}
-        onExit={() => router.push("/dashboard")}
-      />
+      <div className="relative z-10">
+        <SimulationNavbar
+          status={status}
+          companyName={companyName}
+          currentRound={currentRound}
+          totalRounds={totalRounds}
+          isConnected={isConnected}
+          soundEnabled={soundEnabled}
+          onToggleSound={() => setSoundEnabled(!soundEnabled)}
+          onEndSimulation={handleEndSimulation}
+          onExit={() => router.push("/dashboard")}
+        />
+      </div>
 
       {/* Progress Bar */}
       <div className="h-1 w-full bg-secondary/50 shrink-0 relative overflow-hidden">
@@ -90,12 +109,12 @@ function SimulationContent() {
       </div>
 
       {/* Main 3-Column Layout */}
-      <main className="flex-1 flex overflow-hidden min-h-0">
+      <main className="flex-1 flex overflow-hidden min-h-0 relative z-10">
         {/* Left: Agent Sidebar (desktop) */}
         <AgentSidebar agents={agents} connectionError={connectionError} typingAgentId={typingAgent} />
 
         {/* Center: Chat Feed */}
-        <section className="flex-1 flex flex-col bg-background/50 relative min-h-0">
+        <section className="flex-1 flex flex-col bg-background/50 relative min-h-0 backdrop-blur-xs">
           <MobileAgentBar agents={agents} />
           <MessageFeed
             messages={messages}
@@ -108,7 +127,7 @@ function SimulationContent() {
             metricsHistory={metricsHistory}
             metrics={metrics}
           />
-          <InterventionPanel status={status} onIntervene={handleIntervene} />
+          <InterventionPanel status={status} onIntervene={handleIntervene} metrics={metrics} worldState={worldState} />
         </section>
 
         {/* Right: Metrics Dashboard */}

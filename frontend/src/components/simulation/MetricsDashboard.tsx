@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Activity, Users, Heart, Shield, TrendingUp, Zap,
-  DollarSign, Star, Clock, MessageSquare, AlertTriangle,
+  DollarSign, Star, Clock, MessageSquare, AlertTriangle, Target, LineChart
 } from "lucide-react";
 import type { Metrics, Agent, WorldState, DecisionStatus, MetricsSnapshot } from "@/app/simulation/types";
+import { RadialGauge } from "./RadialGauge";
 
 interface MetricsDashboardProps {
   metrics: Metrics;
@@ -116,31 +117,31 @@ export function MetricsDashboard({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 pt-2 space-y-3 custom-scroll">
-        {/* Primary Metrics */}
-        <MetricCard
-          label="Avg Morale" value={metrics.avgMorale}
-          icon={Heart} color="text-green-500" delta={moraleChange}
-        />
-        <MetricCard
-          label="Productivity" value={metrics.productivity}
-          icon={TrendingUp} color="text-blue-500" delta={productivityChange}
-        />
-        <MetricCard
-          label="Avg Stress" value={metrics.avgStress}
-          icon={Zap}
-          color={metrics.avgStress > 70 ? "text-red-500" : "text-orange-500"}
-          delta={null}
-        />
+        {/* Team Health Center */}
+        <Card className="bg-background/40 border-border/50 shadow-sm overflow-visible my-4">
+          <CardHeader className="py-3 px-4 border-b border-border/20 bg-secondary/20">
+            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <Heart className="w-3.5 h-3.5" /> Team Vitality
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-6 pb-10 flex items-center justify-around gap-2">
+            <RadialGauge value={metrics.avgMorale} label="Morale" color="text-emerald-500" size={72} />
+            <RadialGauge value={metrics.avgStress} label="Stress" color={metrics.avgStress > 70 ? "text-rose-500" : "text-amber-500"} size={72} />
+            <RadialGauge value={metrics.productivity} label="Output" color="text-blue-500" size={72} />
+          </CardContent>
+        </Card>
 
-        {/* Team Cohesion & Loyalty */}
-        <MetricCard
-          label="Team Cohesion" value={metrics.teamCohesion}
-          icon={Users} color="text-violet-500" delta={cohesionChange}
-        />
-        <MetricCard
-          label="Avg Loyalty" value={metrics.avgLoyalty}
-          icon={Shield} color="text-cyan-500" delta={loyaltyChange}
-        />
+        {/* Secondary Metrics Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard
+            label="Cohesion" value={metrics.teamCohesion}
+            icon={Users} color="text-violet-500" delta={cohesionChange}
+          />
+          <MetricCard
+            label="Loyalty" value={metrics.avgLoyalty}
+            icon={Shield} color="text-cyan-500" delta={loyaltyChange}
+          />
+        </div>
 
         {/* Resignations */}
         {metrics.resignations > 0 && (
@@ -178,10 +179,13 @@ export function MetricsDashboard({
 
         {/* World State */}
         {worldState && (
-          <Card className="bg-background/40 border-border/50 shadow-sm">
-            <CardHeader className="py-3 px-4 border-b border-border/20">
-              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                🌍 World State
+          <Card className="bg-background/40 border-border/50 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+              <Target className="w-24 h-24" />
+            </div>
+            <CardHeader className="py-3 px-4 border-b border-border/20 bg-secondary/20">
+              <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                🌍 Project State
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">

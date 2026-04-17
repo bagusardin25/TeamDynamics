@@ -14,6 +14,31 @@ interface AgentSidebarProps {
 }
 
 export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSidebarProps) {
+  const parseAgentName = (fullName: string) => {
+    let name = fullName;
+    let role = "Team Member";
+    
+    // Check "Name (Role)" format
+    const parenMatch = fullName.match(/(.*?)\s*\((.*?)\)/);
+    if (parenMatch) {
+      name = parenMatch[1].trim();
+      role = parenMatch[2].trim();
+    } else if (fullName.includes(" - ")) {
+      // Check "Name - Role" format
+      const parts = fullName.split(" - ");
+      name = parts[0].trim();
+      role = parts[1].trim();
+    }
+    return { name, role };
+  };
+
+  const getAgentState = (morale: number, stress: number) => {
+    if (stress >= 85) return { label: "Burnout", emoji: "🔥", color: "text-red-500 bg-red-500/10 border-red-500/20" };
+    if (stress >= 65) return { label: "Stressed", emoji: "😰", color: "text-orange-500 bg-orange-500/10 border-orange-500/20" };
+    if (morale <= 40) return { label: "Frustrated", emoji: "😡", color: "text-rose-500 bg-rose-500/10 border-rose-500/20" };
+    if (morale >= 70 && stress <= 45) return { label: "Motivated", emoji: "✨", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" };
+    return { label: "Active", emoji: "⚡", color: "text-blue-500 bg-blue-500/10 border-blue-500/20" };
+  };
   return (
     <aside className="w-[300px] border-r border-border bg-card/20 p-4 hidden md:flex flex-col shrink-0 overflow-y-auto custom-scroll">
       <div className="space-y-1 mb-6">
@@ -28,6 +53,9 @@ export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSi
           // Match by agent name since typingAgentId is "Name (Role)" format
           const isTyping = typingAgentId ? agent.name.includes(typingAgentId.split(" (")[0]) : false;
 
+          const { name: parsedName, role: parsedRole } = parseAgentName(agent.name);
+          const stateData = getAgentState(agent.morale, agent.stress);
+
           return (
             <motion.div
               key={agent.id}
@@ -37,14 +65,19 @@ export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSi
               <Card
                 className={`bg-background/40 border-border/50 transition-all duration-500 ${
                   agent.has_resigned
-                    ? "opacity-50"
+                    ? "opacity-50 grayscale"
                     : isTyping
                       ? "border-primary/50 shadow-[0_0_15px_rgba(var(--primary-rgb,139,92,246),0.15)]"
                       : ""
                 }`}
               >
-                <CardContent className="p-4 flex gap-3">
-                  <div className="relative">
+                <CardContent className="p-4 flex gap-3 relative overflow-hidden">
+                  {/* Subtle state background glow */}
+                  {!agent.has_resigned && (
+                     <div className={`absolute -right-4 -top-4 w-16 h-16 rounded-full blur-2xl opacity-20 ${stateData.label === 'Burnout' ? 'bg-red-500' : stateData.label === 'Motivated' ? 'bg-emerald-500' : ''}`} />
+                  )}
+
+                  <div className="relative shrink-0">
                     {isTyping && (
                       <motion.div
                         className="absolute -inset-1 rounded-full bg-primary/20"
@@ -52,20 +85,29 @@ export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSi
                         transition={{ duration: 1.5, repeat: Infinity }}
                       />
                     )}
-                    <Avatar className="h-9 w-9 border border-border relative">
+                    <Avatar className="h-10 w-10 border border-border relative bg-card">
                       <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                         {agent.initials}
                       </AvatarFallback>
                     </Avatar>
                   </div>
-                  <div className="flex-1 space-y-3">
-                    <div className="font-medium text-sm leading-none">
-                      {agent.name}
-                      {agent.has_resigned && (
-                        <Badge variant="outline" className="text-red-400 border-red-500/20 text-[9px] ml-2">
-                          Resigned
-                        </Badge>
-                      )}
+                  <div className="flex-1 space-y-2 min-w-0 z-10">
+                    <div>
+                        <div className="font-bold text-sm leading-tight truncate flex items-center gap-2">
+                          {parsedName}
+                          {agent.has_resigned ? (
+                            <Badge variant="outline" className="text-red-400 border-red-500/20 text-[9px] px-1.5 py-0">
+                              Resigned
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 border ${stateData.color}`}>
+                              {stateData.emoji} {stateData.label}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider truncate mt-0.5">
+                          {parsedRole}
+                        </div>
                     </div>
 
                     {/* Typing status label */}

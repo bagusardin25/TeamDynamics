@@ -1,9 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bell, Volume2 } from "lucide-react";
+import { Volume2, Brain, TrendingUp, TrendingDown, Activity, Zap, Sparkles, Target, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SimMessage } from "@/app/simulation/types";
 
@@ -21,12 +20,28 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
     if (isOutcome) {
       return (
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full rounded-xl bg-gradient-to-br from-primary/10 via-card to-violet-500/5 border-2 border-primary/30 p-5 text-sm text-foreground my-4 shadow-lg shadow-primary/10"
+          initial={{ opacity: 0, y: 15, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.7, type: "spring", stiffness: 90 }}
+          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/15 via-card to-orange-500/10 border-2 border-amber-500/40 p-6 shadow-xl shadow-amber-500/10 my-6"
         >
-          <div className="leading-relaxed font-medium whitespace-pre-line">{msg.content}</div>
+          {/* Decorative glowing orb behind */}
+          <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="flex items-start gap-4 relative z-10">
+             <div className="p-3 rounded-2xl bg-amber-500/20 shrink-0 shadow-inner ring-1 ring-amber-500/30">
+               <Award className="w-8 h-8 text-amber-500 drop-shadow-sm" />
+             </div>
+             
+             <div className="pt-1">
+               <h3 className="text-sm font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                 Simulation Outcome
+               </h3>
+               <div className="leading-relaxed font-semibold text-foreground/90 whitespace-pre-line text-[15px]">
+                 {msg.content.replace("SIMULATION OUTCOME:", "").trim()}
+               </div>
+             </div>
+          </div>
         </motion.div>
       );
     }
@@ -34,26 +49,40 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
     if (isDecision) {
       return (
         <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="w-full rounded-xl bg-green-500/10 border border-green-500/30 p-4 flex gap-3 text-sm text-foreground my-2"
+          initial={{ opacity: 0, y: 10, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
+          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border border-emerald-500/30 p-4 shadow-sm my-3 flex items-start gap-4"
         >
-          <Bell className="w-5 h-5 text-green-500 shrink-0" />
-          <div className="pt-0.5 leading-relaxed font-semibold">{msg.content}</div>
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />
+          <div className="p-2 rounded-xl bg-emerald-500/20 shrink-0">
+             <Target className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="pt-0.5">
+            <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1">Team Decision</h4>
+            <div className="leading-relaxed font-medium text-foreground/90">{msg.content.replace("TEAM DECISION REACHED:", "").trim()}</div>
+          </div>
         </motion.div>
       );
     }
 
     return (
       <motion.div
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
-        className="w-full rounded-xl bg-orange-500/10 border border-orange-500/20 p-4 flex gap-3 text-sm text-foreground my-2"
+        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
+        className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20 p-4 shadow-sm my-3 flex items-start gap-4 hover:shadow-md transition-shadow"
       >
-        <Bell className="w-5 h-5 text-orange-500 shrink-0" />
-        <div className="pt-0.5 leading-relaxed font-medium">{msg.content}</div>
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/80" />
+        <div className="p-2 rounded-xl bg-indigo-500/10 shrink-0 shadow-inner">
+           <Zap className="w-5 h-5 text-indigo-500" />
+        </div>
+        <div className="pt-0.5 flex-1 text-sm">
+          <h4 className="text-xs font-bold text-indigo-500/80 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+            <Sparkles className="w-3 h-3" /> System Update
+          </h4>
+          <div className="leading-relaxed font-medium text-foreground/80">{msg.content}</div>
+        </div>
       </motion.div>
     );
   }
@@ -101,46 +130,56 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
           </Button>
         </div>
         <motion.div
-          initial={{ opacity: 0, x: -8 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-          className="text-sm bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm"
+          initial={{ opacity: 0, x: -8, y: 5 }}
+          animate={{ opacity: 1, x: 0, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
+          className="text-sm bg-card border border-border/60 rounded-2xl rounded-tl-sm p-4 shadow-sm hover:shadow-md transition-shadow group-hover:border-primary/20 relative"
         >
-          {msg.content}
+          <div className="leading-relaxed text-foreground/90 whitespace-pre-wrap">
+            {msg.content}
+          </div>
+          
+          {msg.thought && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="mt-4 pt-4 border-t border-border/50 space-y-3 overflow-hidden"
+            >
+              <div className="flex gap-2.5 text-xs text-muted-foreground items-start bg-secondary/40 p-3 rounded-xl border border-border/30">
+                <Brain className="w-4 h-4 mt-0.5 shrink-0 text-primary/60" />
+                <span className="italic leading-relaxed flex-1">&quot;{msg.thought}&quot;</span>
+              </div>
+              
+              {/* Impact Indicators */}
+              {(msg.changes?.morale !== undefined || msg.state_changes?.morale !== undefined || msg.changes?.stress !== undefined || msg.state_changes?.stress !== undefined) && (
+                (() => {
+                  const mDelta = msg.changes?.morale ?? msg.state_changes?.morale ?? 0;
+                  const sDelta = msg.changes?.stress ?? msg.state_changes?.stress ?? 0;
+                  
+                  if (mDelta === 0 && sDelta === 0) return null;
+                  
+                  return (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {mDelta !== 0 && (
+                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${mDelta > 0 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400'}`}>
+                          {mDelta > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                          <span>Morale {mDelta > 0 ? '+' : ''}{mDelta}</span>
+                        </div>
+                      )}
+                      {sDelta !== 0 && (
+                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${sDelta > 0 ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400' : 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400'}`}>
+                          {sDelta > 0 ? <Activity className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                          <span>Stress {sDelta > 0 ? '+' : ''}{sDelta}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              )}
+            </motion.div>
+          )}
         </motion.div>
-        {msg.thought && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="pt-2 overflow-hidden"
-          >
-            <div className="text-xs italic text-muted-foreground bg-secondary/50 rounded-md p-2.5 border border-border/50">
-              <span className="font-semibold text-primary/70 mr-2 not-italic">Internal Thought:</span>
-              &quot;{msg.thought}&quot;
-            </div>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              {(msg.changes?.morale || msg.state_changes?.morale) && (
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] ${(msg.changes?.morale || msg.state_changes?.morale || 0) < 0 ? "text-red-400 border-red-500/20" : "text-green-400 border-green-500/20"}`}
-                >
-                  Morale {(msg.changes?.morale || msg.state_changes?.morale || 0) > 0 ? "+" : ""}
-                  {msg.changes?.morale || msg.state_changes?.morale}
-                </Badge>
-              )}
-              {(msg.changes?.stress || msg.state_changes?.stress) && (
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] ${(msg.changes?.stress || msg.state_changes?.stress || 0) > 0 ? "text-orange-400 border-orange-500/20" : "text-blue-400 border-blue-500/20"}`}
-                >
-                  Stress {(msg.changes?.stress || msg.state_changes?.stress || 0) > 0 ? "+" : ""}
-                  {msg.changes?.stress || msg.state_changes?.stress}
-                </Badge>
-              )}
-            </div>
-          </motion.div>
-        )}
       </div>
     </div>
   );
