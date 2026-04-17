@@ -18,6 +18,38 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
     const isDecision = msg.content.includes("TEAM DECISION REACHED:");
 
     if (isOutcome) {
+      const rawLines = msg.content
+        .replace("SIMULATION OUTCOME:", "")
+        .split("\n")
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && !/^={3,}$/.test(l));
+
+      const titleLine = rawLines.length > 0 ? rawLines[0] : "Outcome";
+      const statsIndex = rawLines.findIndex(l => l.toUpperCase().includes("FINAL WORLD STATE"));
+      
+      let bodyLines = [];
+      let statLines = [];
+      
+      if (statsIndex !== -1) {
+         bodyLines = rawLines.slice(1, statsIndex);
+         statLines = rawLines.slice(statsIndex + 1);
+      } else {
+         bodyLines = rawLines.slice(1);
+      }
+      
+      const statsDict: Record<string, string> = {};
+      if (statLines.length > 0) {
+         const joinedStats = statLines.join(" | ");
+         joinedStats.split("|").forEach(item => {
+             const parts = item.split(":");
+             if (parts.length >= 2) {
+                 const k = parts[0].trim().replace(/^[-*•\s]+/, '');
+                 const v = parts.slice(1).join(":").trim().replace(/['"\[\]]+/g, '');
+                 if (k && v) statsDict[k] = v;
+             }
+         });
+      }
+
       return (
         <motion.div
           initial={{ opacity: 0, y: 15, scale: 0.95 }}
@@ -28,19 +60,40 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
           {/* Decorative glowing orb behind */}
           <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
           
-          <div className="flex items-start gap-4 relative z-10">
-             <div className="p-3 rounded-2xl bg-amber-500/20 shrink-0 shadow-inner ring-1 ring-amber-500/30">
-               <Award className="w-8 h-8 text-amber-500 drop-shadow-sm" />
-             </div>
-             
-             <div className="pt-1">
-               <h3 className="text-sm font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                 Simulation Outcome
-               </h3>
-               <div className="leading-relaxed font-semibold text-foreground/90 whitespace-pre-line text-[15px]">
-                 {msg.content.replace("SIMULATION OUTCOME:", "").trim()}
+          <div className="flex flex-col gap-4 relative z-10">
+             <div className="flex items-center gap-4 border-b border-amber-500/20 pb-4">
+               <div className="p-3.5 rounded-2xl bg-amber-500/20 shrink-0 shadow-inner ring-1 ring-amber-500/30">
+                 <Award className="w-8 h-8 text-amber-500 drop-shadow-sm" />
+               </div>
+               <div>
+                  <h3 className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                    Simulation Outcome
+                  </h3>
+                  <div className="text-xl sm:text-2xl font-black text-foreground drop-shadow-md">
+                     {titleLine.replace(/^🏆\s*/, '🏆 ')}
+                  </div>
                </div>
              </div>
+             
+             {bodyLines.length > 0 && (
+               <div className="leading-relaxed font-medium text-foreground/90 whitespace-pre-line text-sm sm:text-base">
+                 {bodyLines.join("\n\n")}
+               </div>
+             )}
+
+             {Object.keys(statsDict).length > 0 && (
+               <div className="mt-2 pt-4 border-t border-amber-500/20">
+                 <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Final World State</h4>
+                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                   {Object.entries(statsDict).map(([k, v], i) => (
+                      <div key={i} className="bg-background/60 border border-amber-500/10 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm hover:border-amber-500/30 transition-colors">
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold mb-1 line-clamp-1" title={k}>{k}</span>
+                        <span className="text-lg font-bold text-amber-600 dark:text-amber-400">{v}</span>
+                      </div>
+                   ))}
+                 </div>
+               </div>
+             )}
           </div>
         </motion.div>
       );
