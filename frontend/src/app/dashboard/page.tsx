@@ -151,7 +151,10 @@ export default function DashboardPage() {
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                onClick={() => { logout(); router.push("/"); }}
+                onClick={() => {
+                  logout();
+                  router.replace("/login");
+                }}
               >
                 <LogOut className="w-4 h-4" />
               </Button>
