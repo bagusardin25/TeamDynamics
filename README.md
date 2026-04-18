@@ -324,6 +324,39 @@ TeamDynamics/
 
 ---
 
+## 🌐 Live Demo
+
+> **Frontend:** [https://teamdynamics.vercel.app](https://teamdynamics.vercel.app)
+> **Backend API:** Hosted on Railway
+
+---
+
+## 🎬 Demo Video
+
+> 📺 **[Watch the Demo on YouTube](https://youtu.be/f7nNENWoRI4)**
+
+---
+
+## 🧪 Testing (TestSprite)
+
+This project was tested using **TestSprite MCP** with **35 automated end-to-end test cases** covering:
+
+| Category | Tests | Pass Rate |
+|:---|:---:|:---:|
+| Authentication (register, login, OAuth, guards) | 6 | 100% |
+| Dashboard (stats, history, logout) | 4 | 50%* |
+| Simulation Setup (wizard, agents, crisis gen) | 4 | 100% |
+| Report & Analytics (metrics, PDF export, share) | 6 | 83% |
+| Landing Page & Navigation (CTAs, 404, docs) | 4 | 75%** |
+| Theme & Accessibility | 3 | 100% |
+
+> \*TC008 and TC016 failures were root-caused and fixed post-test run.
+> \*\*TC015 blocked due to test plan targeting a deprecated feature — not a product defect.
+
+📂 All test cases and the full report are in [`testsprite_tests/`](./testsprite_tests/).
+
+---
+
 ## 🛣️ Roadmap
 
 - [ ] Parallel simulation execution for A/B testing
