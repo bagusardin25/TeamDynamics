@@ -21,6 +21,8 @@ from models.schemas import SimulationStatus
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+from services import state_manager
+
 # Active WebSocket connections per simulation
 _ws_connections: dict[str, list[WebSocket]] = {}
 
@@ -102,6 +104,9 @@ async def broadcast_message(sim_id: str, message: dict):
 
     for ws in dead:
         connections.remove(ws)
+
+    # Publish to Redis pub/sub for cross-worker broadcasting
+    await state_manager.publish_ws_message(sim_id, payload)
 
 
 async def _run_simulation_background(sim_id: str):
@@ -239,6 +244,30 @@ def _ensure_simulation_running(sim_id: str):
     logger.info(f"Started background simulation task for {sim_id}")
 
 
+# Per-WebSocket Redis subscriber tasks
+_redis_subscriber_tasks: dict[int, asyncio.Task] = {}
+
+
+async def _subscribe_redis_messages(sim_id: str, websocket: WebSocket):
+    """Subscribe to Redis pub/sub and forward messages to a specific WebSocket.
+    This enables cross-worker broadcasting when running multiple instances."""
+    if not state_manager.is_available():
+        return  # No Redis — no cross-worker broadcasting needed
+
+    try:
+        async for payload in state_manager.subscribe_ws_messages(sim_id):
+            # Only forward if this message didn't originate from our own broadcast
+            # (our own broadcast already sent directly to local connections)
+            try:
+                await websocket.send_json(payload)
+            except Exception:
+                break  # WebSocket disconnected
+    except asyncio.CancelledError:
+        pass
+    except Exception as e:
+        logger.debug(f"Redis subscriber for sim {sim_id} stopped: {e}")
+
+
 @router.websocket("/ws/simulation/{sim_id}")
 async def simulation_websocket(websocket: WebSocket, sim_id: str):
     """
@@ -296,6 +325,14 @@ async def simulation_websocket(websocket: WebSocket, sim_id: str):
         if current_status not in ("completed",):
             _ensure_simulation_running(sim_id)
 
+        # Start Redis pub/sub subscriber for cross-worker messages
+        subscriber_task = None
+        if state_manager.is_available():
+            subscriber_task = asyncio.create_task(
+                _subscribe_redis_messages(sim_id, websocket)
+            )
+            _redis_subscriber_tasks[id(websocket)] = subscriber_task
+
         # Listen for client messages (interventions, controls)
         try:
             while True:
@@ -318,5 +355,10 @@ async def simulation_websocket(websocket: WebSocket, sim_id: str):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
     finally:
+        # Cancel Redis subscriber task
+        task = _redis_subscriber_tasks.pop(id(websocket), None)
+        if task and not task.done():
+            task.cancel()
+
         if sim_id in _ws_connections and websocket in _ws_connections[sim_id]:
             _ws_connections[sim_id].remove(websocket)

@@ -35,6 +35,7 @@ from services.decision_engine import (
     process_agent_action, determine_outcome,
     build_outcome_message, cleanup_tracker,
 )
+from services import state_manager
 from data.presets import CRISIS_SCENARIOS
 from data.round_agenda import get_round_agenda
 from data.world_state import (
@@ -135,16 +136,79 @@ async def create_simulation(request: CreateSimulationRequest, user_id: str | Non
     except Exception as e:
         logger.warning(f"Failed to persist initial world state for {sim_id}: {e}")
 
+    # Sync to Redis (shared cache for horizontal scaling)
+    await _sync_sim_to_redis(sim_id)
+
     return sim_id
 
 
+def _serialize_sim_state(state: dict) -> dict:
+    """Serialize a simulation state dict for Redis/JSON storage.
+    Converts AgentFullState Pydantic models to plain dicts.
+    Strips non-serializable fields (websockets)."""
+    agents_data = []
+    for a in state.get("agents", []):
+        if hasattr(a, "model_dump"):
+            d = a.model_dump(by_alias=True)
+            d["initials"] = a.initials or a.compute_initials()
+            d["has_resigned"] = a.has_resigned
+            d["resigned_week"] = a.resigned_week
+            agents_data.append(d)
+        else:
+            agents_data.append(a)  # Already a dict
+
+    status = state.get("status")
+    if hasattr(status, "value"):
+        status = status.value
+
+    return {
+        "id": state["id"],
+        "status": status,
+        "current_round": state["current_round"],
+        "total_rounds": state["total_rounds"],
+        "company": state["company"],
+        "crisis_scenario": state.get("crisis_scenario", ""),
+        "crisis_description": state.get("crisis_description"),
+        "agents": agents_data,
+        "messages": state.get("messages", []),
+        "pacing": state.get("pacing", "normal"),
+    }
+
+
+async def _sync_sim_to_redis(sim_id: str):
+    """Sync current simulation state to Redis shared cache."""
+    state = _active_simulations.get(sim_id)
+    if not state:
+        return
+    try:
+        serialized = _serialize_sim_state(state)
+        await state_manager.set_sim_state(sim_id, serialized)
+    except Exception as e:
+        logger.debug(f"Redis sync failed for sim {sim_id}: {e}")
+
+
 async def get_simulation_state(sim_id: str) -> dict | None:
-    """Get the current simulation state."""
-    # Try in-memory cache first
+    """Get the current simulation state.
+    Resolution order: local cache → Redis → PostgreSQL."""
+    # Layer 1: Process-local cache (fast)
     if sim_id in _active_simulations:
         return _active_simulations[sim_id]
 
-    # Fall back to DB
+    # Layer 2: Redis shared cache (cross-worker)
+    redis_state = await state_manager.get_sim_state(sim_id)
+    if redis_state:
+        # Reconstruct Pydantic models from the serialized state
+        state = await _reconstruct_sim_state(redis_state)
+        if state:
+            _active_simulations[sim_id] = state
+            # Also restore world state, tracker, metrics if not cached
+            if sim_id not in _world_states:
+                await _restore_world_state(sim_id, redis_state)
+            if sim_id not in _metrics_history:
+                await _restore_metrics_history(sim_id)
+            return state
+
+    # Layer 3: PostgreSQL (source of truth)
     sim_data = await get_simulation(sim_id)
     if not sim_data:
         return None
@@ -210,9 +274,63 @@ async def get_simulation_state(sim_id: str) -> dict | None:
         await _restore_world_state(sim_id, sim_data)
     if sim_id not in _metrics_history:
         await _restore_metrics_history(sim_id)
-    # Decision tracker is restored lazily via get_tracker_with_restore()
+
+    # Sync to Redis for other workers
+    await _sync_sim_to_redis(sim_id)
 
     return state
+
+
+async def _reconstruct_sim_state(data: dict) -> dict | None:
+    """Reconstruct a full simulation state from serialized Redis data."""
+    try:
+        agents = []
+        for a in data.get("agents", []):
+            personality_data = a.get("personality", {})
+            agent = AgentFullState(
+                id=a["id"],
+                name=a["name"],
+                role=a["role"],
+                type=a["type"],
+                color=a.get("color"),
+                personality=PersonalityTraits(**personality_data),
+                state=AgentState(
+                    morale=a.get("state", {}).get("morale", 70),
+                    stress=a.get("state", {}).get("stress", 30),
+                    loyalty=a.get("state", {}).get("loyalty", 70),
+                    productivity=a.get("state", {}).get("productivity", 75),
+                ),
+                has_resigned=a.get("has_resigned", False),
+                resigned_week=a.get("resigned_week"),
+                motivation=a.get("motivation"),
+                expertise=a.get("expertise"),
+                model=a.get("model"),
+            )
+            agent.initials = a.get("initials") or agent.compute_initials()
+            agents.append(agent)
+
+        status_val = data.get("status", "idle")
+        try:
+            status = SimulationStatus(status_val)
+        except ValueError:
+            status = SimulationStatus.IDLE
+
+        return {
+            "id": data["id"],
+            "status": status,
+            "current_round": data.get("current_round", 0),
+            "total_rounds": data.get("total_rounds", 12),
+            "company": data.get("company", {}),
+            "crisis_scenario": data.get("crisis_scenario", ""),
+            "crisis_description": data.get("crisis_description"),
+            "agents": agents,
+            "messages": data.get("messages", []),
+            "pacing": data.get("pacing", "normal"),
+            "websockets": [],
+        }
+    except Exception as e:
+        logger.warning(f"Failed to reconstruct sim state from Redis: {e}")
+        return None
 
 
 async def _restore_world_state(sim_id: str, sim_data: dict):
@@ -249,20 +367,27 @@ async def _restore_metrics_history(sim_id: str):
 
 
 async def _persist_round_state(sim_id: str):
-    """Persist all in-memory state to DB after each round."""
+    """Persist all in-memory state to DB and sync to Redis after each round."""
     try:
-        # Persist world state + fired events
+        # Persist world state + fired events to DB
         world = _world_states.get(sim_id)
         if world:
-            await db_save_world_state(sim_id, world.to_dict(), get_fired_events(sim_id))
+            fired = get_fired_events(sim_id)
+            await db_save_world_state(sim_id, world.to_dict(), fired)
+            # Sync world state to Redis
+            await state_manager.set_world(sim_id, {**world.to_dict(), "fired_events": fired})
 
-        # Persist decision tracker
+        # Persist decision tracker to DB + Redis
         await persist_tracker(sim_id)
 
-        # Persist metrics history
+        # Persist metrics history to DB + Redis
         history = _metrics_history.get(sim_id, [])
         if history:
             await db_save_metrics_history(sim_id, json.dumps(history))
+            await state_manager.set_metrics(sim_id, history)
+
+        # Sync full simulation state to Redis
+        await _sync_sim_to_redis(sim_id)
     except Exception as e:
         logger.warning(f"Failed to persist round state for {sim_id}: {e}")
 

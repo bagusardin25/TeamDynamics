@@ -237,11 +237,24 @@ def get_tracker(sim_id: str) -> DecisionTracker:
 
 
 async def get_tracker_with_restore(sim_id: str) -> DecisionTracker:
-    """Get tracker from memory, or restore from DB if not cached (e.g., after restart)."""
+    """Get tracker from memory, or restore from Redis/DB if not cached.
+    Resolution: local cache → Redis → PostgreSQL → create fresh."""
     if sim_id in _decision_trackers:
         return _decision_trackers[sim_id]
 
-    # Try restoring from DB
+    # Layer 2: Try Redis shared cache
+    from services import state_manager
+    redis_data = await state_manager.get_tracker_data(sim_id)
+    if redis_data:
+        try:
+            tracker = DecisionTracker.from_dict(redis_data)
+            _decision_trackers[sim_id] = tracker
+            logger.info(f"🔄 Restored decision tracker for simulation {sim_id} from Redis")
+            return tracker
+        except Exception as e:
+            logger.debug(f"Failed to restore tracker from Redis for {sim_id}: {e}")
+
+    # Layer 3: Try PostgreSQL
     from models.database import get_decision_tracker as db_get_tracker
     saved_json = await db_get_tracker(sim_id)
     if saved_json:
@@ -259,11 +272,18 @@ async def get_tracker_with_restore(sim_id: str) -> DecisionTracker:
 
 
 async def persist_tracker(sim_id: str):
-    """Persist the current decision tracker state to DB."""
+    """Persist the current decision tracker state to Redis + DB."""
     tracker = _decision_trackers.get(sim_id)
     if not tracker:
         return
     try:
+        tracker_data = tracker.to_dict()
+
+        # Write to Redis (fast, cross-worker)
+        from services import state_manager
+        await state_manager.set_tracker_data(sim_id, tracker_data)
+
+        # Write to DB (persistent)
         from models.database import save_decision_tracker
         await save_decision_tracker(sim_id, tracker.to_json())
     except Exception as e:

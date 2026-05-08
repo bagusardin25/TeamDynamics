@@ -20,7 +20,8 @@ ENV PORT=8000
 EXPOSE ${PORT}
 
 # Production server
-# - 1 worker: Railway free/hobby tier has limited memory (~512MB)
+# - Workers configurable via WEB_CONCURRENCY env var (default 1 for Railway hobby tier)
+# - Set WEB_CONCURRENCY=2+ when Redis is provisioned for horizontal scaling
 # - --preload: load app once in master, then fork workers (faster startup, less memory)
-# - shell form so $PORT is evaluated at runtime
-CMD sh -c "gunicorn main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --timeout 120 --graceful-timeout 30 --preload"
+# - shell form so $PORT and $WEB_CONCURRENCY are evaluated at runtime
+CMD sh -c "gunicorn main:app -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT} --timeout 120 --graceful-timeout 30 --preload"

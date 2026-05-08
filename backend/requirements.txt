@@ -14,3 +14,4 @@ python-multipart==0.0.20
 python-jose[cryptography]==3.3.0
 bcrypt==4.2.1
 gunicorn==23.0.0
+redis[hiredis]==5.3.0

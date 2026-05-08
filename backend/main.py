@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 from models.database import init_db, close_db
+from services.state_manager import init_redis, close_redis
 from routers.simulation import router as simulation_router
 from routers.agents import router as agents_router
 from routers.websocket import router as websocket_router
@@ -29,7 +30,7 @@ DB_RETRY_DELAY = int(os.getenv("DB_RETRY_DELAY", "3"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle with resilient DB connection."""
+    """Startup and shutdown lifecycle with resilient DB and Redis connection."""
     logger.info("🚀 Initializing TeamDynamics Backend...")
     logger.info(f"🤖 LLM Provider: {os.getenv('LLM_PROVIDER', 'openai')}")
 
@@ -52,9 +53,13 @@ async def lifespan(app: FastAPI):
         logger.error("❌ Could not connect to database after all retries. "
                       "App will start but DB operations will fail.")
 
+    # Initialize Redis (optional — gracefully falls back to in-memory)
+    await init_redis()
+
     yield
 
     logger.info("👋 Shutting down TeamDynamics Backend")
+    await close_redis()
     await close_db()
 
 
