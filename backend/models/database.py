@@ -147,6 +147,37 @@ async def init_db():
             )
         """)
 
+        # ── Persistence tables for simulation state (survive server restart) ──
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS simulation_world_states (
+                simulation_id TEXT PRIMARY KEY REFERENCES simulations(id),
+                budget_remaining INTEGER NOT NULL DEFAULT 80,
+                deadline_weeks_left INTEGER NOT NULL DEFAULT 8,
+                team_capacity INTEGER NOT NULL DEFAULT 100,
+                customer_satisfaction INTEGER NOT NULL DEFAULT 75,
+                technical_debt INTEGER NOT NULL DEFAULT 30,
+                company_reputation INTEGER NOT NULL DEFAULT 70,
+                fired_events_json TEXT NOT NULL DEFAULT '[]',
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS simulation_decision_trackers (
+                simulation_id TEXT PRIMARY KEY REFERENCES simulations(id),
+                tracker_json TEXT NOT NULL DEFAULT '{}',
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS simulation_metrics_history (
+                simulation_id TEXT PRIMARY KEY REFERENCES simulations(id),
+                metrics_json TEXT NOT NULL DEFAULT '[]',
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
     logger.info("✅ PostgreSQL database initialized")
 
 
@@ -376,3 +407,90 @@ async def get_saved_report(sim_id: str) -> str | None:
             sim_id
         )
         return row["report_json"] if row else None
+
+
+# ── World State Persistence ───────────────────────────────────────────
+
+async def save_world_state(sim_id: str, world_data: dict, fired_events: list[str]):
+    """Save or update the world state for a simulation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO simulation_world_states
+               (simulation_id, budget_remaining, deadline_weeks_left, team_capacity,
+                customer_satisfaction, technical_debt, company_reputation, fired_events_json, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+               ON CONFLICT (simulation_id) DO UPDATE SET
+                budget_remaining=$2, deadline_weeks_left=$3, team_capacity=$4,
+                customer_satisfaction=$5, technical_debt=$6, company_reputation=$7,
+                fired_events_json=$8, updated_at=NOW()""",
+            sim_id,
+            world_data["budget_remaining"],
+            world_data["deadline_weeks_left"],
+            world_data["team_capacity"],
+            world_data["customer_satisfaction"],
+            world_data["technical_debt"],
+            world_data["company_reputation"],
+            json.dumps(fired_events),
+        )
+
+
+async def get_world_state(sim_id: str) -> dict | None:
+    """Load a persisted world state for a simulation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM simulation_world_states WHERE simulation_id=$1",
+            sim_id
+        )
+        return _record_to_dict(row) if row else None
+
+
+# ── Decision Tracker Persistence ──────────────────────────────────────
+
+async def save_decision_tracker(sim_id: str, tracker_json: str):
+    """Save or update the decision tracker for a simulation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO simulation_decision_trackers (simulation_id, tracker_json, updated_at)
+               VALUES ($1, $2, NOW())
+               ON CONFLICT (simulation_id) DO UPDATE SET tracker_json=$2, updated_at=NOW()""",
+            sim_id, tracker_json
+        )
+
+
+async def get_decision_tracker(sim_id: str) -> str | None:
+    """Load a persisted decision tracker JSON."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT tracker_json FROM simulation_decision_trackers WHERE simulation_id=$1",
+            sim_id
+        )
+        return row["tracker_json"] if row else None
+
+
+# ── Metrics History Persistence ───────────────────────────────────────
+
+async def save_metrics_history(sim_id: str, metrics_json: str):
+    """Save or update the metrics history for a simulation."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO simulation_metrics_history (simulation_id, metrics_json, updated_at)
+               VALUES ($1, $2, NOW())
+               ON CONFLICT (simulation_id) DO UPDATE SET metrics_json=$2, updated_at=NOW()""",
+            sim_id, metrics_json
+        )
+
+
+async def get_metrics_history(sim_id: str) -> str | None:
+    """Load persisted metrics history JSON."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT metrics_json FROM simulation_metrics_history WHERE simulation_id=$1",
+            sim_id
+        )
+        return row["metrics_json"] if row else None

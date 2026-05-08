@@ -8,6 +8,7 @@ v2: Added power hierarchy weighting, action-consequence coupling, and
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 
@@ -69,7 +70,7 @@ OUTCOMES = {
 }
 
 
-# ── Decision Tracker (per-simulation, in-memory) ─────────────────────
+# ── Decision Tracker (per-simulation, in-memory with DB persistence) ──
 
 @dataclass
 class Proposal:
@@ -96,6 +97,33 @@ class Proposal:
     def net_support(self) -> int:
         """Simple head-count support (backward compatible)."""
         return len(self.supporters) - len(self.opponents)
+
+    def to_dict(self) -> dict:
+        """Serialize proposal to a dict for DB persistence."""
+        return {
+            "proposer": self.proposer,
+            "proposer_role": self.proposer_role,
+            "summary": self.summary,
+            "round_proposed": self.round_proposed,
+            "supporters": self.supporters,
+            "supporter_roles": self.supporter_roles,
+            "opponents": self.opponents,
+            "opponent_roles": self.opponent_roles,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Proposal:
+        """Deserialize a proposal from a dict."""
+        return cls(
+            proposer=data["proposer"],
+            proposer_role=data["proposer_role"],
+            summary=data["summary"],
+            round_proposed=data["round_proposed"],
+            supporters=data.get("supporters", []),
+            supporter_roles=data.get("supporter_roles", []),
+            opponents=data.get("opponents", []),
+            opponent_roles=data.get("opponent_roles", []),
+        )
 
 
 @dataclass
@@ -165,8 +193,39 @@ class DecisionTracker:
                 )
         return "\n".join(lines) if lines else ""
 
+    def to_dict(self) -> dict:
+        """Serialize the entire tracker to a dict for DB persistence."""
+        return {
+            "proposals": [p.to_dict() for p in self.proposals],
+            "decided_proposal": self.decided_proposal.to_dict() if self.decided_proposal else None,
+            "escalation_count": self.escalation_count,
+            "resign_threats": self.resign_threats,
+            "action_log": self.action_log,
+        }
 
-# In-memory store of trackers by sim_id
+    def to_json(self) -> str:
+        """Serialize the tracker to a JSON string."""
+        return json.dumps(self.to_dict())
+
+    @classmethod
+    def from_dict(cls, data: dict) -> DecisionTracker:
+        """Deserialize a tracker from a dict."""
+        tracker = cls(
+            proposals=[Proposal.from_dict(p) for p in data.get("proposals", [])],
+            decided_proposal=Proposal.from_dict(data["decided_proposal"]) if data.get("decided_proposal") else None,
+            escalation_count=data.get("escalation_count", 0),
+            resign_threats=data.get("resign_threats", []),
+            action_log=data.get("action_log", []),
+        )
+        return tracker
+
+    @classmethod
+    def from_json(cls, json_str: str) -> DecisionTracker:
+        """Deserialize a tracker from a JSON string."""
+        return cls.from_dict(json.loads(json_str))
+
+
+# In-memory store of trackers by sim_id (cache — DB is source of truth)
 _decision_trackers: dict[str, DecisionTracker] = {}
 
 
@@ -175,6 +234,40 @@ def get_tracker(sim_id: str) -> DecisionTracker:
     if sim_id not in _decision_trackers:
         _decision_trackers[sim_id] = DecisionTracker()
     return _decision_trackers[sim_id]
+
+
+async def get_tracker_with_restore(sim_id: str) -> DecisionTracker:
+    """Get tracker from memory, or restore from DB if not cached (e.g., after restart)."""
+    if sim_id in _decision_trackers:
+        return _decision_trackers[sim_id]
+
+    # Try restoring from DB
+    from models.database import get_decision_tracker as db_get_tracker
+    saved_json = await db_get_tracker(sim_id)
+    if saved_json:
+        try:
+            tracker = DecisionTracker.from_json(saved_json)
+            _decision_trackers[sim_id] = tracker
+            logger.info(f"🔄 Restored decision tracker for simulation {sim_id} from DB")
+            return tracker
+        except Exception as e:
+            logger.warning(f"Failed to restore decision tracker for {sim_id}: {e}")
+
+    # Create fresh
+    _decision_trackers[sim_id] = DecisionTracker()
+    return _decision_trackers[sim_id]
+
+
+async def persist_tracker(sim_id: str):
+    """Persist the current decision tracker state to DB."""
+    tracker = _decision_trackers.get(sim_id)
+    if not tracker:
+        return
+    try:
+        from models.database import save_decision_tracker
+        await save_decision_tracker(sim_id, tracker.to_json())
+    except Exception as e:
+        logger.warning(f"Failed to persist decision tracker for {sim_id}: {e}")
 
 
 def process_agent_action(

@@ -40,6 +40,18 @@ class WorldState:
             "company_reputation": self.company_reputation,
         }
 
+    @classmethod
+    def from_dict(cls, data: dict) -> WorldState:
+        """Restore a WorldState from a dict (e.g., from DB)."""
+        return cls(
+            budget_remaining=data.get("budget_remaining", 80),
+            deadline_weeks_left=data.get("deadline_weeks_left", 8),
+            team_capacity=data.get("team_capacity", 100),
+            customer_satisfaction=data.get("customer_satisfaction", 75),
+            technical_debt=data.get("technical_debt", 30),
+            company_reputation=data.get("company_reputation", 70),
+        )
+
     def to_prompt_text(self) -> str:
         """Format world state as human-readable text for LLM prompt."""
         budget_status = "CRITICAL" if self.budget_remaining < 30 else "LOW" if self.budget_remaining < 50 else "OK"
@@ -408,6 +420,16 @@ def apply_random_event_to_world(world: WorldState, event: RandomEvent):
 def cleanup_events(sim_id: str):
     """Remove event tracking when simulation ends."""
     _fired_events.pop(sim_id, None)
+
+
+def get_fired_events(sim_id: str) -> list[str]:
+    """Get the list of fired event IDs for persistence."""
+    return list(_fired_events.get(sim_id, set()))
+
+
+def set_fired_events(sim_id: str, event_ids: list[str]):
+    """Restore fired events from persisted data."""
+    _fired_events[sim_id] = set(event_ids)
 
 
 # ── Power Hierarchy ───────────────────────────────────────────────────

@@ -24,10 +24,15 @@ from models.database import (
     save_agent, update_agent_state, get_agents,
     save_message, get_messages,
     update_agent_memory, get_agent_memory,
+    save_world_state as db_save_world_state,
+    get_world_state as db_get_world_state,
+    save_metrics_history as db_save_metrics_history,
+    get_metrics_history as db_get_metrics_history,
 )
 from services.llm_service import generate_agent_response
 from services.decision_engine import (
-    get_tracker, process_agent_action, determine_outcome,
+    get_tracker, get_tracker_with_restore, persist_tracker,
+    process_agent_action, determine_outcome,
     build_outcome_message, cleanup_tracker,
 )
 from data.presets import CRISIS_SCENARIOS
@@ -37,6 +42,7 @@ from data.world_state import (
     get_hierarchy_description, get_hidden_agenda,
     roll_random_event, apply_random_event_to_world,
     apply_resignation_to_world, cleanup_events,
+    get_fired_events, set_fired_events,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,7 +126,14 @@ async def create_simulation(request: CreateSimulationRequest, user_id: str | Non
     }
 
     # Initialize world state for this simulation
-    _world_states[sim_id] = create_world_state(crisis_scenario, request.params.duration_weeks)
+    world = create_world_state(crisis_scenario, request.params.duration_weeks)
+    _world_states[sim_id] = world
+
+    # Persist initial world state to DB
+    try:
+        await db_save_world_state(sim_id, world.to_dict(), [])
+    except Exception as e:
+        logger.warning(f"Failed to persist initial world state for {sim_id}: {e}")
 
     return sim_id
 
@@ -191,7 +204,67 @@ async def get_simulation_state(sim_id: str) -> dict | None:
     }
 
     _active_simulations[sim_id] = state
+
+    # Also restore world state, decision tracker, and metrics if not cached
+    if sim_id not in _world_states:
+        await _restore_world_state(sim_id, sim_data)
+    if sim_id not in _metrics_history:
+        await _restore_metrics_history(sim_id)
+    # Decision tracker is restored lazily via get_tracker_with_restore()
+
     return state
+
+
+async def _restore_world_state(sim_id: str, sim_data: dict):
+    """Restore world state from DB, or create a fresh one."""
+    saved = await db_get_world_state(sim_id)
+    if saved:
+        _world_states[sim_id] = WorldState.from_dict(saved)
+        # Restore fired events
+        fired_json = saved.get("fired_events_json", "[]")
+        if fired_json:
+            import json as _json
+            try:
+                set_fired_events(sim_id, _json.loads(fired_json))
+            except Exception:
+                pass
+        logger.info(f"🔄 Restored world state for simulation {sim_id} from DB")
+    else:
+        crisis_scenario = sim_data.get("crisis_scenario", "rnd1")
+        total_rounds = sim_data.get("total_rounds", 12)
+        _world_states[sim_id] = create_world_state(crisis_scenario, total_rounds)
+
+
+async def _restore_metrics_history(sim_id: str):
+    """Restore metrics history from DB."""
+    saved_json = await db_get_metrics_history(sim_id)
+    if saved_json:
+        try:
+            _metrics_history[sim_id] = json.loads(saved_json)
+            logger.info(f"🔄 Restored metrics history for simulation {sim_id} from DB")
+        except Exception:
+            _metrics_history[sim_id] = []
+    else:
+        _metrics_history[sim_id] = []
+
+
+async def _persist_round_state(sim_id: str):
+    """Persist all in-memory state to DB after each round."""
+    try:
+        # Persist world state + fired events
+        world = _world_states.get(sim_id)
+        if world:
+            await db_save_world_state(sim_id, world.to_dict(), get_fired_events(sim_id))
+
+        # Persist decision tracker
+        await persist_tracker(sim_id)
+
+        # Persist metrics history
+        history = _metrics_history.get(sim_id, [])
+        if history:
+            await db_save_metrics_history(sim_id, json.dumps(history))
+    except Exception as e:
+        logger.warning(f"Failed to persist round state for {sim_id}: {e}")
 
 async def _broadcast_typing(sim_id: str, agent: AgentFullState, ws_broadcast):
     """Broadcast a typing indicator for the given agent to all WebSocket clients."""
@@ -237,13 +310,17 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     agenda = get_round_agenda(current_round, state["total_rounds"], crisis_scenario)
 
     # ── Get decision context ──────────────────────────────────────
-    tracker = get_tracker(sim_id)
+    # ── Get or restore decision tracker ────────────────────────────
+    tracker = await get_tracker_with_restore(sim_id)
     decision_context = tracker.get_decision_summary()
     action_consequences = tracker.get_action_consequences_summary()
 
     # ── Get or create world state ─────────────────────────────────
     if sim_id not in _world_states:
-        _world_states[sim_id] = create_world_state(crisis_scenario, state["total_rounds"])
+        await _restore_world_state(sim_id, {
+            "crisis_scenario": crisis_scenario,
+            "total_rounds": state["total_rounds"],
+        })
     world = _world_states[sim_id]
 
     # Tick world state (deadline approaches, budget burns, etc.)
@@ -548,6 +625,9 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     # Record metrics snapshot for this round
     record_metrics_snapshot(sim_id, current_round, state["agents"])
 
+    # ── Persist all in-memory state to DB ──────────────────────────
+    await _persist_round_state(sim_id)
+
     # ── Check simulation end conditions ───────────────────────────
 
     # Check if all agents resigned → immediate end
@@ -578,6 +658,8 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
 
         cleanup_tracker(sim_id)
         cleanup_events(sim_id)
+        # Final persist before cleanup of in-memory world state
+        await _persist_round_state(sim_id)
         _world_states.pop(sim_id, None)
         return new_messages
 
@@ -609,6 +691,8 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
 
         cleanup_tracker(sim_id)
         cleanup_events(sim_id)
+        # Final persist before cleanup of in-memory world state
+        await _persist_round_state(sim_id)
         _world_states.pop(sim_id, None)
 
     return new_messages
