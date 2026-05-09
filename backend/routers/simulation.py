@@ -263,6 +263,69 @@ async def get_report(sim_id: str):
     return report_dict
 
 
+@router.post("/compare")
+async def compare_simulations(body: dict):
+    """Compare 2-3 completed simulations side-by-side.
+
+    Expects: { "simulation_ids": ["sim-a", "sim-b", ...] }
+    Returns normalized comparison data from saved reports.
+    """
+    import json
+    from models.database import get_saved_report, get_simulation
+
+    sim_ids = body.get("simulation_ids", [])
+    if not isinstance(sim_ids, list) or len(sim_ids) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 simulation IDs are required")
+    if len(sim_ids) > 3:
+        raise HTTPException(status_code=400, detail="Maximum 3 simulations can be compared")
+
+    results = []
+    for sid in sim_ids:
+        # Get simulation metadata
+        sim = await get_simulation(sid)
+        if not sim:
+            raise HTTPException(status_code=404, detail=f"Simulation {sid} not found")
+        if sim["status"] != "completed":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Simulation {sid} is not completed (status: {sim['status']})"
+            )
+
+        # Get saved report
+        report_json = await get_saved_report(sid)
+        if not report_json:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Report for simulation {sid} not found. Open the report page first to generate it."
+            )
+
+        report = json.loads(report_json)
+        km = report.get("key_metrics", {})
+
+        results.append({
+            "id": sid,
+            "company_name": report.get("company_name", sim.get("company_name", "Unknown")),
+            "crisis_name": report.get("crisis_name", sim.get("crisis_scenario", "Unknown")),
+            "team_size": km.get("total_agents", len(report.get("agent_reports", []))),
+            "agent_names": [a["name"] for a in report.get("agent_reports", [])],
+            "agent_reports": report.get("agent_reports", []),
+            "key_metrics": {
+                "avg_morale": km.get("avg_morale", 50),
+                "avg_stress": km.get("avg_stress", 50),
+                "avg_productivity": km.get("avg_productivity", 50),
+                "avg_loyalty": km.get("avg_loyalty", 50),
+                "resignations": km.get("resignations", 0),
+                "productivity_drop": report.get("productivity_drop", 0),
+                "simulation_weeks": km.get("simulation_weeks", report.get("completed_rounds", 0)),
+            },
+            "timeline": report.get("timeline", []),
+            "executive_summary": report.get("executive_summary", ""),
+            "created_at": str(sim.get("created_at", "")) if sim.get("created_at") else None,
+        })
+
+    return {"simulations": results}
+
+
 @router.get("/{sim_id}/replay")
 async def get_replay_data(sim_id: str):
     """Get full simulation data structured for client-side replay playback.

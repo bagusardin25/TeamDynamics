@@ -7,7 +7,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   Users, Plus, Clock, Play, CheckCircle, AlertTriangle,
-  LogOut, Crown, CreditCard, Sun, Moon, Film,
+  LogOut, Crown, CreditCard, Sun, Moon, Film, GitCompareArrows,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -255,11 +255,18 @@ export default function DashboardPage() {
         {/* New simulation + History */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold">Simulation History</h2>
-          <Link href="/setup">
-            <Button className="rounded-lg font-semibold shadow-sm">
-              <Plus className="w-4 h-4 mr-2" /> New Simulation
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/compare">
+              <Button variant="outline" className="rounded-lg font-semibold shadow-sm text-violet-400 border-violet-500/20 hover:bg-violet-500/10 hover:text-violet-300">
+                <GitCompareArrows className="w-4 h-4 mr-2" /> Compare
+              </Button>
+            </Link>
+            <Link href="/setup">
+              <Button className="rounded-lg font-semibold shadow-sm">
+                <Plus className="w-4 h-4 mr-2" /> New Simulation
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {loadingSims ? (
