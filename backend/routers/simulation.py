@@ -261,3 +261,123 @@ async def get_report(sim_id: str):
     await save_report(sim_id, json.dumps(report_dict))
 
     return report_dict
+
+
+@router.get("/{sim_id}/replay")
+async def get_replay_data(sim_id: str):
+    """Get full simulation data structured for client-side replay playback.
+    Only available for completed simulations. Returns messages grouped by round
+    with agent states and metrics snapshots per round."""
+    import json as _json
+    from models.database import (
+        get_simulation, get_agents, get_messages,
+        get_world_state as db_get_world_state,
+        get_metrics_history as db_get_metrics_history,
+        get_saved_report,
+    )
+
+    # Get simulation metadata
+    sim_data = await get_simulation(sim_id)
+    if not sim_data:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    if sim_data["status"] != "completed":
+        raise HTTPException(status_code=400, detail="Replay is only available for completed simulations")
+
+    # Fetch all data
+    agents_db = await get_agents(sim_id)
+    messages_db = await get_messages(sim_id)
+
+    # Build agent info with initial and final states
+    agents_info = []
+    for a in agents_db:
+        personality = _json.loads(a["personality_json"]) if a.get("personality_json") else {}
+        agents_info.append({
+            "id": a["id"],
+            "name": a["name"],
+            "role": a["role"],
+            "type": a["type"],
+            "color": a.get("color"),
+            "personality": personality,
+            "final_state": {
+                "morale": a["morale"],
+                "stress": a["stress"],
+                "loyalty": a["loyalty"],
+                "productivity": a["productivity"],
+            },
+            "has_resigned": bool(a["has_resigned"]),
+            "resigned_week": a.get("resigned_week"),
+        })
+
+    # Parse and normalize messages
+    all_messages = []
+    for m in messages_db:
+        sc = _json.loads(m["state_changes_json"]) if m.get("state_changes_json") else None
+        all_messages.append({
+            "id": m["id"],
+            "round": m["round"],
+            "agent_id": m.get("agent_id"),
+            "agent_name": m.get("agent_name"),
+            "type": m["type"],
+            "content": m["content"],
+            "thought": m.get("thought"),
+            "state_changes": sc,
+            "timestamp": m.get("timestamp"),
+        })
+
+    # Group messages by round
+    rounds_map: dict[int, list] = {}
+    for msg in all_messages:
+        r = msg.get("round", 0)
+        if r not in rounds_map:
+            rounds_map[r] = []
+        rounds_map[r].append(msg)
+
+    # Get metrics history
+    metrics_history = []
+    saved_metrics = await db_get_metrics_history(sim_id)
+    if saved_metrics:
+        try:
+            metrics_history = _json.loads(saved_metrics)
+        except Exception:
+            pass
+
+    # Build metrics map by round
+    metrics_by_round = {}
+    for snap in metrics_history:
+        metrics_by_round[snap.get("round", 0)] = snap
+
+    # Build rounds array
+    total_rounds = sim_data["total_rounds"]
+    rounds = []
+    for r in range(0, total_rounds + 1):
+        rounds.append({
+            "round": r,
+            "messages": rounds_map.get(r, []),
+            "metrics": metrics_by_round.get(r),
+        })
+
+    # Get report summary if available
+    report_summary = None
+    saved_report = await get_saved_report(sim_id)
+    if saved_report:
+        try:
+            report_data = _json.loads(saved_report)
+            report_summary = report_data.get("executive_summary")
+        except Exception:
+            pass
+
+    return {
+        "simulation_id": sim_id,
+        "company": {
+            "name": sim_data["company_name"],
+            "culture": sim_data["company_culture"],
+        },
+        "crisis_scenario": sim_data["crisis_scenario"],
+        "crisis_description": sim_data.get("crisis_description"),
+        "total_rounds": total_rounds,
+        "agents": agents_info,
+        "rounds": rounds,
+        "metrics_history": metrics_history,
+        "report_summary": report_summary,
+    }

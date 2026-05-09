@@ -7,7 +7,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   Users, Plus, Clock, Play, CheckCircle, AlertTriangle,
-  LogOut, Crown, CreditCard, Sun, Moon,
+  LogOut, Crown, CreditCard, Sun, Moon, Film,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,7 +110,11 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3">
             {/* Credits */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border/40">
+            <div
+              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border/40 cursor-pointer hover:bg-secondary/70 transition-colors"
+              onClick={() => router.push("/pricing")}
+              role="link"
+            >
               <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs font-semibold">
                 {isAdmin ? (
@@ -232,12 +236,18 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="relative bg-card/40 border-border/50 overflow-hidden">
+          <Card
+            className="relative bg-card/40 border-border/50 overflow-hidden cursor-pointer hover:border-primary/30 transition-all"
+            onClick={() => router.push("/pricing")}
+          >
             <CardContent className="p-4 relative z-10">
               <div className="text-xs text-muted-foreground font-medium mb-1">Credits Left</div>
               <div className="text-2xl font-bold text-primary">
                 {isAdmin ? "∞" : user.credits}
               </div>
+              {!isAdmin && user.credits <= 2 && (
+                <div className="text-[10px] text-orange-400 font-medium mt-1">Buy more →</div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -338,6 +348,17 @@ export default function DashboardPage() {
                           <Badge variant="outline" className={`text-[10px] font-semibold ${cfg.color}`}>
                             {cfg.label}
                           </Badge>
+                          {sim.status === "completed" && (
+                            <Link
+                              href={`/replay?id=${sim.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label={`Replay ${sim.company_name}`}
+                              className="inline-flex h-7 items-center justify-center rounded-full bg-violet-500/10 border border-violet-500/20 px-2.5 text-[0.8rem] font-medium text-violet-500 shadow-sm transition-colors hover:bg-violet-500/20"
+                            >
+                              <Film className="w-3 h-3 mr-1" />
+                              Replay
+                            </Link>
+                          )}
                           <Link
                             href={href}
                             onClick={(e) => e.stopPropagation()}

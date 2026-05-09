@@ -20,6 +20,7 @@ from routers.agents import router as agents_router
 from routers.websocket import router as websocket_router
 from routers.auth import router as auth_router
 from routers.document import router as document_router
+from routers.payment import router as payment_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ app.include_router(simulation_router)
 app.include_router(agents_router)
 app.include_router(websocket_router)
 app.include_router(document_router)
+app.include_router(payment_router)
 
 
 @app.get("/health")

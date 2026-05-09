@@ -178,6 +178,19 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS payment_transactions (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                stripe_session_id TEXT NOT NULL,
+                package_id TEXT NOT NULL,
+                credits INTEGER NOT NULL,
+                amount_cents INTEGER NOT NULL,
+                currency TEXT NOT NULL DEFAULT 'usd',
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
     logger.info("✅ PostgreSQL database initialized")
 
 
@@ -233,10 +246,35 @@ async def get_user_by_id(user_id: str) -> dict | None:
 
 
 async def update_user_credits(user_id: str, credits: int):
-    """Update user credits."""
+    """Update user credits (set to exact value)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute("UPDATE users SET credits=$1 WHERE id=$2", credits, user_id)
+
+
+async def add_user_credits(user_id: str, amount: int):
+    """Add credits to a user's balance atomically."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET credits = credits + $1 WHERE id = $2",
+            amount, user_id
+        )
+
+
+async def save_payment_transaction(
+    user_id: str, stripe_session_id: str, package_id: str,
+    credits: int, amount_cents: int, currency: str = "usd",
+):
+    """Record a payment transaction for audit."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO payment_transactions
+               (user_id, stripe_session_id, package_id, credits, amount_cents, currency)
+               VALUES ($1, $2, $3, $4, $5, $6)""",
+            user_id, stripe_session_id, package_id, credits, amount_cents, currency
+        )
 
 
 async def get_user_simulations(user_id: str) -> list[dict]:
