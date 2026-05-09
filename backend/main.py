@@ -8,13 +8,19 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+
 from models.database import init_db, close_db
 from services.state_manager import init_redis, close_redis
+from services.rate_limiter import limiter
 from routers.simulation import router as simulation_router
 from routers.agents import router as agents_router
 from routers.websocket import router as websocket_router
@@ -79,6 +85,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"📧 Drip scheduler failed to start: {e}")
 
+    logger.info("🛡️ Rate limiting active (60/min global default)")
     yield
 
     logger.info("👋 Shutting down TeamDynamics Backend")
@@ -94,6 +101,11 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# ── Rate Limiter Middleware ───────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # CORS — allow the Next.js frontend (supports comma-separated origins for production)
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")

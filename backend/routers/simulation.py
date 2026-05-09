@@ -2,7 +2,7 @@
 Simulation CRUD and control routes.
 """
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from models.schemas import (
     CreateSimulationRequest, SimulationResponse, SimulationMetrics,
     InterventionRequest, SimulationStatus, AgentState, GenerateCrisisRequest,
@@ -16,19 +16,25 @@ from routers.auth import get_current_user, TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
 
+# Per-route rate limits for LLM-heavy endpoints
+from services.rate_limiter import limiter
+
 
 
 @router.post("/generate-crisis")
-async def generate_crisis(request: GenerateCrisisRequest):
+@limiter.limit("5/minute")
+async def generate_crisis(request: Request, req: GenerateCrisisRequest):
     """Generate a custom crisis tailored to the company using AI."""
     from services.llm_service import generate_tailored_crisis
     
-    crisis = await generate_tailored_crisis(request.company_name, request.company_culture)
+    crisis = await generate_tailored_crisis(req.company_name, req.company_culture)
     return crisis
 
 @router.post("/create")
+@limiter.limit("5/minute")
 async def create_sim(
-    request: CreateSimulationRequest,
+    request: Request,
+    body: CreateSimulationRequest,
     current_user: TokenData | None = Depends(get_current_user),
 ):
     """Create a new simulation and return its ID."""
@@ -45,7 +51,7 @@ async def create_sim(
                 detail="No simulation credits remaining. Please upgrade your plan."
             )
 
-    sim_id = await create_simulation(request, user_id=user_id)
+    sim_id = await create_simulation(body, user_id=user_id)
 
     # Deduct credit for authenticated non-admin users
     if current_user and current_user.role != "admin":

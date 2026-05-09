@@ -93,9 +93,11 @@ async def require_auth(
 
 
 # ── Routes ────────────────────────────────────────────────────────────
+from services.rate_limiter import limiter
 
 @router.post("/register", response_model=AuthResponse)
-async def register(req: RegisterRequest):
+@limiter.limit("5/minute")
+async def register(request: Request, req: RegisterRequest):
     """Register a new user with email and password."""
     # Check if email already exists
     existing = await get_user_by_email(req.email)
@@ -131,7 +133,8 @@ async def register(req: RegisterRequest):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(req: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, req: LoginRequest):
     """Login with email and password."""
     user = await get_user_by_email(req.email)
     if not user:
@@ -167,7 +170,8 @@ async def login(req: LoginRequest):
 
 
 @router.post("/google", response_model=AuthResponse)
-async def google_auth(req: GoogleAuthRequest):
+@limiter.limit("10/minute")
+async def google_auth(request: Request, req: GoogleAuthRequest):
     """Authenticate with Google OAuth. Supports both access token and ID token flows.
     Creates account if new user."""
     google_data = None
