@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -56,7 +56,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
 };
 
-export default function PricingPage() {
+function PricingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, token, isLoading: authLoading } = useAuth();
@@ -327,5 +327,17 @@ export default function PricingPage() {
         </motion.div>
       </section>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    }>
+      <PricingContent />
+    </Suspense>
   );
 }
