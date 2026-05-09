@@ -16,3 +16,5 @@ bcrypt==4.2.1
 gunicorn==23.0.0
 redis[hiredis]==5.3.0
 stripe==11.5.0
+resend==2.5.0
+APScheduler==3.11.0

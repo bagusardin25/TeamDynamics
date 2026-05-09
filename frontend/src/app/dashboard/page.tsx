@@ -8,6 +8,7 @@ import { motion } from "framer-motion";
 import {
   Users, Plus, Clock, Play, CheckCircle, AlertTriangle,
   LogOut, Crown, CreditCard, Sun, Moon, Film, GitCompareArrows,
+  CheckSquare, Square, X, Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,6 +49,13 @@ export default function DashboardPage() {
   const { resolvedTheme, setTheme } = useTheme();
   const [simulations, setSimulations] = useState<SimulationRecord[]>([]);
   const [loadingSims, setLoadingSims] = useState(true);
+  const [showChecklist, setShowChecklist] = useState(true);
+
+  // Load checklist dismiss state
+  useEffect(() => {
+    const dismissed = localStorage.getItem("td_checklist_dismissed");
+    if (dismissed === "true") setShowChecklist(false);
+  }, []);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -251,6 +259,120 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Onboarding Checklist — shows for new users */}
+        {showChecklist && !loadingSims && simulations.length < 3 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-10"
+          >
+            <Card className="relative bg-card/40 border-primary/20 overflow-hidden shadow-lg shadow-primary/5">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-violet-500/5 pointer-events-none" />
+              <CardContent className="p-6 relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm">Getting Started</h3>
+                      <p className="text-[10px] text-muted-foreground">Complete these steps to master TeamDynamics</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowChecklist(false);
+                      localStorage.setItem("td_checklist_dismissed", "true");
+                    }}
+                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                    aria-label="Dismiss checklist"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Step 1: Account — always done */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                    <CheckSquare className="w-4 h-4 text-green-500 shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-green-500">Create account</div>
+                      <div className="text-[10px] text-muted-foreground">You're in! 🎉</div>
+                    </div>
+                  </div>
+
+                  {/* Step 2: First simulation */}
+                  {simulations.length > 0 ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                      <CheckSquare className="w-4 h-4 text-green-500 shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-green-500">Run first simulation</div>
+                        <div className="text-[10px] text-muted-foreground">Nice work!</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 cursor-pointer hover:border-primary/30 transition-colors"
+                      onClick={() => router.push("/setup")}
+                    >
+                      <Square className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold">Run first simulation</div>
+                        <div className="text-[10px] text-muted-foreground">Assemble a team & inject a crisis →</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Read a report */}
+                  {simulations.some(s => s.status === "completed") ? (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
+                      <CheckSquare className="w-4 h-4 text-green-500 shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-green-500">Read your first report</div>
+                        <div className="text-[10px] text-muted-foreground">Insights unlocked!</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                      <Square className="w-4 h-4 text-muted-foreground shrink-0" />
+                      <div>
+                        <div className="text-xs font-semibold text-muted-foreground">Read your first report</div>
+                        <div className="text-[10px] text-muted-foreground">Complete a simulation first</div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 4: Try God Mode */}
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
+                    <Square className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground">Try God Mode intervention</div>
+                      <div className="text-[10px] text-muted-foreground">Drop a bonus or pizza party mid-sim 🍕</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="mt-4 flex items-center gap-3">
+                  <Progress
+                    value={(() => {
+                      let done = 1;
+                      if (simulations.length > 0) done++;
+                      if (simulations.some(s => s.status === "completed")) done++;
+                      return (done / 4) * 100;
+                    })()}
+                    className="h-1.5 flex-1"
+                  />
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {(() => { let d=1; if(simulations.length>0)d++; if(simulations.some(s=>s.status==="completed"))d++; return d; })()}/4
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* New simulation + History */}
         <div className="flex items-center justify-between mb-6">

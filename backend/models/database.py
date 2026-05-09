@@ -202,6 +202,38 @@ async def init_db():
             )
         """)
 
+        # ── Email Drip Campaign Tables ────────────────────────────────────
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_drip_states (
+                user_id TEXT PRIMARY KEY REFERENCES users(id),
+                current_step INTEGER NOT NULL DEFAULT 0,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                last_sent_at TIMESTAMPTZ,
+                next_send_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_logs (
+                id SERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                email_type TEXT NOT NULL,
+                subject TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'sent',
+                error_message TEXT,
+                sent_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
+        # Migration: add email opt-out column to users
+        try:
+            await conn.execute("""
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS email_onboarding_opt_out BOOLEAN DEFAULT FALSE
+            """)
+        except Exception:
+            pass  # Column already exists
+
     logger.info("✅ PostgreSQL database initialized")
 
 
@@ -605,3 +637,121 @@ async def delete_template(template_id: str, user_id: str) -> bool:
             template_id, user_id
         )
         return "DELETE 1" in result
+
+
+# ── Email Drip Campaign Operations ────────────────────────────────────
+
+async def create_drip_state(user_id: str, next_send_at=None):
+    """Initialize drip state for a newly registered user."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO email_drip_states (user_id, current_step, is_active, next_send_at)
+               VALUES ($1, 0, TRUE, $2)
+               ON CONFLICT (user_id) DO NOTHING""",
+            user_id, next_send_at
+        )
+
+
+async def get_pending_drips() -> list[dict]:
+    """Get all active drip states where next_send_at is due."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT user_id, current_step, last_sent_at, next_send_at
+               FROM email_drip_states
+               WHERE is_active = TRUE
+                 AND next_send_at IS NOT NULL
+                 AND next_send_at <= NOW()
+               ORDER BY next_send_at ASC
+               LIMIT 50"""
+        )
+        return [_record_to_dict(r) for r in rows]
+
+
+async def advance_drip_step(user_id: str, current_step: int, next_send_at=None):
+    """Advance the drip to the next step."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """UPDATE email_drip_states
+               SET current_step = $1, last_sent_at = NOW(), next_send_at = $2
+               WHERE user_id = $3""",
+            current_step, next_send_at, user_id
+        )
+
+
+async def deactivate_drip(user_id: str):
+    """Deactivate drip campaign for a user (completed or unsubscribed)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE email_drip_states SET is_active = FALSE, next_send_at = NULL WHERE user_id = $1",
+            user_id
+        )
+
+
+async def reactivate_drip(user_id: str):
+    """Re-activate drip campaign for a user who re-subscribes."""
+    from datetime import datetime, timedelta, timezone
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        # Get current step
+        row = await conn.fetchrow(
+            "SELECT current_step FROM email_drip_states WHERE user_id = $1",
+            user_id
+        )
+        if not row:
+            return
+        # Re-enable with next send in 24h
+        next_send = datetime.now(timezone.utc) + timedelta(hours=24)
+        await conn.execute(
+            "UPDATE email_drip_states SET is_active = TRUE, next_send_at = $1 WHERE user_id = $2",
+            next_send, user_id
+        )
+
+
+async def get_drip_state(user_id: str) -> dict | None:
+    """Get the drip state for a user."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM email_drip_states WHERE user_id = $1",
+            user_id
+        )
+        return _record_to_dict(row) if row else None
+
+
+async def log_email(user_id: str, email_type: str, subject: str,
+                    status: str = "sent", error_message: str | None = None):
+    """Log a sent/failed/skipped email for audit."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO email_logs (user_id, email_type, subject, status, error_message)
+               VALUES ($1, $2, $3, $4, $5)""",
+            user_id, email_type, subject, status, error_message
+        )
+
+
+async def get_user_email_history(user_id: str) -> list[dict]:
+    """Get email log for a specific user, newest first."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, email_type, subject, status, error_message, sent_at
+               FROM email_logs WHERE user_id = $1 ORDER BY sent_at DESC""",
+            user_id
+        )
+        return [_record_to_dict(r) for r in rows]
+
+
+async def set_email_opt_out(user_id: str, opt_out: bool):
+    """Set the user's email onboarding opt-out preference."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE users SET email_onboarding_opt_out = $1 WHERE id = $2",
+            opt_out, user_id
+        )
+

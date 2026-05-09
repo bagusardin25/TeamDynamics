@@ -120,6 +120,13 @@ async def register(req: RegisterRequest):
         "role": role,
     })
 
+    # Enroll in onboarding drip campaign
+    try:
+        from services.drip_engine import get_drip_engine
+        await get_drip_engine().enroll_user(user_id, req.email, req.name)
+    except Exception as e:
+        logger.warning(f"Drip enrollment failed for {user_id}: {e}")
+
     return {"token": token, "user": user}
 
 
@@ -209,6 +216,13 @@ async def google_auth(req: GoogleAuthRequest):
             avatar_url=avatar,
             role=role,
         )
+
+        # Enroll new Google user in onboarding drip campaign
+        try:
+            from services.drip_engine import get_drip_engine
+            await get_drip_engine().enroll_user(user_id, email, name)
+        except Exception as e:
+            logger.warning(f"Drip enrollment failed for Google user {user_id}: {e}")
     else:
         user = {
             "id": user["id"],

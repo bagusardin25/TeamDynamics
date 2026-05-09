@@ -21,6 +21,7 @@ from routers.websocket import router as websocket_router
 from routers.auth import router as auth_router
 from routers.document import router as document_router
 from routers.payment import router as payment_router
+from routers.email import router as email_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,9 +58,32 @@ async def lifespan(app: FastAPI):
     # Initialize Redis (optional — gracefully falls back to in-memory)
     await init_redis()
 
+    # Start background drip email scheduler
+    _scheduler = None
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from services.drip_engine import get_drip_engine
+
+        _scheduler = AsyncIOScheduler()
+        _scheduler.add_job(
+            get_drip_engine().process_pending_drips,
+            'interval',
+            minutes=15,
+            id='drip_email_processor',
+            max_instances=1,
+        )
+        _scheduler.start()
+        logger.info("📧 Drip email scheduler started (every 15 min)")
+    except ImportError:
+        logger.warning("📧 APScheduler not installed — drip emails disabled")
+    except Exception as e:
+        logger.warning(f"📧 Drip scheduler failed to start: {e}")
+
     yield
 
     logger.info("👋 Shutting down TeamDynamics Backend")
+    if _scheduler:
+        _scheduler.shutdown(wait=False)
     await close_redis()
     await close_db()
 
@@ -90,6 +114,7 @@ app.include_router(agents_router)
 app.include_router(websocket_router)
 app.include_router(document_router)
 app.include_router(payment_router)
+app.include_router(email_router)
 
 
 @app.get("/health")
