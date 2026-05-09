@@ -191,6 +191,17 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS team_templates (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id),
+                name TEXT NOT NULL,
+                agents_json TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+
     logger.info("✅ PostgreSQL database initialized")
 
 
@@ -532,3 +543,65 @@ async def get_metrics_history(sim_id: str) -> str | None:
             sim_id
         )
         return row["metrics_json"] if row else None
+
+
+# ── Team Templates ─────────────────────────────────────────────────────────
+
+async def save_team_template(template_id: str, user_id: str, name: str, agents_json: str):
+    """Save a new team template."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """INSERT INTO team_templates (id, user_id, name, agents_json)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (id) DO UPDATE SET name=$3, agents_json=$4, updated_at=NOW()""",
+            template_id, user_id, name, agents_json
+        )
+
+
+async def get_user_templates(user_id: str) -> list[dict]:
+    """Get all templates for a user (metadata only, no agents_json)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT id, name, created_at, updated_at,
+                      length(agents_json) as json_length
+               FROM team_templates
+               WHERE user_id=$1
+               ORDER BY updated_at DESC""",
+            user_id
+        )
+        return [_record_to_dict(r) for r in rows]
+
+
+async def get_template_by_id(template_id: str, user_id: str) -> dict | None:
+    """Get a full template including agents_json, scoped to user."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM team_templates WHERE id=$1 AND user_id=$2",
+            template_id, user_id
+        )
+        return _record_to_dict(row) if row else None
+
+
+async def update_template_name(template_id: str, user_id: str, new_name: str):
+    """Rename a template."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "UPDATE team_templates SET name=$1, updated_at=NOW() WHERE id=$2 AND user_id=$3",
+            new_name, template_id, user_id
+        )
+        return "UPDATE 1" in result
+
+
+async def delete_template(template_id: str, user_id: str) -> bool:
+    """Delete a template. Returns True if deleted."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        result = await conn.execute(
+            "DELETE FROM team_templates WHERE id=$1 AND user_id=$2",
+            template_id, user_id
+        )
+        return "DELETE 1" in result

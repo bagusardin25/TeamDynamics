@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles, FileUp, FileText, CheckCircle2, ChevronLeft } from "lucide-react";
+import { Users, AlertTriangle, Play, Briefcase, Plus, X, Loader2, UserPlus, Pencil, ChevronDown, Cpu, Sparkles, FileUp, FileText, CheckCircle2, ChevronLeft, Save, FolderOpen, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { RadarChart } from "@/components/ui/radar-chart";
 import { Button } from "@/components/ui/button";
@@ -124,6 +124,90 @@ export default function SetupPage() {
     };
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+
+  // Template state
+  const [templates, setTemplates] = useState<{ id: string; name: string; created_at: string | null }[]>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [showTemplateList, setShowTemplateList] = useState(false);
+  const [loadingTemplate, setLoadingTemplate] = useState<string | null>(null);
+
+  // Fetch user templates
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/api/agents/templates`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.ok ? res.json() : [])
+      .then(setTemplates)
+      .catch(() => {});
+  }, [token]);
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim() || selectedAgents.length === 0 || !token) return;
+    setSavingTemplate(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/agents/templates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: templateName.trim(), agents: selectedAgents }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates((prev) => [{ id: data.id, name: data.name, created_at: new Date().toISOString() }, ...prev]);
+        setShowSaveTemplate(false);
+        setTemplateName("");
+        toast.success(`Template "${data.name}" saved!`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.detail || "Failed to save template");
+      }
+    } catch {
+      toast.error("Failed to save template");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
+  const handleLoadTemplate = async (templateId: string) => {
+    if (!token) return;
+    setLoadingTemplate(templateId);
+    try {
+      const res = await fetch(`${API_BASE}/api/agents/templates/${templateId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedAgents(data.agents);
+        setShowTemplateList(false);
+        toast.success(`Loaded template "${data.name}" (${data.agent_count} agents)`);
+      } else {
+        toast.error("Failed to load template");
+      }
+    } catch {
+      toast.error("Failed to load template");
+    } finally {
+      setLoadingTemplate(null);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/agents/templates/${templateId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+        toast.success("Template deleted");
+      }
+    } catch {
+      toast.error("Failed to delete template");
+    }
+  };
 
   // Fetch preset agents on mount
   useEffect(() => {
@@ -845,10 +929,104 @@ export default function SetupPage() {
                         </div>
                         <CardDescription>Your team for the simulation.</CardDescription>
                       </div>
-                      <Badge variant={rosterFull ? "destructive" : "secondary"} className="shrink-0 mt-1 shadow-sm">
-                        {selectedAgents.length}/8
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                        {/* Save Template */}
+                        <button
+                          onClick={() => { setShowSaveTemplate(!showSaveTemplate); setShowTemplateList(false); }}
+                          disabled={selectedAgents.length === 0 || !token}
+                          className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Save as template"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                        </button>
+                        {/* Load Template */}
+                        <div className="relative">
+                          <button
+                            onClick={() => { setShowTemplateList(!showTemplateList); setShowSaveTemplate(false); }}
+                            disabled={templates.length === 0 || !token}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                            title={templates.length > 0 ? "Load template" : "No saved templates"}
+                          >
+                            <FolderOpen className="w-3.5 h-3.5" />
+                          </button>
+                          {/* Template Dropdown */}
+                          <AnimatePresence>
+                            {showTemplateList && (
+                              <motion.div
+                                initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                                className="absolute right-0 top-9 z-50 w-56 rounded-xl border border-border/50 bg-background/95 backdrop-blur-xl shadow-2xl p-1.5 space-y-0.5"
+                              >
+                                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Saved Templates</div>
+                                {templates.map((t) => (
+                                  <button
+                                    key={t.id}
+                                    onClick={() => handleLoadTemplate(t.id)}
+                                    disabled={loadingTemplate !== null}
+                                    className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-left hover:bg-primary/10 transition-colors group text-sm"
+                                  >
+                                    <span className="truncate font-medium">{t.name}</span>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      {loadingTemplate === t.id && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
+                                      <button
+                                        onClick={(e) => handleDeleteTemplate(t.id, e)}
+                                        className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all"
+                                        title="Delete template"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </button>
+                                ))}
+                                {templates.length === 0 && (
+                                  <div className="px-2.5 py-3 text-xs text-muted-foreground text-center">No templates yet</div>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <Badge variant={rosterFull ? "destructive" : "secondary"} className="shrink-0 shadow-sm">
+                          {selectedAgents.length}/8
+                        </Badge>
+                      </div>
                     </CardHeader>
+                    {/* Save Template Inline Dialog */}
+                    <AnimatePresence>
+                      {showSaveTemplate && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden border-b border-border/50"
+                        >
+                          <div className="p-3 flex items-center gap-2 bg-primary/5">
+                            <Input
+                              placeholder="Template name..."
+                              value={templateName}
+                              onChange={(e) => setTemplateName(e.target.value)}
+                              onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
+                              className="h-8 text-sm bg-background/80 flex-1"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              className="h-8 px-3 text-xs"
+                              disabled={!templateName.trim() || savingTemplate}
+                              onClick={handleSaveTemplate}
+                            >
+                              {savingTemplate ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
+                            </Button>
+                            <button
+                              onClick={() => { setShowSaveTemplate(false); setTemplateName(""); }}
+                              className="w-7 h-7 rounded flex items-center justify-center text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     <CardContent className="p-4 space-y-3 h-[400px] overflow-y-auto">
                       <AnimatePresence>
                         {selectedAgents.length === 0 && (
