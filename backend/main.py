@@ -14,6 +14,42 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
+# ── Sentry Error Tracking ─────────────────────────────────────────────
+# Initialize BEFORE app creation so all errors are captured from startup.
+# Set SENTRY_DSN in .env to enable. Gracefully disabled when not set.
+import sentry_sdk
+
+SENTRY_DSN = os.getenv("SENTRY_DSN", "")
+
+
+def _sentry_before_send(event, hint):
+    """Scrub sensitive fields from Sentry events before transmission."""
+    SENSITIVE_KEYS = {"password", "token", "secret", "api_key", "apikey",
+                      "authorization", "cookie", "credit_card", "ssn"}
+    if "request" in event:
+        req = event["request"]
+        for section in ("data", "headers", "query_string", "cookies"):
+            if section in req and isinstance(req[section], dict):
+                for key in list(req[section].keys()):
+                    if any(s in key.lower() for s in SENSITIVE_KEYS):
+                        req[section][key] = "[Filtered]"
+    return event
+
+
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
+        release=os.getenv("SENTRY_RELEASE", "teamdynamics-backend@1.0.0"),
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.2")),
+        profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.1")),
+        send_default_pii=False,
+        enable_tracing=True,
+        include_local_variables=True,
+        before_send=_sentry_before_send,
+        max_breadcrumbs=50,
+    )
+
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -86,6 +122,10 @@ async def lifespan(app: FastAPI):
         logger.warning(f"📧 Drip scheduler failed to start: {e}")
 
     logger.info("🛡️ Rate limiting active (60/min global default)")
+    if SENTRY_DSN:
+        logger.info("🔍 Sentry error tracking active")
+    else:
+        logger.info("🔍 Sentry disabled (no SENTRY_DSN configured)")
     yield
 
     logger.info("👋 Shutting down TeamDynamics Backend")
@@ -119,6 +159,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ── Sentry User Context Middleware ────────────────────────────────────
+# Attaches the authenticated user to Sentry events so errors show who
+# triggered them.  Uses the JWT sub claim (user email) when available.
+@app.middleware("http")
+async def sentry_user_context_middleware(request: Request, call_next):
+    if SENTRY_DSN:
+        try:
+            from jose import jwt
+            auth_header = request.headers.get("authorization", "")
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ", 1)[1]
+                payload = jwt.decode(
+                    token,
+                    os.getenv("JWT_SECRET_KEY", ""),
+                    algorithms=["HS256"],
+                    options={"verify_exp": False},
+                )
+                sentry_sdk.set_user({
+                    "email": payload.get("sub", "unknown"),
+                    "id": payload.get("sub", "unknown"),
+                })
+        except Exception:
+            # Don't block requests if user context extraction fails
+            pass
+    response = await call_next(request)
+    # Clear user context after request to avoid leaking between requests
+    if SENTRY_DSN:
+        sentry_sdk.set_user(None)
+    return response
+
+
 # Register routers
 app.include_router(auth_router)
 app.include_router(simulation_router)
@@ -136,4 +208,13 @@ async def health_check():
         "service": "TeamDynamics Backend",
         "version": "1.0.0",
         "llm_provider": os.getenv("LLM_PROVIDER", "openai"),
+        "sentry_enabled": bool(SENTRY_DSN),
     }
+
+
+@app.get("/debug-sentry")
+async def debug_sentry():
+    """Test endpoint to verify Sentry integration.
+    Raises a deliberate exception — should appear in your Sentry dashboard.
+    Remove or protect this endpoint in production."""
+    raise RuntimeError("Sentry test: this error was triggered intentionally via /debug-sentry")
