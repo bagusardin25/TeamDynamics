@@ -4,6 +4,7 @@ import { type ReactNode } from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/auth-context";
 import { Toaster } from "sonner";
+import { Analytics } from "@/components/analytics";
 
 if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
   const orig = console.error;
@@ -24,6 +25,7 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange={false}
     >
       <AuthProvider>
+        <Analytics />
         {children}
         <Toaster
           theme="dark"

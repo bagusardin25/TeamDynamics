@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
@@ -12,7 +12,21 @@ import { useAuth } from "@/contexts/auth-context";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    }>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect") || "/dashboard";
   const { login, loginWithGoogle, user } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -26,7 +40,7 @@ export default function LoginPage() {
   // If already logged in, redirect
   useEffect(() => {
     if (user) {
-      router.replace("/dashboard");
+      router.replace(redirectTo);
     }
   }, [user, router]);
 
@@ -54,7 +68,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      router.push("/dashboard");
+      router.push(redirectTo);
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -86,7 +100,7 @@ export default function LoginPage() {
           try {
             // Send the access token to our backend via auth context
             await loginWithGoogle(tokenResponse.access_token);
-            router.push("/dashboard");
+            router.push(redirectTo);
           } catch (err: any) {
             setError(err.message || "Google login failed");
           } finally {

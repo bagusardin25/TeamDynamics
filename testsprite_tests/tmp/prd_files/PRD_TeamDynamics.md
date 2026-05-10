@@ -61,7 +61,7 @@ TeamDynamics brings predictive organizational psychology into the hands of decis
 | **Animations** | Framer Motion | Page transitions, micro-animations |
 | **Charts** | Recharts | Timeline analytics and data visualization |
 | **Backend API** | FastAPI (Python), Uvicorn | REST API + WebSocket server |
-| **Database** | SQLite (aiosqlite) / PostgreSQL (asyncpg) | Persistent state storage |
+| **Database** | PostgreSQL (asyncpg) | Persistent state storage |
 | **Authentication** | JWT (python-jose) + bcrypt | Token-based auth with password hashing |
 | **OAuth** | Google OAuth 2.0 | Social sign-in |
 | **LLM Providers** | OpenAI, Google Gemini, OpenRouter | Multi-provider AI inference |
@@ -100,7 +100,7 @@ TeamDynamics brings predictive organizational psychology into the hands of decis
 │  │ Hidden Agendas │ Random Events │ Agent Memory       │   │
 │  └────────────────────────────────────────────────────┘   │
 │  ┌────────────────────────────────────────────────────┐   │
-│  │  SQLite/PostgreSQL  │  Report Generator (LLM)     │   │
+│  │     PostgreSQL      │  Report Generator (LLM)     │   │
 │  └────────────────────────────────────────────────────┘   │
 └───────────────────────────────────────────────────────────┘
 ```

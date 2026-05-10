@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from services.input_sanitizer import sanitize_text
 
 
 # ── Enums ─────────────────────────────────────────────────────────────
@@ -75,19 +77,35 @@ class CompanyProfile(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     culture: str = Field(min_length=1, max_length=1000)
 
+    @field_validator("name", "culture", mode="before")
+    @classmethod
+    def sanitize_company_text(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
+        return sanitize_text(value, max_length=1000)
+
 
 # ── Agent ─────────────────────────────────────────────────────────────
 
 class AgentConfig(BaseModel):
-    id: str
-    name: str
-    role: str
-    type: str
+    id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=80)
+    role: str = Field(min_length=1, max_length=120)
+    type: str = Field(min_length=1, max_length=120)
     personality: PersonalityTraits
-    color: Optional[str] = None
-    motivation: Optional[str] = None
-    expertise: Optional[str] = None
-    model: Optional[str] = None  # Per-agent LLM model override (e.g. "anthropic/claude-3.7-sonnet")
+    color: Optional[str] = Field(default=None, max_length=40)
+    motivation: Optional[str] = Field(default=None, max_length=1000)
+    expertise: Optional[str] = Field(default=None, max_length=1000)
+    model: Optional[str] = Field(default=None, max_length=160)
+
+    @field_validator("id", "name", "role", "type", "color", "motivation", "expertise", "model", mode="before")
+    @classmethod
+    def sanitize_agent_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        return sanitize_text(value, max_length=1000)
 
 
 class AgentFullState(AgentConfig):
@@ -108,12 +126,28 @@ class AgentFullState(AgentConfig):
 
 class CrisisConfig(BaseModel):
     scenario: CrisisScenario
-    custom_description: Optional[str] = None
+    custom_description: Optional[str] = Field(default=None, max_length=4000)
+
+    @field_validator("custom_description", mode="before")
+    @classmethod
+    def sanitize_crisis_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        return sanitize_text(value, max_length=4000)
 
 
 class GenerateCrisisRequest(BaseModel):
-    company_name: str
-    company_culture: str
+    company_name: str = Field(min_length=1, max_length=100)
+    company_culture: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("company_name", "company_culture", mode="before")
+    @classmethod
+    def sanitize_generate_crisis_text(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
+        return sanitize_text(value, max_length=1000)
 
 # ── Simulation ────────────────────────────────────────────────────────
 
@@ -124,7 +158,7 @@ class SimulationParams(BaseModel):
 
 class CreateSimulationRequest(BaseModel):
     company: CompanyProfile
-    agents: list[AgentConfig]
+    agents: list[AgentConfig] = Field(min_length=1, max_length=8)
     crisis: CrisisConfig
     params: SimulationParams = Field(default_factory=SimulationParams)
 
@@ -169,7 +203,16 @@ class SimulationResponse(BaseModel):
 
 class InterventionRequest(BaseModel):
     type: InterventionType
-    custom_message: Optional[str] = None
+    custom_message: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("custom_message", mode="before")
+    @classmethod
+    def sanitize_intervention_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        return sanitize_text(value, max_length=2000)
 
 
 # ── Report ────────────────────────────────────────────────────────────

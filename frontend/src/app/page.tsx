@@ -36,11 +36,11 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center relative bg-background antialiased overflow-x-hidden">
       {/* Background Grid - Subtle Animation */}
-      <div className="absolute inset-0 bg-size-[40px_40px] bg-[linear-gradient(to_right,#80808025_1px,transparent_1px),linear-gradient(to_bottom,#80808025_1px,transparent_1px)] opacity-80"></div>
+      <div className="pointer-events-none absolute inset-0 bg-size-[40px_40px] bg-[linear-gradient(to_right,#80808025_1px,transparent_1px),linear-gradient(to_bottom,#80808025_1px,transparent_1px)] opacity-80"></div>
       
       {/* Ambient Glow */}
       <div className={cn(
-        "absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[120px] transition-colors duration-1000 opacity-20",
+        "pointer-events-none absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[120px] transition-colors duration-1000 opacity-20",
         isHighPressure ? "bg-red-500" : "bg-primary"
       )}></div>
 
@@ -186,10 +186,10 @@ export default function LandingPage() {
                   </motion.span>
                 </Button>
               </Link>
-              <Link href="/report?id=demo" className="w-full sm:w-auto">
+              <Link href="/docs" className="w-full sm:w-auto">
                 <Button size="lg" variant="ghost" className="h-14 px-8 text-base font-semibold w-full rounded-xl hover:bg-secondary/80 group border border-border/40">
                   <Zap className="mr-2 w-4 h-4 text-orange-500 group-hover:animate-pulse" />
-                  View Interactive Demo Report
+                  Explore Product Docs
                 </Button>
               </Link>
             </motion.div>
@@ -328,9 +328,20 @@ export default function LandingPage() {
 
       </main>
 
-      {/* Footer minimal */}
-      <footer className="w-full py-12 border-t border-border/40 text-center text-muted-foreground text-sm font-medium">
-        © 2026 TeamDynamics Simulation Engine. Built for High-Stakes Founders.
+      {/* Footer */}
+      <footer className="relative z-10 w-full border-t border-border/40 py-10">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground font-medium">
+          <span>© 2026 TeamDynamics Simulation Engine. Built for High-Stakes Founders.</span>
+          <div className="flex items-center gap-3">
+            <Link href="/terms" className="hover:text-foreground transition-colors">
+              Terms of Service
+            </Link>
+            <span className="text-border">·</span>
+            <Link href="/privacy" className="hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
+          </div>
+        </div>
       </footer>
     </div>
   );

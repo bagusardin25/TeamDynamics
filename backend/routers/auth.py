@@ -2,15 +2,13 @@
 Authentication routes — register, login, Google OAuth, and user profile.
 """
 
-from __future__ import annotations
-
 import os
 import uuid
 import logging
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, Body, HTTPException, Depends, Request, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Annotated, Optional
 
 import httpx
 
@@ -93,9 +91,15 @@ async def require_auth(
 
 
 # ── Routes ────────────────────────────────────────────────────────────
+from services.rate_limiter import limiter
 
 @router.post("/register", response_model=AuthResponse)
-async def register(req: RegisterRequest):
+@limiter.limit("5/minute")
+async def register(
+    request: Request,
+    response: Response,
+    req: Annotated[RegisterRequest, Body()],
+):
     """Register a new user with email and password."""
     # Check if email already exists
     existing = await get_user_by_email(req.email)
@@ -131,7 +135,12 @@ async def register(req: RegisterRequest):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(req: LoginRequest):
+@limiter.limit("10/minute")
+async def login(
+    request: Request,
+    response: Response,
+    req: Annotated[LoginRequest, Body()],
+):
     """Login with email and password."""
     user = await get_user_by_email(req.email)
     if not user:
@@ -167,7 +176,12 @@ async def login(req: LoginRequest):
 
 
 @router.post("/google", response_model=AuthResponse)
-async def google_auth(req: GoogleAuthRequest):
+@limiter.limit("10/minute")
+async def google_auth(
+    request: Request,
+    response: Response,
+    req: Annotated[GoogleAuthRequest, Body()],
+):
     """Authenticate with Google OAuth. Supports both access token and ID token flows.
     Creates account if new user."""
     google_data = None

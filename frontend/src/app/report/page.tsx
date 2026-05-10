@@ -112,8 +112,7 @@ function MetricCard({ icon: Icon, label, value, suffix, trend, color }: {
 
 function ReportContent() {
   const searchParams = useSearchParams();
-  const isDemo = searchParams.get("demo") === "true";
-  const simId = searchParams.get("id") || (isDemo ? "demo" : null);
+  const simId = searchParams.get("id");
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -652,7 +651,7 @@ function ReportContent() {
             <span className="text-sm font-medium tracking-widest uppercase">{report.company_name}</span>
           </div>
           <h1 className="text-4xl font-bold tracking-tight">
-            {simId === "demo" ? "Demo Report" : "Post-Simulation Analysis Report"}
+            Post-Simulation Analysis Report
           </h1>
           <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" /> {report.crisis_name}</span>

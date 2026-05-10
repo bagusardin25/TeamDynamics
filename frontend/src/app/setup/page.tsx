@@ -75,7 +75,15 @@ const DEFAULT_PERSONALITY: AgentPersonality = {
 
 export default function SetupPage() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, user, isLoading: authLoading } = useAuth();
+
+  // Auth guard — redirect unauthenticated users to login
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login?redirect=/setup");
+    }
+  }, [authLoading, user, router]);
+
   const [presets, setPresets] = useState<PresetAgent[]>([]);
   const [selectedAgents, setSelectedAgents] = useState<PresetAgent[]>([]);
   const [companyName, setCompanyName] = useState("Pied Piper");
@@ -479,8 +487,10 @@ export default function SetupPage() {
         },
       };
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      };
 
       const res = await fetch(`${API_BASE}/api/simulation/create`, {
         method: "POST",
@@ -490,6 +500,11 @@ export default function SetupPage() {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
+        if (res.status === 401) {
+          toast.error("Session expired. Please sign in again.");
+          router.push("/login?redirect=/setup");
+          return;
+        }
         if (res.status === 403) {
           toast.error(errData?.detail || "No simulation credits remaining.");
           setIsLoading(false);
@@ -510,6 +525,15 @@ export default function SetupPage() {
 
   const rosterFull = selectedAgents.length >= MAX_ROSTER_SIZE;
   const availablePresets = presets.filter((p) => !selectedAgents.find((s) => s.id === p.id));
+
+  // Show loading while checking auth
+  if (authLoading || !user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-12">
