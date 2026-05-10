@@ -11,6 +11,41 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function stringifyErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => stringifyErrorDetail(item))
+      .filter(Boolean)
+      .join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    const nestedMessage = record.message ?? record.msg ?? record.detail;
+    if (nestedMessage) return stringifyErrorDetail(nestedMessage);
+
+    const field = Array.isArray(record.loc) ? record.loc.join(".") : record.loc;
+    const type = typeof record.type === "string" ? ` (${record.type})` : "";
+    if (field) return `${field}: ${JSON.stringify(record)}${type}`;
+
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return "Unexpected error";
+    }
+  }
+  return "";
+}
+
+async function getErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const err = await res.json();
+    return stringifyErrorDetail(err.detail ?? err.message ?? err) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export interface User {
   id: string;
   email: string;
@@ -41,18 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = user?.role === "admin";
 
-  // Load saved session on mount
-  useEffect(() => {
-    const savedToken = localStorage.getItem("td_token");
-    if (savedToken) {
-      setToken(savedToken);
-      fetchMe(savedToken);
-    } else {
-      setIsLoading(false);
-    }
-  }, []);
-
-  async function fetchMe(authToken: string) {
+  const fetchMe = useCallback(async (authToken: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${authToken}` },
@@ -73,7 +97,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
+
+  // Load saved session on mount
+  useEffect(() => {
+    async function initializeSession() {
+      const savedToken = localStorage.getItem("td_token");
+      if (savedToken) {
+        await fetchMe(savedToken);
+      } else {
+        setIsLoading(false);
+      }
+    }
+
+    void initializeSession();
+  }, [fetchMe]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -82,8 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Login failed");
+      throw new Error(await getErrorMessage(res, "Login failed"));
     }
     const data = await res.json();
     setToken(data.token);
@@ -98,8 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ email, password, name }),
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Registration failed");
+      throw new Error(await getErrorMessage(res, "Registration failed"));
     }
     const data = await res.json();
     setToken(data.token);
@@ -114,8 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ credential }),
     });
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Google login failed");
+      throw new Error(await getErrorMessage(res, "Google login failed"));
     }
     const data = await res.json();
     setToken(data.token);

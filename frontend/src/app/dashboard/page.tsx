@@ -133,6 +133,18 @@ export default function DashboardPage() {
               </span>
             </div>
 
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden md:flex h-9 rounded-lg"
+                onClick={() => router.push("/admin/llm-usage")}
+              >
+                <CreditCard className="w-3.5 h-3.5 mr-2" />
+                LLM Cost
+              </Button>
+            )}
+
             {/* Theme toggle */}
             <Button
               variant="ghost"

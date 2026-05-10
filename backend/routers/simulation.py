@@ -2,7 +2,7 @@
 Simulation CRUD and control routes.
 """
 
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from models.schemas import (
     CreateSimulationRequest, SimulationResponse, SimulationMetrics,
     InterventionRequest, SimulationStatus, AgentState, GenerateCrisisRequest,
@@ -23,7 +23,11 @@ from services.rate_limiter import limiter
 
 @router.post("/generate-crisis")
 @limiter.limit("5/minute")
-async def generate_crisis(request: Request, req: GenerateCrisisRequest):
+async def generate_crisis(
+    request: Request,
+    response: Response,
+    req: GenerateCrisisRequest,
+):
     """Generate a custom crisis tailored to the company using AI."""
     from services.llm_service import generate_tailored_crisis
     
@@ -34,6 +38,7 @@ async def generate_crisis(request: Request, req: GenerateCrisisRequest):
 @limiter.limit("5/minute")
 async def create_sim(
     request: Request,
+    response: Response,
     body: CreateSimulationRequest,
     current_user: TokenData | None = Depends(get_current_user),
 ):

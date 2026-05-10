@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 load_dotenv()
 logger = logging.getLogger(__name__)
 
+from services.llm_budget import budget_tracker, BudgetExceededError
+
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
 
 # ── Provider / Model resolution ───────────────────────────────────────
@@ -322,8 +324,8 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
 
 # ── LLM Callers ───────────────────────────────────────────────────────
 
-async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> dict:
-    """Call OpenAI API."""
+async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
+    """Call OpenAI API. Returns (result_dict, usage_info)."""
     from openai import AsyncOpenAI
 
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -341,11 +343,18 @@ async def _call_openai(system_prompt: str, user_prompt: str, model: str | None =
     )
 
     content = response.choices[0].message.content
-    return json.loads(content)
+    usage = response.usage
+    usage_info = {
+        "provider": "openai",
+        "model": resolved_model,
+        "tokens_in": usage.prompt_tokens if usage else 0,
+        "tokens_out": usage.completion_tokens if usage else 0,
+    }
+    return json.loads(content), usage_info
 
 
-async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> dict:
-    """Call Google Gemini API."""
+async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
+    """Call Google Gemini API. Returns (result_dict, usage_info)."""
     from google import genai
 
     client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -361,11 +370,19 @@ async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None =
         },
     )
 
-    return json.loads(response.text)
+    # Gemini usage metadata (if available)
+    usage_meta = getattr(response, 'usage_metadata', None)
+    usage_info = {
+        "provider": "gemini",
+        "model": resolved_model,
+        "tokens_in": getattr(usage_meta, 'prompt_token_count', 0) if usage_meta else 0,
+        "tokens_out": getattr(usage_meta, 'candidates_token_count', 0) if usage_meta else 0,
+    }
+    return json.loads(response.text), usage_info
 
 
-async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> dict:
-    """Call OpenRouter API (uses OpenAI-compatible SDK)."""
+async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
+    """Call OpenRouter API (uses OpenAI-compatible SDK). Returns (result_dict, usage_info)."""
     from openai import AsyncOpenAI
 
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -398,7 +415,14 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
     )
 
     content = response.choices[0].message.content
-    return json.loads(content)
+    usage = response.usage
+    usage_info = {
+        "provider": "openrouter",
+        "model": resolved_model,
+        "tokens_in": usage.prompt_tokens if usage else 0,
+        "tokens_out": usage.completion_tokens if usage else 0,
+    }
+    return json.loads(content), usage_info
 
 
 # ── Dispatch helper ───────────────────────────────────────────────────
@@ -411,13 +435,26 @@ async def _dispatch_llm_call(
     temperature: float = 0.9,
     max_tokens: int = 600,
 ) -> dict:
-    """Route a call to the correct LLM provider."""
+    """Route a call to the correct LLM provider with budget enforcement."""
+    # Budget gate — blocks if daily cap exceeded
+    budget_tracker.check_budget()
+
     if provider == "gemini":
-        return await _call_gemini(system_prompt, user_prompt, model, temperature, max_tokens)
+        result, usage = await _call_gemini(system_prompt, user_prompt, model, temperature, max_tokens)
     elif provider == "openrouter":
-        return await _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
+        result, usage = await _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
     else:
-        return await _call_openai(system_prompt, user_prompt, model, temperature, max_tokens)
+        result, usage = await _call_openai(system_prompt, user_prompt, model, temperature, max_tokens)
+
+    # Log usage for tracking
+    budget_tracker.log_usage(
+        provider=usage["provider"],
+        model=usage["model"],
+        tokens_in=usage["tokens_in"],
+        tokens_out=usage["tokens_out"],
+    )
+
+    return result
 
 
 # ── Response Validator ─────────────────────────────────────────────────

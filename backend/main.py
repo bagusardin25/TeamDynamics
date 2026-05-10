@@ -64,6 +64,7 @@ from routers.auth import router as auth_router
 from routers.document import router as document_router
 from routers.payment import router as payment_router
 from routers.email import router as email_router
+from routers.admin import router as admin_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -147,6 +148,21 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+# ── LLM Budget Exceeded Handler ──────────────────────────────────────
+from services.llm_budget import BudgetExceededError
+
+@app.exception_handler(BudgetExceededError)
+async def budget_exceeded_handler(request: Request, exc: BudgetExceededError):
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": str(exc),
+            "type": "llm_budget_exceeded",
+            "daily_cap_usd": exc.daily_cap,
+            "current_spend_usd": round(exc.current_spend, 4),
+        },
+    )
+
 # CORS — allow the Next.js frontend (supports comma-separated origins for production)
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 allowed_origins = [origin.strip() for origin in frontend_url.split(",")]
@@ -199,6 +215,7 @@ app.include_router(websocket_router)
 app.include_router(document_router)
 app.include_router(payment_router)
 app.include_router(email_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")
