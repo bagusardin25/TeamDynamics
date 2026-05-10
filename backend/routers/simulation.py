@@ -12,7 +12,7 @@ from services.simulation_engine import (
     create_simulation, get_simulation_state, process_intervention, compute_metrics,
 )
 from services.report_generator import generate_report
-from routers.auth import get_current_user, TokenData
+from routers.auth import get_current_user, require_auth, TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
 
@@ -40,15 +40,15 @@ async def create_sim(
     request: Request,
     response: Response,
     body: CreateSimulationRequest,
-    current_user: TokenData | None = Depends(get_current_user),
+    current_user: TokenData = Depends(require_auth),
 ):
-    """Create a new simulation and return its ID."""
+    """Create a new simulation and return its ID. Requires authentication."""
     from models.database import get_user_by_id, update_user_credits
 
-    user_id = current_user.user_id if current_user else None
+    user_id = current_user.user_id
 
-    # Credit check for authenticated non-admin users
-    if current_user and current_user.role != "admin":
+    # Credit check for non-admin users
+    if current_user.role != "admin":
         user = await get_user_by_id(current_user.user_id)
         if user and user["credits"] <= 0:
             raise HTTPException(
@@ -58,8 +58,8 @@ async def create_sim(
 
     sim_id = await create_simulation(body, user_id=user_id)
 
-    # Deduct credit for authenticated non-admin users
-    if current_user and current_user.role != "admin":
+    # Deduct credit for non-admin users
+    if current_user.role != "admin":
         user = await get_user_by_id(current_user.user_id)
         if user:
             await update_user_credits(current_user.user_id, max(0, user["credits"] - 1))
