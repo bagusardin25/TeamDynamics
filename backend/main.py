@@ -69,6 +69,9 @@ from routers.admin import router as admin_router
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Track DB readiness for health endpoint
+_db_ready = False
+
 DB_MAX_RETRIES = int(os.getenv("DB_MAX_RETRIES", "5"))
 DB_RETRY_DELAY = int(os.getenv("DB_RETRY_DELAY", "3"))
 
@@ -88,33 +91,36 @@ def _https_enforced() -> bool:
     return os.getenv("FORCE_HTTPS", "").lower() in {"1", "true", "yes"} or _is_production_env()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Startup and shutdown lifecycle with resilient DB and Redis connection."""
-    logger.info("🚀 Initializing TeamDynamics Backend...")
-    logger.info(f"🤖 LLM Provider: {os.getenv('LLM_PROVIDER', 'openai')}")
-
-    # Retry database connection — Railway/cloud DBs may not be ready immediately
-    db_ready = False
+async def _background_db_init():
+    """Connect to the database in the background so the health endpoint is reachable immediately."""
+    global _db_ready
     for attempt in range(1, DB_MAX_RETRIES + 1):
         try:
             await init_db()
             logger.info("✅ Database initialized (PostgreSQL)")
-            db_ready = True
-            break
+            _db_ready = True
+            return
         except Exception as e:
             logger.warning(
                 f"⚠️ DB connection attempt {attempt}/{DB_MAX_RETRIES} failed: {e}"
             )
             if attempt < DB_MAX_RETRIES:
                 await asyncio.sleep(DB_RETRY_DELAY)
+    logger.error("❌ Could not connect to database after all retries. "
+                  "App will start but DB operations will fail.")
 
-    if not db_ready:
-        logger.error("❌ Could not connect to database after all retries. "
-                      "App will start but DB operations will fail.")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup and shutdown lifecycle with resilient DB and Redis connection."""
+    logger.info("🚀 Initializing TeamDynamics Backend...")
+    logger.info(f"🤖 LLM Provider: {os.getenv('LLM_PROVIDER', 'openai')}")
 
     # Initialize Redis (optional — gracefully falls back to in-memory)
     await init_redis()
+
+    # Start DB connection in the background so /health is reachable immediately
+    db_task = asyncio.create_task(_background_db_init())
 
     # Start background drip email scheduler
     _scheduler = None
@@ -145,6 +151,9 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("👋 Shutting down TeamDynamics Backend")
+    # Cancel DB init if still running
+    if not db_task.done():
+        db_task.cancel()
     if _scheduler:
         _scheduler.shutdown(wait=False)
     await close_redis()
@@ -264,6 +273,7 @@ async def health_check():
         "status": "healthy",
         "service": "TeamDynamics Backend",
         "version": "1.0.0",
+        "db_connected": _db_ready,
         "llm_provider": os.getenv("LLM_PROVIDER", "openai"),
         "sentry_enabled": bool(SENTRY_DSN),
     }
