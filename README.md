@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
   <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/SQLite%20%7C%20PostgreSQL-Ready-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="Database" />
+  <img src="https://img.shields.io/badge/PostgreSQL-Ready-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="Database" />
 </p>
 
 <p align="center">
@@ -95,7 +95,7 @@ Mix and match **LLM providers** (OpenAI, Google Gemini, OpenRouter) per-agent fo
 │  │ Hidden Agendas  │  Random Events  │  Report Generator    │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │          SQLite (dev) / PostgreSQL (prod)                │  │
+│  │                  PostgreSQL Database                     │  │
 │  └──────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -108,7 +108,7 @@ Mix and match **LLM providers** (OpenAI, Google Gemini, OpenRouter) per-agent fo
 | **Styling** | Tailwind CSS v4, shadcn/ui, Framer Motion |
 | **Charts** | Recharts |
 | **Backend** | Python, FastAPI, Uvicorn |
-| **Database** | SQLite (aiosqlite) / PostgreSQL (asyncpg) |
+| **Database** | PostgreSQL (asyncpg) |
 | **Auth** | JWT (python-jose) + bcrypt, Google OAuth 2.0 |
 | **AI Providers** | OpenAI, Google Gemini, OpenRouter |
 | **Documents** | PyPDF2, python-docx, openpyxl |
@@ -206,7 +206,7 @@ GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-> **Note:** If no `DATABASE_URL` is set, the backend falls back to **SQLite** (`teamdynamics.db`) for development.
+> **Note:** `DATABASE_URL` must point to a PostgreSQL database in local and production environments.
 
 ---
 

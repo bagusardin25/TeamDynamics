@@ -11,7 +11,7 @@ tech_stack:
   - Sonner
   - WebSocket
   - FastAPI backend
-  - SQLite database
+  - PostgreSQL database
 routes:
   - path: /
     file: src/app/page.tsx

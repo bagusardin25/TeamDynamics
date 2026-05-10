@@ -106,7 +106,7 @@
       "Recharts",
       "Sonner (toast notifications)",
       "FastAPI (Python backend)",
-      "SQLite (database)",
+      "PostgreSQL (database)",
       "WebSocket (real-time simulation)"
     ],
     "routes": [
