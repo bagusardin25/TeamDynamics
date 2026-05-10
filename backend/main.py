@@ -211,6 +211,10 @@ app.add_middleware(
 @app.middleware("http")
 async def https_enforcement_middleware(request: Request, call_next):
     """Redirect HTTP to HTTPS and set HSTS in production/proxy deployments."""
+    # Exempt health checks from HTTPS redirect, as Railway internal healthchecks use HTTP
+    if request.url.path == "/health":
+        return await call_next(request)
+
     host = request.headers.get("host", "")
     is_local = host.startswith(("localhost", "127.0.0.1", "0.0.0.0"))
     forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
