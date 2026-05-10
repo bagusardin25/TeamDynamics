@@ -186,10 +186,10 @@ export default function LandingPage() {
                   </motion.span>
                 </Button>
               </Link>
-              <Link href="/report?id=demo" className="w-full sm:w-auto">
+              <Link href="/docs" className="w-full sm:w-auto">
                 <Button size="lg" variant="ghost" className="h-14 px-8 text-base font-semibold w-full rounded-xl hover:bg-secondary/80 group border border-border/40">
                   <Zap className="mr-2 w-4 h-4 text-orange-500 group-hover:animate-pulse" />
-                  View Interactive Demo Report
+                  Explore Product Docs
                 </Button>
               </Link>
             </motion.div>
