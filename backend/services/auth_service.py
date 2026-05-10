@@ -5,8 +5,8 @@ Authentication service — JWT token management and password hashing.
 from __future__ import annotations
 
 import os
-import uuid
 import asyncio
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -18,7 +18,40 @@ import bcrypt
 load_dotenv()
 
 # JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "teamdynamics-secret-key-change-in-production-" + str(uuid.uuid4()))
+_PLACEHOLDER_SECRETS = {
+    "",
+    "your-secret-key",
+    "change-me",
+    "change-this-in-production",
+    "teamdynamics-secret-key-change-in-production",
+}
+
+
+def _is_production() -> bool:
+    env = (
+        os.getenv("ENVIRONMENT")
+        or os.getenv("APP_ENV")
+        or os.getenv("RAILWAY_ENVIRONMENT")
+        or os.getenv("VERCEL_ENV")
+        or ""
+    ).lower()
+    return env in {"production", "prod"}
+
+
+def _load_secret_key() -> str:
+    configured = os.getenv("JWT_SECRET_KEY", "").strip()
+    if configured and configured.lower() not in _PLACEHOLDER_SECRETS and len(configured) >= 32:
+        return configured
+
+    if _is_production():
+        raise RuntimeError(
+            "JWT_SECRET_KEY must be set to a strong random value of at least 32 characters in production."
+        )
+
+    return "dev-only-" + secrets.token_urlsafe(48)
+
+
+SECRET_KEY = _load_secret_key()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 

@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 load_dotenv()
 
@@ -71,6 +71,21 @@ logger = logging.getLogger(__name__)
 
 DB_MAX_RETRIES = int(os.getenv("DB_MAX_RETRIES", "5"))
 DB_RETRY_DELAY = int(os.getenv("DB_RETRY_DELAY", "3"))
+
+
+def _is_production_env() -> bool:
+    env = (
+        os.getenv("ENVIRONMENT")
+        or os.getenv("APP_ENV")
+        or os.getenv("RAILWAY_ENVIRONMENT")
+        or os.getenv("VERCEL_ENV")
+        or ""
+    ).lower()
+    return env in {"production", "prod"}
+
+
+def _https_enforced() -> bool:
+    return os.getenv("FORCE_HTTPS", "").lower() in {"1", "true", "yes"} or _is_production_env()
 
 
 @asynccontextmanager
@@ -165,10 +180,10 @@ async def budget_exceeded_handler(request: Request, exc: BudgetExceededError):
 
 # CORS — tightened to only methods/headers the frontend actually uses
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-allowed_origins = list(set(
-    [origin.strip() for origin in frontend_url.split(",")]
-    + ["http://localhost:3000", "http://127.0.0.1:3000"]
-))
+allowed_origins = [origin.strip() for origin in frontend_url.split(",") if origin.strip()]
+if not _is_production_env():
+    allowed_origins += ["http://localhost:3000", "http://127.0.0.1:3000"]
+allowed_origins = list(set(allowed_origins))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -182,6 +197,23 @@ app.add_middleware(
         "X-Requested-With",
     ],
 )
+
+
+@app.middleware("http")
+async def https_enforcement_middleware(request: Request, call_next):
+    """Redirect HTTP to HTTPS and set HSTS in production/proxy deployments."""
+    host = request.headers.get("host", "")
+    is_local = host.startswith(("localhost", "127.0.0.1", "0.0.0.0"))
+    forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    forwarded_proto = forwarded_proto.split(",")[0].strip()
+
+    if _https_enforced() and not is_local and forwarded_proto == "http":
+        return RedirectResponse(str(request.url.replace(scheme="https")), status_code=308)
+
+    response = await call_next(request)
+    if _https_enforced() and not is_local:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    return response
 
 
 # ── Sentry User Context Middleware ────────────────────────────────────
@@ -242,4 +274,6 @@ async def debug_sentry():
     """Test endpoint to verify Sentry integration.
     Raises a deliberate exception — should appear in your Sentry dashboard.
     Remove or protect this endpoint in production."""
+    if os.getenv("SENTRY_DEBUG_ENDPOINT_ENABLED", "").lower() not in {"1", "true", "yes"}:
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
     raise RuntimeError("Sentry test: this error was triggered intentionally via /debug-sentry")

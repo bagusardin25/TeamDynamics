@@ -184,19 +184,32 @@ Create a `.env` file inside `/backend` based on `.env.example`:
 LLM_PROVIDER=openai                    # openai | gemini | openrouter
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini              # optional, default model
+OPENAI_CHEAP_MODEL=gpt-4o-mini        # used during traffic/cost spikes
 GEMINI_API_KEY=AI...
 GEMINI_MODEL=gemini-2.0-flash         # optional, default model
+GEMINI_CHEAP_MODEL=gemini-2.0-flash
 OPENROUTER_API_KEY=sk-or-...
 OPENROUTER_DEFAULT_MODEL=meta-llama/llama-3.1-8b-instruct:free
+OPENROUTER_CHEAP_MODEL=meta-llama/llama-3.1-8b-instruct:free
+LLM_DAILY_BUDGET_USD=5.00
+LLM_FALLBACK_ENABLED=true
+LLM_FALLBACK_BUDGET_THRESHOLD_PCT=80
+LLM_TRAFFIC_SPIKE_ACTIVE_CALLS=10
 
 # ─── Server ───
 HOST=0.0.0.0
 PORT=8000
 FRONTEND_URL=https://teamdynamics.vercel.app
+ENVIRONMENT=production
+FORCE_HTTPS=true
 
 # ─── Authentication ───
-JWT_SECRET_KEY=your-secret-key         # change this in production
+JWT_SECRET_KEY=<output-of-openssl-rand-hex-32>
 ADMIN_EMAIL=admin@example.com          # gets unlimited credits
+
+# Error Tracking
+SENTRY_DSN=https://...
+SENTRY_ENVIRONMENT=production
 
 # ─── Database ───
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/teamdynamics
@@ -206,7 +219,18 @@ GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
-> **Note:** `DATABASE_URL` must point to a PostgreSQL database in local and production environments.
+Frontend analytics is optional. Set these in the frontend deployment when using PostHog:
+
+```env
+NEXT_PUBLIC_POSTHOG_KEY=phc_...
+NEXT_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+```
+
+> **Note:** `DATABASE_URL` must point to a PostgreSQL database in local and production environments. In production, `JWT_SECRET_KEY` must be a strong random value with at least 32 characters or the backend will refuse to start.
+
+### Production Monitoring
+
+Configure an external uptime monitor such as UptimeRobot or Better Stack to check `GET /health` every 1-5 minutes. Alert on non-2xx responses and latency spikes. Sentry covers application errors, while PostHog covers product analytics.
 
 ---
 
@@ -285,7 +309,6 @@ TeamDynamics/
 | `POST` | `/api/simulation/{id}/intervene` | Send God-Mode intervention |
 | `GET` | `/api/simulation/{id}/report` | Generate executive report |
 | `POST` | `/api/simulation/generate-crisis` | AI-generate a crisis scenario |
-| `GET` | `/api/simulation/demo/report` | Demo report (no auth required) |
 
 ### Other
 

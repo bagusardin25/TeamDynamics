@@ -7,7 +7,9 @@ import uuid
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from data.presets import PRESET_AGENTS
+from models.schemas import AgentConfig
 from routers.auth import require_auth, TokenData
+from services.input_sanitizer import sanitize_text
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -22,7 +24,7 @@ async def get_preset_agents():
 
 class SaveTemplateRequest(BaseModel):
     name: str
-    agents: list[dict]
+    agents: list[AgentConfig]
 
 
 class RenameTemplateRequest(BaseModel):
@@ -37,7 +39,8 @@ async def save_template(
     """Save the current agent roster as a named template."""
     from models.database import save_team_template
 
-    if not request.name.strip():
+    template_name = sanitize_text(request.name, max_length=100)
+    if not template_name:
         raise HTTPException(status_code=400, detail="Template name is required")
     if not request.agents or len(request.agents) == 0:
         raise HTTPException(status_code=400, detail="At least one agent is required")
@@ -45,18 +48,18 @@ async def save_template(
         raise HTTPException(status_code=400, detail="Maximum 8 agents per template")
 
     template_id = f"tmpl-{uuid.uuid4().hex[:12]}"
-    agents_json = json.dumps(request.agents)
+    agents_json = json.dumps([agent.model_dump(by_alias=True) for agent in request.agents])
 
     await save_team_template(
         template_id=template_id,
         user_id=current_user.user_id,
-        name=request.name.strip(),
+        name=template_name,
         agents_json=agents_json,
     )
 
     return {
         "id": template_id,
-        "name": request.name.strip(),
+        "name": template_name,
         "agent_count": len(request.agents),
     }
 
@@ -116,14 +119,15 @@ async def rename_template(
     """Rename a template."""
     from models.database import update_template_name
 
-    if not request.name.strip():
+    template_name = sanitize_text(request.name, max_length=100)
+    if not template_name:
         raise HTTPException(status_code=400, detail="Name is required")
 
-    success = await update_template_name(template_id, current_user.user_id, request.name.strip())
+    success = await update_template_name(template_id, current_user.user_id, template_name)
     if not success:
         raise HTTPException(status_code=404, detail="Template not found")
 
-    return {"id": template_id, "name": request.name.strip()}
+    return {"id": template_id, "name": template_name}
 
 
 @router.delete("/templates/{template_id}")

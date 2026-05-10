@@ -78,6 +78,9 @@ class LLMBudgetTracker:
 
     def __init__(self):
         self._daily_cap = float(os.getenv("LLM_DAILY_BUDGET_USD", "5.00"))
+        self._fallback_threshold_pct = float(os.getenv("LLM_FALLBACK_BUDGET_THRESHOLD_PCT", "80"))
+        self._traffic_spike_active_calls = int(os.getenv("LLM_TRAFFIC_SPIKE_ACTIVE_CALLS", "10"))
+        self._active_calls = 0
         self._today: DailyUsage | None = None
         self._history: list[dict] = []   # Last 30 days summary
         logger.info(
@@ -121,6 +124,31 @@ class LLMBudgetTracker:
         if today.estimated_cost_usd >= self._daily_cap:
             today.calls_blocked += 1
             raise BudgetExceededError(self._daily_cap, today.estimated_cost_usd)
+
+    def begin_call(self) -> None:
+        """Track in-flight LLM calls for traffic-spike fallback decisions."""
+        self._active_calls += 1
+
+    def end_call(self) -> None:
+        """Release an in-flight LLM call counter."""
+        self._active_calls = max(0, self._active_calls - 1)
+
+    @property
+    def active_calls(self) -> int:
+        return self._active_calls
+
+    def should_use_fallback_model(self) -> bool:
+        """Return True when cost pressure or concurrent traffic should use cheaper models."""
+        if os.getenv("LLM_FALLBACK_ENABLED", "true").lower() not in {"1", "true", "yes"}:
+            return False
+
+        today = self._get_today()
+        budget_pressure = (
+            self._daily_cap > 0
+            and today.estimated_cost_usd >= self._daily_cap * (self._fallback_threshold_pct / 100)
+        )
+        traffic_spike = self._active_calls >= self._traffic_spike_active_calls
+        return budget_pressure or traffic_spike
 
     def log_usage(
         self,
@@ -190,6 +218,11 @@ class LLMBudgetTracker:
         return {
             "daily_cap_usd": self._daily_cap,
             "cap_enabled": self._daily_cap > 0,
+            "fallback_enabled": os.getenv("LLM_FALLBACK_ENABLED", "true").lower() in {"1", "true", "yes"},
+            "fallback_threshold_pct": self._fallback_threshold_pct,
+            "traffic_spike_active_calls": self._traffic_spike_active_calls,
+            "active_calls": self._active_calls,
+            "using_fallback_model": self.should_use_fallback_model(),
             "today": today,
             "history": list(self._history),  # Last 30 days
         }

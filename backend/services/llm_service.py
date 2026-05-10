@@ -20,6 +20,17 @@ from services.llm_budget import budget_tracker, BudgetExceededError
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
 
+
+def _cheap_model_for_provider(provider: str) -> str | None:
+    """Configured lower-cost model used during cost pressure or traffic spikes."""
+    if provider == "openai":
+        return os.getenv("OPENAI_CHEAP_MODEL", "gpt-4o-mini")
+    if provider == "gemini":
+        return os.getenv("GEMINI_CHEAP_MODEL", "gemini-2.0-flash")
+    if provider == "openrouter":
+        return os.getenv("OPENROUTER_CHEAP_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+    return None
+
 # ── Provider / Model resolution ───────────────────────────────────────
 
 def _resolve_provider_and_model(agent_model: str | None) -> tuple[str, str | None]:
@@ -439,20 +450,50 @@ async def _dispatch_llm_call(
     # Budget gate — blocks if daily cap exceeded
     budget_tracker.check_budget()
 
-    if provider == "gemini":
-        result, usage = await _call_gemini(system_prompt, user_prompt, model, temperature, max_tokens)
-    elif provider == "openrouter":
-        result, usage = await _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
-    else:
-        result, usage = await _call_openai(system_prompt, user_prompt, model, temperature, max_tokens)
+    resolved_model = model
+    if resolved_model is None and budget_tracker.should_use_fallback_model():
+        resolved_model = _cheap_model_for_provider(provider)
+        if resolved_model:
+            logger.warning(
+                "LLM fallback model active for provider=%s model=%s active_calls=%s",
+                provider,
+                resolved_model,
+                budget_tracker.active_calls,
+            )
 
-    # Log usage for tracking
-    budget_tracker.log_usage(
-        provider=usage["provider"],
-        model=usage["model"],
-        tokens_in=usage["tokens_in"],
-        tokens_out=usage["tokens_out"],
-    )
+    budget_tracker.begin_call()
+    try:
+        try:
+            if provider == "gemini":
+                result, usage = await _call_gemini(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
+            elif provider == "openrouter":
+                result, usage = await _call_openrouter(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
+            else:
+                result, usage = await _call_openai(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
+        except BudgetExceededError:
+            raise
+        except Exception:
+            cheap_model = _cheap_model_for_provider(provider)
+            if not cheap_model or cheap_model == resolved_model:
+                raise
+
+            logger.warning("Primary LLM call failed; retrying provider=%s with cheap_model=%s", provider, cheap_model)
+            if provider == "gemini":
+                result, usage = await _call_gemini(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
+            elif provider == "openrouter":
+                result, usage = await _call_openrouter(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
+            else:
+                result, usage = await _call_openai(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
+
+        # Log usage for tracking
+        budget_tracker.log_usage(
+            provider=usage["provider"],
+            model=usage["model"],
+            tokens_in=usage["tokens_in"],
+            tokens_out=usage["tokens_out"],
+        )
+    finally:
+        budget_tracker.end_call()
 
     return result
 
