@@ -163,16 +163,24 @@ async def budget_exceeded_handler(request: Request, exc: BudgetExceededError):
         },
     )
 
-# CORS — allow the Next.js frontend (supports comma-separated origins for production)
+# CORS — tightened to only methods/headers the frontend actually uses
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-allowed_origins = [origin.strip() for origin in frontend_url.split(",")]
-allowed_origins.extend(["http://localhost:3000", "http://127.0.0.1:3000"])
+allowed_origins = list(set(
+    [origin.strip() for origin in frontend_url.split(",")]
+    + ["http://localhost:3000", "http://127.0.0.1:3000"]
+))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Accept",
+        "Origin",
+        "X-Requested-With",
+    ],
 )
 
 
