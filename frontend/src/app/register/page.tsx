@@ -160,6 +160,18 @@ export default function RegisterPage() {
               )}
               {isLoading ? "Creating account..." : "Create Account"}
             </Button>
+
+            {/* Legal consent */}
+            <p className="text-[11px] text-muted-foreground/70 text-center leading-relaxed">
+              By creating an account, you agree to our{" "}
+              <Link href="/terms" className="text-primary hover:underline underline-offset-2">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-primary hover:underline underline-offset-2">
+                Privacy Policy
+              </Link>.
+            </p>
           </form>
 
           {/* Login link */}
