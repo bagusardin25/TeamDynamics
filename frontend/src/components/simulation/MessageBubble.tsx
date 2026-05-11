@@ -62,9 +62,6 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
           
           <div className="flex flex-col gap-4 relative z-10">
              <div className="flex items-center gap-4 border-b border-amber-500/20 pb-4">
-               <div className="p-3.5 rounded-2xl bg-amber-500/20 shrink-0 shadow-inner ring-1 ring-amber-500/30">
-                 <Award className="w-8 h-8 text-amber-500 drop-shadow-sm" />
-               </div>
                <div>
                   <h3 className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-2">
                     Simulation Outcome
@@ -108,10 +105,7 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
           className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border border-emerald-500/30 p-4 shadow-sm my-3 flex items-start gap-4"
         >
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />
-          <div className="p-2 rounded-xl bg-emerald-500/20 shrink-0">
-             <Target className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="pt-0.5">
+          <div className="pt-0.5 px-2">
             <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1">Team Decision</h4>
             <div className="leading-relaxed font-medium text-foreground/90">{msg.content.replace("TEAM DECISION REACHED:", "").trim()}</div>
           </div>
@@ -127,12 +121,9 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
         className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20 p-4 shadow-sm my-3 flex items-start gap-4 hover:shadow-md transition-shadow"
       >
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/80" />
-        <div className="p-2 rounded-xl bg-indigo-500/10 shrink-0 shadow-inner">
-           <Zap className="w-5 h-5 text-indigo-500" />
-        </div>
-        <div className="pt-0.5 flex-1 text-sm">
-          <h4 className="text-xs font-bold text-indigo-500/80 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-            <Sparkles className="w-3 h-3" /> System Update
+        <div className="pt-0.5 px-2 flex-1 text-sm">
+          <h4 className="text-xs font-bold text-indigo-500/80 uppercase tracking-widest mb-1.5">
+            System Update
           </h4>
           <div className="leading-relaxed font-medium text-foreground/80">{msg.content}</div>
         </div>
@@ -172,15 +163,6 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-sm truncate">{msg.agent || msg.agent_name}</span>
-          <Button 
-             variant="ghost" 
-             size="icon" 
-             className="h-5 w-5 ml-1 bg-transparent hover:bg-primary/20 text-muted-foreground hover:text-primary rounded-full transition-colors"
-             onClick={() => playVoice(msg.content, msg.changes?.stress || msg.state_changes?.stress || 0)}
-             title="Listen In"
-          >
-             <Volume2 className="h-3 w-3" />
-          </Button>
         </div>
         <motion.div
           initial={{ opacity: 0, x: -8, y: 5 }}
@@ -200,7 +182,6 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
               className="mt-4 pt-4 border-t border-border/50 space-y-3 overflow-hidden"
             >
               <div className="flex gap-2.5 text-xs text-muted-foreground items-start bg-secondary/40 p-3 rounded-xl border border-border/30">
-                <Brain className="w-4 h-4 mt-0.5 shrink-0 text-primary/60" />
                 <span className="italic leading-relaxed flex-1">&quot;{msg.thought}&quot;</span>
               </div>
               
@@ -215,14 +196,12 @@ export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) 
                   return (
                     <div className="flex flex-wrap gap-2 pt-1">
                       {mDelta !== 0 && (
-                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${mDelta > 0 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400'}`}>
-                          {mDelta > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${mDelta > 0 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 border-rose-500/20'}`}>
                           <span>Morale {mDelta > 0 ? '+' : ''}{mDelta}</span>
                         </div>
                       )}
                       {sDelta !== 0 && (
-                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${sDelta > 0 ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400' : 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400'}`}>
-                          {sDelta > 0 ? <Activity className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${sDelta > 0 ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' : 'bg-blue-500/10 text-blue-600 border-blue-500/20'}`}>
                           <span>Stress {sDelta > 0 ? '+' : ''}{sDelta}</span>
                         </div>
                       )}

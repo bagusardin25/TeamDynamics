@@ -78,13 +78,6 @@ export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSi
                   )}
 
                   <div className="relative shrink-0">
-                    {isTyping && (
-                      <motion.div
-                        className="absolute -inset-1 rounded-full bg-primary/20"
-                        animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0, 0.4] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                      />
-                    )}
                     <Avatar className="h-10 w-10 border border-border relative bg-card">
                       <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
                         {agent.initials}
@@ -117,21 +110,21 @@ export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSi
                         animate={{ opacity: 1, height: "auto" }}
                         className="flex items-center gap-1.5"
                       >
-                        <div className="flex gap-0.5">
+                        <div className="flex gap-1 items-center">
                           <motion.span
                             className="w-1 h-1 bg-primary rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 0.8, repeat: Infinity }}
+                            animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+                            transition={{ duration: 1, repeat: Infinity, delay: 0 }}
                           />
                           <motion.span
                             className="w-1 h-1 bg-primary rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
+                            animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+                            transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
                           />
                           <motion.span
                             className="w-1 h-1 bg-primary rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }}
+                            animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+                            transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
                           />
                         </div>
                         <span className="text-[10px] text-primary font-medium">Thinking...</span>

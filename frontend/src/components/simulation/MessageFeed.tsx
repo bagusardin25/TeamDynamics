@@ -233,9 +233,9 @@ export function MessageFeed({
                 </div>
               )}
               <motion.div
-                initial={{ opacity: 0, y: 12, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 layout={false}
                 className="flex gap-4 group w-full overflow-hidden"
               >
@@ -253,72 +253,53 @@ export function MessageFeed({
         <AnimatePresence>
           {isTyping && status !== "completed" && (
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-              className="flex gap-4"
+              exit={{ opacity: 0, y: -5, scale: 0.98 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              className="flex gap-4 w-full"
             >
-              {/* Avatar placeholder with pulse */}
               <div className="relative shrink-0">
-                <motion.div
-                  className="absolute -inset-1 rounded-full bg-primary/20"
-                  animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-                <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center relative">
-                  <span className="text-primary text-xs font-bold">
+                <div className="h-9 w-9 mt-1 rounded-full bg-primary/5 border border-primary/20 flex items-center justify-center">
+                  <span className="text-primary/70 text-xs font-bold">
                     {typingAgent ? typingAgent.substring(0, 2).toUpperCase() : "AI"}
                   </span>
                 </div>
               </div>
 
-              {/* Typing card with shimmer */}
               <div className="flex-1 min-w-0 space-y-1.5">
-                <motion.div
-                  key={typingAgent || "generic"}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-sm font-semibold text-muted-foreground"
-                >
-                  {typingAgent || "Agent"}
-                </motion.div>
-                <div className="relative overflow-hidden bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm max-w-xs">
-                  {/* Shimmer overlay */}
-                  <div className="absolute inset-0 shimmer-effect" />
-
-                  <div className="flex items-center gap-2 relative z-10">
-                    {/* Bouncing dots */}
-                    <div className="flex gap-1 items-center">
-                      <motion.span
-                        className="w-2 h-2 bg-primary/60 rounded-full"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1 }}
-                      />
-                      <motion.span
-                        className="w-2 h-2 bg-primary/60 rounded-full"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1, delay: 0.15 }}
-                      />
-                      <motion.span
-                        className="w-2 h-2 bg-primary/60 rounded-full"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1, delay: 0.3 }}
-                      />
-                    </div>
-                    {/* Rotating phrase */}
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={phraseIndex}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-xs text-muted-foreground italic"
-                      >
-                        {THINKING_PHRASES[phraseIndex]}
-                      </motion.span>
-                    </AnimatePresence>
+                <div className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                  <span>{typingAgent || "Agent"}</span>
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={phraseIndex}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="text-xs font-normal italic opacity-60"
+                    >
+                      {THINKING_PHRASES[phraseIndex]}
+                    </motion.span>
+                  </AnimatePresence>
+                </div>
+                <div className="bg-card/50 border border-border/40 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm inline-block min-w-[80px]">
+                  <div className="flex gap-1.5 items-center justify-center h-full pt-1">
+                    <motion.span
+                      className="w-1.5 h-1.5 bg-primary/60 rounded-full"
+                      animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0 }}
+                    />
+                    <motion.span
+                      className="w-1.5 h-1.5 bg-primary/60 rounded-full"
+                      animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
+                    />
+                    <motion.span
+                      className="w-1.5 h-1.5 bg-primary/60 rounded-full"
+                      animate={{ opacity: [0.3, 1, 0.3], scale: [0.9, 1.1, 0.9] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
+                    />
                   </div>
                 </div>
               </div>

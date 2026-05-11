@@ -39,7 +39,6 @@ function MetricCard({
     <Card className="bg-background/40 border-border/50 shadow-sm">
       <CardHeader className="py-3 px-4 flex flex-row items-center justify-between border-b border-border/20">
         <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-          <Icon className={`w-3 h-3 ${color}`} />
           {label}
         </CardTitle>
         {delta !== null && delta !== undefined && (
@@ -109,7 +108,7 @@ export function MetricsDashboard({
     <aside className="w-[300px] border-l border-border bg-card/20 shrink-0 hidden lg:flex flex-col overflow-hidden">
       <div className="flex items-center justify-between p-4 pb-2 shrink-0">
         <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Activity className="w-4 h-4 text-primary" /> Metrics
+          Metrics
         </h2>
         <Badge variant="secondary" className="text-[10px]">
           W{currentRound}
@@ -121,7 +120,7 @@ export function MetricsDashboard({
         <Card className="bg-background/40 border-border/50 shadow-sm overflow-visible my-4">
           <CardHeader className="py-3 px-4 border-b border-border/20 bg-secondary/20">
             <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <Heart className="w-3.5 h-3.5" /> Team Vitality
+              Team Vitality
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-6 pb-10 flex items-center justify-around gap-2">
@@ -147,9 +146,6 @@ export function MetricsDashboard({
         {metrics.resignations > 0 && (
           <Card className="bg-red-500/5 border-red-500/20 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                <Users className="w-5 h-5 text-red-500" />
-              </div>
               <div>
                 <div className="text-xs text-muted-foreground font-medium">Resignations</div>
                 <div className="text-2xl font-bold text-red-500">{metrics.resignations}</div>
@@ -180,38 +176,35 @@ export function MetricsDashboard({
         {/* World State */}
         {worldState && (
           <Card className="bg-background/40 border-border/50 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-              <Target className="w-24 h-24" />
-            </div>
             <CardHeader className="py-3 px-4 border-b border-border/20 bg-secondary/20">
               <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                🌍 Project State
+                Project State
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" /> Budget</span>
+                  <span className="text-muted-foreground">Budget</span>
                   <span className={`font-semibold ${worldState.budgetRemaining < 30 ? "text-red-500" : "text-foreground"}`}>{worldState.budgetRemaining}%</span>
                 </div>
                 <Progress value={worldState.budgetRemaining} className="h-1.5" />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground flex items-center gap-1"><Star className="w-3 h-3" /> Reputation</span>
+                  <span className="text-muted-foreground">Reputation</span>
                   <span className={`font-semibold ${worldState.companyReputation < 30 ? "text-red-500" : "text-foreground"}`}>{worldState.companyReputation}%</span>
                 </div>
                 <Progress value={worldState.companyReputation} className="h-1.5" />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> Customer Sat.</span>
+                  <span className="text-muted-foreground">Customer Sat.</span>
                   <span className="font-semibold">{worldState.customerSatisfaction}%</span>
                 </div>
                 <Progress value={worldState.customerSatisfaction} className="h-1.5" />
               </div>
               <div className="flex items-center justify-between text-xs pt-1 border-t border-border/20">
-                <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Deadline</span>
+                <span className="text-muted-foreground">Deadline</span>
                 <span className={`font-semibold ${worldState.deadlineWeeksLeft <= 2 ? "text-red-500" : "text-foreground"}`}>
                   {worldState.deadlineWeeksLeft}w left
                 </span>
@@ -231,7 +224,7 @@ export function MetricsDashboard({
           <Card className="bg-background/40 border-border/50 shadow-sm">
             <CardHeader className="py-3 px-4 border-b border-border/20">
               <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <MessageSquare className="w-3 h-3" /> Decision Progress
+                Decision Progress
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-2">
@@ -266,8 +259,7 @@ export function MetricsDashboard({
                 </p>
               )}
               {decisionStatus.resignThreats > 0 && (
-                <div className="flex items-center gap-1.5 text-xs text-orange-400 pt-1">
-                  <AlertTriangle className="w-3 h-3" />
+                <div className="flex items-center gap-1.5 text-xs text-orange-400 pt-1 font-medium">
                   {decisionStatus.resignThreats} resign threat{decisionStatus.resignThreats > 1 ? "s" : ""}
                 </div>
               )}
@@ -280,7 +272,7 @@ export function MetricsDashboard({
           <Card className="bg-background/40 border-border/50 shadow-sm">
             <CardHeader className="py-3 px-4 border-b border-border/20">
               <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Users className="w-3 h-3" /> Agent Status
+                Agent Status
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 space-y-2">

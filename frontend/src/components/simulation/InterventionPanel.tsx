@@ -85,7 +85,6 @@ export function InterventionPanel({ status, onIntervene, metrics, worldState }: 
                           onClick={() => onIntervene(s.id)}
                           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onIntervene(s.id); }}
                         >
-                          <Icon className={`w-3 h-3 mr-1.5 ${s.color}`} />
                           {s.label}
                         </span>
                       </TooltipTrigger>
@@ -101,14 +100,12 @@ export function InterventionPanel({ status, onIntervene, metrics, worldState }: 
           <CardContent className="p-0">
             <div className="flex items-center">
               <div className="flex items-center gap-2 pl-4 pr-3 py-3 border-r border-border/50 bg-secondary/30 shrink-0">
-                <Terminal className="w-4 h-4 text-primary" />
                 <Badge variant="secondary" className="bg-primary/20 text-primary hover:bg-primary/20 text-[10px] uppercase tracking-widest font-bold">
                   God Mode
                 </Badge>
               </div>
 
-              <div className="flex-1 relative flex items-center bg-black/5 dark:bg-black/20">
-                <ChevronRight className="w-4 h-4 text-primary/50 ml-3 shrink-0" />
+              <div className="flex-1 relative flex items-center bg-black/5 dark:bg-black/20 px-2">
                 <Input
                   placeholder="Execute override command... (e.g. 'Cancel weekend work', 'Hire consultant')"
                   className="bg-transparent border-0 focus-visible:ring-0 shadow-none font-mono text-[13px] placeholder:text-muted-foreground/60 h-12 rounded-none px-3 text-primary"
