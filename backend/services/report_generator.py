@@ -12,18 +12,71 @@ from models.agent import compute_initial_state
 logger = logging.getLogger(__name__)
 
 
-def _classify_agent(agent: AgentFullState) -> tuple[str, str]:
-    """Classify an agent's final status for the report."""
+def _count_burnouts(messages: list[dict]) -> dict[str, dict]:
+    """Scan persisted messages for burnout events and return per-agent counts.
+
+    A message qualifies as a burnout event when its content matches the canonical
+    marker emitted by ``check_critical_events`` ("hit critical burnout").
+
+    Returns a mapping of ``agent_id`` → ``{"count": int, "weeks": list[int]}``.
+    """
+    out: dict[str, dict] = {}
+    for m in messages or []:
+        content = (m.get("content") or "").lower()
+        if "critical burnout" not in content:
+            continue
+        agent_id = m.get("agent_id")
+        if not agent_id:
+            continue
+        bucket = out.setdefault(agent_id, {"count": 0, "weeks": []})
+        bucket["count"] += 1
+        rnd = m.get("round")
+        if isinstance(rnd, int) and rnd not in bucket["weeks"]:
+            bucket["weeks"].append(rnd)
+    return out
+
+
+def _classify_agent(agent: AgentFullState, burnout_count: int = 0) -> tuple[str, str]:
+    """Classify an agent's final status for the report.
+
+    Burnout history is now factored in: an agent who burned out repeatedly
+    is NOT "Thriving" or "Stable" even if their final morale recovered.
+    This is the fix for the burnout-pipeline data-flow gap where burnout
+    events were silently dropped between the engine and the report.
+    """
+    # Resignation is always Failed regardless of burnout history.
     if agent.has_resigned:
         return "Failed", f"Resigned • Week {agent.resigned_week}"
-    elif agent.state.morale < 30:
+
+    # Repeat burnout (≥2) is a hard failure of recovery — never classify
+    # as Thriving/Stable even if morale ended in the green.
+    if burnout_count >= 2:
+        weeks_label = (
+            f" (burned out {burnout_count}× — last in stretch)"
+            if burnout_count >= 3 else f" (burned out {burnout_count}×)"
+        )
+        return "Burned Out", f"Survived but Burned Out{weeks_label}"
+
+    if agent.state.morale < 30:
+        # Low morale + a single burnout event = Critical, not just "Critical morale"
+        if burnout_count >= 1:
+            return "Critical", (
+                f"Survived (Critically Low Morale: {agent.state.morale}% • Burned out 1×)"
+            )
         return "Critical", f"Survived (Critically Low Morale: {agent.state.morale}%)"
-    elif agent.state.morale < 50:
-        return "Stressed", f"Survived (Under Pressure)"
-    elif agent.state.morale >= 70:
+
+    if agent.state.morale < 50:
+        if burnout_count >= 1:
+            return "Stressed", "Survived (Under Pressure • Burned out 1×)"
+        return "Stressed", "Survived (Under Pressure)"
+
+    # ≥50 morale path — but a single burnout still downgrades from Thriving.
+    if burnout_count >= 1:
+        return "Stressed", "Survived (Recovered after burnout)"
+
+    if agent.state.morale >= 70:
         return "Thriving", "Thriving"
-    else:
-        return "Stable", "Survived"
+    return "Stable", "Survived"
 
 
 async def generate_report(sim_state: dict) -> ReportResponse:
@@ -50,8 +103,22 @@ async def generate_report(sim_state: dict) -> ReportResponse:
                 peak_stress_map[agent_id] + stress_delta
             )
 
+    # ── Burnout history per agent (scanned from system messages) ──
+    # This closes the data-flow gap: burnout events emitted by the engine
+    # are now preserved through to the report's classification step.
+    burnout_map = _count_burnouts(messages)
+    if burnout_map:
+        logger.info(
+            "Report: detected burnout events for %d agents in sim %s",
+            len(burnout_map), sim_state.get("id", "?"),
+        )
+
     for agent in agents:
-        status, status_label = _classify_agent(agent)
+        burnout_info = burnout_map.get(agent.id, {"count": 0, "weeks": []})
+        burnout_count = burnout_info["count"]
+        burnout_weeks = sorted(burnout_info["weeks"])
+
+        status, status_label = _classify_agent(agent, burnout_count=burnout_count)
 
         starting_morale = 70  # approximate, from initial computation
         peak_stress = min(100, peak_stress_map.get(agent.id, agent.state.stress))
@@ -67,6 +134,8 @@ async def generate_report(sim_state: dict) -> ReportResponse:
             resigned_week=agent.resigned_week,
             status=status,
             status_label=status_label,
+            burnout_count=burnout_count,
+            burnout_weeks=burnout_weeks,
         ))
 
     # Compute productivity drop

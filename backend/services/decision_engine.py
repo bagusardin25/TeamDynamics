@@ -406,11 +406,19 @@ def determine_outcome(
     total_rounds: int,
     current_round: int,
     world: WorldState | None = None,
+    agent_burnouts: dict[str, int] | None = None,
 ) -> SimulationOutcome:
     """
     Determine the simulation outcome based on final agent states AND world state.
+
+    ``agent_burnouts`` maps ``agent.id`` → number of burnout events that agent
+    suffered during the simulation. When provided, it is used to reject the
+    "Team Triumph" outcome for simulations where individual collapses are
+    hidden behind a healthy team-wide average.
     """
     tracker = get_tracker(sim_id)
+
+    burnouts = agent_burnouts or {}
 
     active_agents = [a for a in agents if not a.has_resigned]
     resigned_count = sum(1 for a in agents if a.has_resigned)
@@ -434,6 +442,57 @@ def determine_outcome(
             and world.company_reputation > 25
         )
 
+    # ── Per-agent casualty signals (Fix #3: nuanced outcome scoring) ──
+    # The classic "Team Triumph" gate looked only at average morale. That
+    # masks scenarios where one critical role (e.g. Tech Lead at 18% morale
+    # with 3 burnouts) is silently sacrificed while the average looks fine.
+    # We now compute three explicit casualty signals and use them to refuse
+    # promoting such simulations to "Triumph".
+    morale_values = [a.state.morale for a in active_agents]
+    min_morale = min(morale_values) if morale_values else 0
+
+    # A senior collapse is any role with influence ≥ 1.5 (Senior, Lead,
+    # Manager, VP, etc.) whose final morale is below 35%. These roles
+    # carry critical knowledge and authority — losing them invalidates a
+    # "Triumph" even if the team averaged fine.
+    senior_collapse = False
+    senior_collapse_detail: str | None = None
+    for a in active_agents:
+        if get_role_influence(a.role) >= 1.5 and a.state.morale < 35:
+            senior_collapse = True
+            senior_collapse_detail = (
+                f"{a.name} ({a.role}) ended at {a.state.morale}% morale"
+            )
+            break
+
+    # Repeat burnout (≥2 events for the same person) means the simulation
+    # broke them more than once. Even if their morale recovered, this is
+    # not a triumphant outcome.
+    repeat_burnout = False
+    repeat_burnout_detail: str | None = None
+    for a in agents:
+        bc = burnouts.get(a.id, 0)
+        if bc >= 2:
+            repeat_burnout = True
+            repeat_burnout_detail = f"{a.name} ({a.role}) burned out {bc}× during the simulation"
+            break
+
+    # Min-morale gate: if anyone on the team finished below 30% morale,
+    # the team did NOT "hold strong"; promote at most to a settlement.
+    min_morale_gate = min_morale < 30
+
+    triumph_blocked = senior_collapse or repeat_burnout or min_morale_gate
+    if triumph_blocked:
+        reason = (
+            senior_collapse_detail
+            or repeat_burnout_detail
+            or f"weakest member ended at {min_morale}% morale"
+        )
+        logger.info(
+            "Outcome: Triumph blocked for sim %s — %s (avg_morale=%.1f, resigned=%d)",
+            sim_id, reason, avg_morale, resigned_count,
+        )
+
     # Team fracture: >50% resigned or avg morale < 20
     if resigned_count > total_agents / 2 or avg_morale < 20:
         return OUTCOMES["team_fracture"]
@@ -442,16 +501,34 @@ def determine_outcome(
     if not has_proposals and current_round >= total_rounds:
         return OUTCOMES["stalemate"]
 
-    # Team triumph: high morale, no resignations, decision, healthy world
-    if avg_morale > 55 and resigned_count == 0 and has_decision and world_healthy:
+    # Team triumph: high morale, no resignations, decision, healthy world,
+    # AND no hidden casualties (senior collapse / repeat burnout / min-morale gate).
+    if (
+        avg_morale > 55
+        and resigned_count == 0
+        and has_decision
+        and world_healthy
+        and not triumph_blocked
+    ):
         return OUTCOMES["team_triumph"]
+
+    # If Triumph was blocked specifically by individual casualties (not by
+    # missing decision or unhealthy world), demote to a more honest label:
+    # Pyrrhic Victory when there are real costs (senior collapse / repeat
+    # burnout), Negotiated Settlement when only the min-morale gate tripped.
+    if triumph_blocked and avg_morale > 55 and has_decision and world_healthy:
+        if senior_collapse or repeat_burnout:
+            return OUTCOMES["pyrrhic_victory"]
+        return OUTCOMES["negotiated_settlement"]
 
     # Negotiated settlement: decision reached, acceptable state
     if has_decision and avg_morale > 35:
         return OUTCOMES["negotiated_settlement"]
 
     # Pyrrhic victory: some resolution but with casualties or world damage
-    if (has_decision or has_proposals) and (resigned_count > 0 or not world_healthy):
+    if (has_decision or has_proposals) and (
+        resigned_count > 0 or not world_healthy or senior_collapse or repeat_burnout
+    ):
         return OUTCOMES["pyrrhic_victory"]
 
     # Default fallbacks

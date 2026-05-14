@@ -194,6 +194,7 @@ def _build_agent_system_prompt(
     hierarchy_desc: str = "",
     hidden_agenda: str = "",
     action_consequences: str = "",
+    discussed_topics: str = "",
 ) -> str:
     """Build the system prompt for an agent with full personality voice and memory."""
     personality = agent.get("personality", {})
@@ -207,6 +208,7 @@ def _build_agent_system_prompt(
     decision_context = _truncate_for_prompt(decision_context, 600, "decision_context")
     action_consequences = _truncate_for_prompt(action_consequences, 600, "action_consequences")
     world_state_text = _truncate_for_prompt(world_state_text, 800, "world_state_text")
+    discussed_topics = _truncate_for_prompt(discussed_topics, 900, "discussed_topics")
 
     # Build optional sections
     motivation_section = f"\nYOUR MOTIVATION: {motivation}" if motivation else ""
@@ -264,6 +266,21 @@ NEVER state your hidden agenda in your public_message. It should only show in in
     if action_consequences:
         consequences_section = f"\nRECENT ACTION CONSEQUENCES (actions have REAL impact):\n{action_consequences}\nLearn from these — if previous actions backfired, adapt your strategy."
 
+    # ── Discussed topics (Prompt Evolution) ───────────────────────
+    # This block is the primary anti-repetition signal. It tells the agent
+    # exactly what the team has already covered in previous weeks so the
+    # LLM can advance the discussion instead of rehashing old ground.
+    discussed_section = ""
+    if discussed_topics:
+        discussed_section = (
+            "\nTOPICS ALREADY COVERED IN PREVIOUS WEEKS (do NOT rehash these — "
+            "the team has moved past them; build on or contradict them with NEW angles):\n"
+            f"{discussed_topics}\n"
+            "If you find yourself about to repeat a point already made, STOP and pivot: "
+            "raise a NEW concern, propose a NEW angle, ask about EXECUTION/CONSEQUENCES "
+            "of past proposals, or reference what changed since that topic was raised."
+        )
+
     # Dynamic state_changes range based on personality
     stress_tol = personality.get("stressTolerance", personality.get("stress_tolerance", 50))
     empathy_val = personality.get("empathy", 50)
@@ -302,6 +319,7 @@ CRISIS: {crisis}
 {agenda_section}
 {decision_section}
 {consequences_section}
+{discussed_section}
 
 RULES:
 1. Your personality numbers DIRECTLY control your speech style. Follow your COMMUNICATION DNA above exactly.
@@ -319,6 +337,7 @@ RULES:
 13. NEVER break character. NEVER sound like an AI. Each agent must sound COMPLETELY DIFFERENT from the others.
 14. Reference your expertise when relevant.
 15. Keep public_message to 1-3 sentences.
+16. DO NOT REPEAT WEEK-OVER-WEEK. Treat the "TOPICS ALREADY COVERED" list as off-limits for surface rehashing — instead reference them by name and ADD a new angle, escalation, or status update.
 
 Respond ONLY with valid JSON in this exact format:
 {{
@@ -708,11 +727,13 @@ async def generate_agent_response(
     hierarchy_desc: str = "",
     hidden_agenda: str = "",
     action_consequences: str = "",
+    discussed_topics: str = "",
 ) -> dict:
     """
     Generate an agent's response using the configured LLM provider.
     Supports per-agent model override via agent['model'].
-    Now includes memory, agenda, world state, hierarchy, hidden agendas, and consequences.
+    Now includes memory, agenda, world state, hierarchy, hidden agendas, consequences,
+    and the discussed-topics ledger (Prompt Evolution: prevents week-over-week rehashing).
     Returns dict with public_message, internal_thought, state_changes, memory_update, action.
 
     Special keys in the returned dict:
@@ -728,6 +749,7 @@ async def generate_agent_response(
         hierarchy_desc=hierarchy_desc,
         hidden_agenda=hidden_agenda,
         action_consequences=action_consequences,
+        discussed_topics=discussed_topics,
     )
     user_prompt = _build_round_user_prompt(
         round_num, total_rounds, conversation_history, intervention

@@ -57,6 +57,14 @@ _world_states: dict[str, WorldState] = {}
 # In-memory metrics history per simulation (for timeline charts)
 _metrics_history: dict[str, list[dict]] = {}
 
+# In-memory discussed-topic ledger per simulation (Prompt Evolution).
+# Each entry: {"round": int, "summary": str}. Capped to last MAX_TOPIC_ROUNDS rounds.
+# This is intentionally process-local (best-effort): if a worker restarts the
+# ledger rebuilds within a few rounds from agent memory_update + new proposals.
+_topic_logs: dict[str, list[dict]] = {}
+MAX_TOPIC_ROUNDS = 8
+MAX_TOPIC_SUMMARY_CHARS = 280
+
 
 async def create_simulation(request: CreateSimulationRequest, user_id: str | None = None) -> str:
     """Create a new simulation and return its ID."""
@@ -439,6 +447,95 @@ async def _broadcast_typing_stop(sim_id: str, agent_id: str | None = None):
         connections.remove(ws)
 
 
+# ── Topic Ledger (Prompt Evolution) ───────────────────────────────────
+
+def _condense_phrase(text: str, max_chars: int = 90) -> str:
+    """Strip whitespace, collapse newlines, and cap a free-form phrase."""
+    if not text:
+        return ""
+    cleaned = " ".join(text.split())
+    if len(cleaned) > max_chars:
+        cleaned = cleaned[:max_chars].rstrip() + "…"
+    return cleaned
+
+
+def _record_round_topics(
+    sim_id: str,
+    round_num: int,
+    agent_memory_updates: list[str],
+    new_proposal_summaries: list[str],
+) -> None:
+    """Record a one-line summary of what the team covered this round.
+
+    Combines per-agent memory_update + new proposals into a compact digest
+    that future rounds can use to avoid rehashing the same ground.
+    """
+    if not agent_memory_updates and not new_proposal_summaries:
+        return
+
+    parts: list[str] = []
+    if new_proposal_summaries:
+        proposal_text = "; ".join(
+            _condense_phrase(p, 80) for p in new_proposal_summaries[:3] if p
+        )
+        if proposal_text:
+            parts.append(f"proposals: {proposal_text}")
+    if agent_memory_updates:
+        # Cap to first 4 agent takeaways to keep the line short.
+        memory_text = "; ".join(
+            _condense_phrase(m, 70) for m in agent_memory_updates[:4] if m
+        )
+        if memory_text:
+            parts.append(f"takeaways: {memory_text}")
+
+    if not parts:
+        return
+
+    summary = " | ".join(parts)
+    if len(summary) > MAX_TOPIC_SUMMARY_CHARS:
+        summary = summary[:MAX_TOPIC_SUMMARY_CHARS].rstrip() + "…"
+
+    log = _topic_logs.setdefault(sim_id, [])
+    log.append({"round": round_num, "summary": summary})
+    # Keep only the most recent N rounds to bound prompt size.
+    if len(log) > MAX_TOPIC_ROUNDS:
+        del log[: len(log) - MAX_TOPIC_ROUNDS]
+
+
+def _get_discussed_topics_text(sim_id: str) -> str:
+    """Render the topic ledger as a multi-line string for prompt injection.
+
+    Returns "" when the ledger is empty (e.g. round 1 or fresh worker)."""
+    log = _topic_logs.get(sim_id) or []
+    if not log:
+        return ""
+    return "\n".join(f"- Week {entry['round']}: {entry['summary']}" for entry in log)
+
+
+def _count_burnouts_per_agent(messages: list[dict]) -> dict[str, dict]:
+    """Scan persisted messages for burnout events and return per-agent counts.
+
+    A message qualifies as a burnout event when its content matches the
+    canonical burnout marker emitted by ``check_critical_events`` in
+    ``models/agent.py`` ("hit critical burnout"). Returns a mapping of
+    ``agent_id`` → ``{"count": int, "weeks": list[int]}``.
+    """
+    out: dict[str, dict] = {}
+    for m in messages or []:
+        content = (m.get("content") or "").lower()
+        if "critical burnout" not in content:
+            continue
+        agent_id = m.get("agent_id")
+        if not agent_id:
+            continue
+        bucket = out.setdefault(agent_id, {"count": 0, "weeks": []})
+        bucket["count"] += 1
+        rnd = m.get("round")
+        if isinstance(rnd, int) and rnd not in bucket["weeks"]:
+            bucket["weeks"].append(rnd)
+    return out
+
+
 async def _broadcast_system_event(sim_id: str, current_round: int, content: str,
                                    ws_broadcast=None, save_to_db: bool = True) -> dict:
     """Persist + broadcast a system message and return the message dict."""
@@ -622,6 +719,14 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     # ── Each agent responds ───────────────────────────────────────
     budget_alert_announced = False  # Only show the budget-exhaustion banner once per round
 
+    # Render the discussed-topics ledger ONCE for this round so every agent
+    # sees the same "what we already covered" view (built from prior rounds).
+    discussed_topics_text = _get_discussed_topics_text(sim_id)
+
+    # Collect this round's takeaways for the topic ledger
+    round_memory_updates: list[str] = []
+    round_new_proposals: list[str] = []
+
     for agent in state["agents"]:
         if agent.has_resigned:
             continue
@@ -684,6 +789,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
                 hierarchy_desc=get_hierarchy_description(agent.role),
                 hidden_agenda=get_hidden_agenda(agent.id),
                 action_consequences=action_consequences,
+                discussed_topics=discussed_topics_text,
             )
 
             # Stop typing indicator now that we have a response (or fallback)
@@ -751,6 +857,16 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
                 sim_id, current_round, agent_display_name, agent.role,
                 action, action_detail, world=world,
             )
+
+            # ── Capture topic-ledger inputs ───────────────────────────
+            # The agent's memory_update is their own one-line takeaway for the
+            # week. Combined across agents it tells us what topics were covered.
+            if memory_update:
+                round_memory_updates.append(memory_update)
+            # New proposals are explicit topics the team will likely revisit;
+            # surfacing them prevents the next round from "rediscovering" them.
+            if action == "propose_solution" and action_detail:
+                round_new_proposals.append(action_detail)
 
             # ── Save public message ───────────────────────────────────
             changes_dict = {
@@ -866,6 +982,11 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     if len(state["messages"]) > MAX_IN_MEMORY_MESSAGES:
         state["messages"] = state["messages"][-MAX_IN_MEMORY_MESSAGES:]
 
+    # ── Update topic ledger (Prompt Evolution) ────────────────────
+    # Record a one-line digest of this round's takeaways + new proposals so
+    # future rounds can see "topics already covered" and avoid rehashing.
+    _record_round_topics(sim_id, current_round, round_memory_updates, round_new_proposals)
+
     # Record metrics snapshot for this round
     record_metrics_snapshot(sim_id, current_round, state["agents"])
 
@@ -880,7 +1001,14 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         state["status"] = SimulationStatus.COMPLETED
         await update_simulation_status(sim_id, "completed", current_round)
 
-        outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round, world)
+        # Build per-agent burnout counts from message log so the outcome
+        # decision can refuse "Team Triumph" when individuals collapsed.
+        burnout_info = _count_burnouts_per_agent(state["messages"])
+        agent_burnouts = {aid: info["count"] for aid, info in burnout_info.items()}
+        outcome = determine_outcome(
+            sim_id, state["agents"], state["total_rounds"], current_round, world,
+            agent_burnouts=agent_burnouts,
+        )
         outcome_msg = build_outcome_message(outcome, world)
 
         end_msg = await _broadcast_system_event(
@@ -896,6 +1024,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         cleanup_tracker(sim_id)
         cleanup_events(sim_id)
         _world_states.pop(sim_id, None)
+        _topic_logs.pop(sim_id, None)
         return new_messages
 
     # Check if simulation reached final round
@@ -904,7 +1033,14 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         await update_simulation_status(sim_id, "completed", current_round)
 
         # ── Determine and broadcast outcome ───────────────────────
-        outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round, world)
+        # Build per-agent burnout counts from message log so the outcome
+        # decision can refuse "Team Triumph" when individuals collapsed.
+        burnout_info = _count_burnouts_per_agent(state["messages"])
+        agent_burnouts = {aid: info["count"] for aid, info in burnout_info.items()}
+        outcome = determine_outcome(
+            sim_id, state["agents"], state["total_rounds"], current_round, world,
+            agent_burnouts=agent_burnouts,
+        )
         outcome_msg = build_outcome_message(outcome, world)
 
         end_msg = await _broadcast_system_event(
@@ -919,6 +1055,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         cleanup_tracker(sim_id)
         cleanup_events(sim_id)
         _world_states.pop(sim_id, None)
+        _topic_logs.pop(sim_id, None)
 
     return new_messages
 

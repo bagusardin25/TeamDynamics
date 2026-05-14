@@ -226,8 +226,10 @@ class AgentReport(BaseModel):
     peak_stress: int
     has_resigned: bool
     resigned_week: Optional[int] = None
-    status: str  # "Failed", "Stable", "Thriving"
+    status: str  # "Failed", "Stable", "Thriving", "Critical", "Stressed", "Burned Out"
     status_label: str  # "Resigned • Week 9", "Survived", etc.
+    burnout_count: int = 0  # Number of burnout events triggered during the simulation
+    burnout_weeks: list[int] = []  # Weeks (round numbers) when burnouts occurred
 
 
 class ReportResponse(BaseModel):
