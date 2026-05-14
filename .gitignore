@@ -1,3 +1,4 @@
 *.md
 !**/README.md
+!**/perbaikan.md
 !testsprite_tests/**/*.md

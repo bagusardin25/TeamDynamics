@@ -67,6 +67,19 @@ async def create_simulation(request: CreateSimulationRequest, user_id: str | Non
     if not crisis_desc and crisis_scenario in CRISIS_SCENARIOS:
         crisis_desc = CRISIS_SCENARIOS[crisis_scenario]["description"]
 
+    # Single source of truth for the roster: whatever the request brought.
+    # We do NOT merge with presets, prior simulations, or a default roster.
+    logger.info(
+        "🆕 create_simulation sim_id=%s user=%s company=%r crisis=%s rounds=%d agents_received=%d",
+        sim_id, user_id, request.company.name, crisis_scenario,
+        request.params.duration_weeks, len(request.agents),
+    )
+    for i, agent_config in enumerate(request.agents):
+        logger.debug(
+            "  • agent[%d] id=%s name=%s role=%s type=%s",
+            i, agent_config.id, agent_config.name, agent_config.role, agent_config.type,
+        )
+
     # Save to DB
     await save_simulation(
         sim_id=sim_id,

@@ -129,6 +129,9 @@ export default function SetupPage() {
       suggested_agents: { name: string; role: string; type: string; rationale: string; personality: AgentPersonality }[];
       suggested_team_rules: string[];
       actionable_insights: string[];
+      roster_complete?: boolean;
+      roster_stats?: { total_received: number; accepted: number; dropped: number; incomplete_personalities: number };
+      roster_problems?: string[];
     };
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -301,7 +304,28 @@ export default function SetupPage() {
       }
       const data = await res.json();
       setDocAnalysis({ filename: data.filename, analysis: data.analysis });
-      toast.success("Document analyzed successfully!");
+
+      const a = data.analysis;
+      const rosterCount = (a.suggested_agents || []).length;
+      const rosterComplete = a.roster_complete !== false;
+      console.info("[setup] /document/analyze:", {
+        file: data.filename,
+        size: data.file_size,
+        text_chars: data.extracted_length,
+        roster_count: rosterCount,
+        roster_complete: rosterComplete,
+        roster_stats: a.roster_stats,
+      });
+
+      if (rosterCount === 0) {
+        toast.warning("Document analyzed, but no roster members were extracted.");
+      } else if (!rosterComplete) {
+        toast.warning(
+          `Document analyzed — ${rosterCount} member(s) extracted, but some are incomplete. Review before applying.`
+        );
+      } else {
+        toast.success(`Document analyzed — ${rosterCount} roster member(s) extracted.`);
+      }
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || "Document analysis failed.");
@@ -313,6 +337,82 @@ export default function SetupPage() {
   const applyDocSuggestions = () => {
     if (!docAnalysis) return;
     const a = docAnalysis.analysis;
+
+    // ── Validate the analysis BEFORE applying ────────────────────────
+    const rawAgents = a.suggested_agents || [];
+    if (rawAgents.length === 0) {
+      toast.error(
+        "The document didn't yield any roster members. Try a different document or build the roster manually."
+      );
+      return;
+    }
+
+    const personalityKeys: (keyof AgentPersonality)[] = [
+      "empathy",
+      "ambition",
+      "stressTolerance",
+      "agreeableness",
+      "assertiveness",
+    ];
+
+    const valid: typeof rawAgents = [];
+    const invalidNames: string[] = [];
+    rawAgents.forEach((sa, i) => {
+      const name = (sa.name || "").trim();
+      const role = (sa.role || "").trim();
+      const type = (sa.type || "").trim();
+      const personalityOk =
+        sa.personality &&
+        personalityKeys.every((k) => {
+          const v = (sa.personality as AgentPersonality)[k];
+          return typeof v === "number" && v >= 0 && v <= 100;
+        });
+      if (name && role && type && personalityOk) {
+        valid.push(sa);
+      } else {
+        invalidNames.push(name || `entry #${i + 1}`);
+      }
+    });
+
+    if (valid.length === 0) {
+      toast.error(
+        "Every extracted member is incomplete (missing name, role, type, or personality). Please retry the upload."
+      );
+      return;
+    }
+    if (invalidNames.length > 0) {
+      toast.warning(
+        `Skipped ${invalidNames.length} incomplete member(s): ${invalidNames
+          .slice(0, 3)
+          .join(", ")}${invalidNames.length > 3 ? "…" : ""}`
+      );
+    }
+    if (a.roster_complete === false) {
+      toast.warning(
+        "AI flagged this roster as incomplete — review the members before launching."
+      );
+    }
+
+    // ── Build the new roster from the document — REPLACE, not merge ──
+    const docRoster: PresetAgent[] = valid.map((sa, i) => ({
+      id: `ai-suggested-${Date.now()}-${i}`,
+      name: sa.name.trim(),
+      role: sa.role.trim(),
+      type: sa.type.trim(),
+      color: AGENT_COLORS[i % AGENT_COLORS.length].value,
+      personality: { ...sa.personality },
+    }));
+
+    let truncatedNote = "";
+    let appliedRoster = docRoster;
+    if (docRoster.length > MAX_ROSTER_SIZE) {
+      const overflow = docRoster
+        .slice(MAX_ROSTER_SIZE)
+        .map((a) => a.name)
+        .join(", ");
+      appliedRoster = docRoster.slice(0, MAX_ROSTER_SIZE);
+      truncatedNote = ` Capped at ${MAX_ROSTER_SIZE} (overflow: ${overflow}).`;
+    }
 
     // Auto-fill company info
     const applied: string[] = [];
@@ -332,29 +432,23 @@ export default function SetupPage() {
       applied.push("Crisis Scenario");
     }
 
-    // Auto-add suggested agents to roster
-    if (a.suggested_agents && a.suggested_agents.length > 0) {
-      const newAgents: PresetAgent[] = a.suggested_agents
-        .filter((_, i) => selectedAgents.length + i < MAX_ROSTER_SIZE)
-        .map((sa, i) => ({
-          id: `ai-suggested-${Date.now()}-${i}`,
-          name: sa.name || `Agent ${i + 1}`,
-          role: sa.role,
-          type: sa.type,
-          color: AGENT_COLORS[(selectedAgents.length + i) % AGENT_COLORS.length].value,
-          personality: sa.personality || { ...DEFAULT_PERSONALITY },
-        }));
-      if (newAgents.length > 0) {
-        setSelectedAgents((prev) => [...prev, ...newAgents]);
-        applied.push(`${newAgents.length} AI Agents`);
-      }
-    }
+    // REPLACE the roster (single source of truth = the document)
+    setSelectedAgents(appliedRoster);
+    applied.push(`Roster (${appliedRoster.length} agents, replaced)`);
 
-    if (applied.length > 0) {
-      toast.success(`Applied: ${applied.join(", ")}`);
-    } else {
-      toast.info("No suggestions to apply from this document.");
-    }
+    // Debug log so it's easy to verify what actually got applied
+    // eslint-disable-next-line no-console
+    console.info("[setup] applyDocSuggestions:", {
+      file: docAnalysis.filename,
+      received: rawAgents.length,
+      valid: valid.length,
+      applied: appliedRoster.length,
+      truncated: docRoster.length > MAX_ROSTER_SIZE,
+      roster_complete: a.roster_complete,
+      roster_stats: a.roster_stats,
+    });
+
+    toast.success(`Applied: ${applied.join(", ")}.${truncatedNote}`);
   };
 
   const addSuggestedAgent = (sa: { name: string; role: string; type: string; rationale: string; personality: AgentPersonality }, index: number) => {
@@ -730,6 +824,37 @@ export default function SetupPage() {
                                 <CheckCircle2 className="w-4 h-4 text-green-500" />
                                 <span className="text-sm font-semibold">Analysis: {docAnalysis.filename}</span>
                               </div>
+
+                              {/* Roster extraction status banner */}
+                              {(() => {
+                                const stats = docAnalysis.analysis.roster_stats;
+                                const complete = docAnalysis.analysis.roster_complete;
+                                const accepted = docAnalysis.analysis.suggested_agents.length;
+                                if (complete === undefined && !stats) return null;
+                                if (complete) {
+                                  return (
+                                    <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-2 text-[11px] text-green-400 flex items-center gap-2">
+                                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                      <span>Extracted {accepted} complete roster member{accepted === 1 ? "" : "s"}.</span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <div className="rounded-lg bg-orange-500/10 border border-orange-500/20 p-2 text-[11px] text-orange-400 space-y-1">
+                                    <div className="flex items-center gap-2">
+                                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                      <span className="font-semibold">Roster extraction incomplete</span>
+                                    </div>
+                                    {stats && (
+                                      <div className="text-orange-300/80 pl-5">
+                                        Received {stats.total_received}, accepted {stats.accepted}
+                                        {stats.dropped > 0 ? `, dropped ${stats.dropped}` : ""}
+                                        {stats.incomplete_personalities > 0 ? `, ${stats.incomplete_personalities} had incomplete personalities` : ""}.
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
 
                               {/* Detected Company Info */}
                               {(docAnalysis.analysis.company_name || docAnalysis.analysis.company_culture) && (
