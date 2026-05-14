@@ -119,6 +119,10 @@ export function useSimulationSocket(
         } else if (payload.type === "typing_start") {
           setIsTyping(true);
           setTypingAgent(payload.agent_name || null);
+        } else if (payload.type === "typing_stop") {
+          // Clear the per-agent label; keep generic "thinking" indicator
+          // until the next message arrives, so users see continuity.
+          setTypingAgent(null);
         } else if (payload.type === "message") {
           const msg = payload.data;
           const normalizedMsg: SimMessage = {

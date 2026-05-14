@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import asyncio
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -167,6 +168,21 @@ def _build_personality_voice(personality: dict, agent_type: str) -> str:
 
 # ── Prompt Builders ───────────────────────────────────────────────────
 
+def _truncate_for_prompt(text: str | None, max_chars: int, label: str = "") -> str:
+    """Soft cap on free-form context fields. Prevents late-round prompt bloat
+    that causes rate-limit / JSON truncation on lower-cost models.
+    """
+    if not text:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    if label:
+        logger.debug(
+            "Truncating %s from %d to %d chars in agent prompt", label, len(text), max_chars
+        )
+    return text[:max_chars].rstrip() + "…"
+
+
 def _build_agent_system_prompt(
     agent: dict,
     company: dict,
@@ -184,6 +200,13 @@ def _build_agent_system_prompt(
     state = agent.get("state", {})
     motivation = agent.get("motivation", "")
     expertise = agent.get("expertise", "")
+
+    # Hard caps on free-form context blocks. These accumulate over rounds and
+    # are the primary cause of late-round timeouts / JSON truncation.
+    memory = _truncate_for_prompt(memory, 800, "memory")
+    decision_context = _truncate_for_prompt(decision_context, 600, "decision_context")
+    action_consequences = _truncate_for_prompt(action_consequences, 600, "action_consequences")
+    world_state_text = _truncate_for_prompt(world_state_text, 800, "world_state_text")
 
     # Build optional sections
     motivation_section = f"\nYOUR MOTIVATION: {motivation}" if motivation else ""
@@ -318,11 +341,16 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
                              intervention: str | None = None) -> str:
     """Build the user prompt for a round."""
     history_text = ""
-    for msg in conversation_history[-20:]:  # Last 20 msgs for broader context
+    # Cap to last 8 messages and 180 chars per message to keep late-round
+    # prompts from ballooning (which causes free-tier rate-limit / truncation).
+    for msg in conversation_history[-8:]:
+        content = msg.get("content", "") or ""
+        if len(content) > 180:
+            content = content[:180].rstrip() + "…"
         if msg.get("type") == "system":
-            history_text += f"[SYSTEM] {msg['content']}\n"
+            history_text += f"[SYSTEM] {content}\n"
         elif msg.get("type") == "public":
-            history_text += f"{msg.get('agent_name', 'Unknown')}: {msg['content']}\n"
+            history_text += f"{msg.get('agent_name', 'Unknown')}: {content}\n"
 
     prompt = f"This is Week {round_num} of {total_rounds}.\n\n"
     if history_text:
@@ -335,11 +363,101 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
 
 # ── LLM Callers ───────────────────────────────────────────────────────
 
-async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
+# ── JSON parsing helpers ──────────────────────────────────────────────
+
+def _safe_json_parse(content: str | None) -> dict:
+    """Parse JSON from LLM output with light repair for common failure modes
+    (markdown fences, leading/trailing prose, truncated tail braces).
+
+    Raises ValueError if the content can't be salvaged into a dict.
+    """
+    if not content:
+        raise ValueError("Empty LLM response")
+
+    s = content.strip()
+
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    if s.startswith("```"):
+        # Drop the opening fence (with optional language tag)
+        s = s.split("\n", 1)[-1] if "\n" in s else s
+        if s.endswith("```"):
+            s = s[: -3]
+        s = s.strip()
+
+    # Fast path
+    try:
+        parsed = json.loads(s)
+        if isinstance(parsed, dict):
+            return parsed
+    except json.JSONDecodeError:
+        pass
+
+    # Try to slice out the first balanced JSON object
+    start = s.find("{")
+    if start == -1:
+        raise ValueError("No JSON object found in LLM response")
+
+    # Walk forward and find the last balanced closing brace we can manage
+    depth = 0
+    in_str = False
+    escape = False
+    last_close = -1
+    for i in range(start, len(s)):
+        c = s[i]
+        if escape:
+            escape = False
+            continue
+        if c == "\\" and in_str:
+            escape = True
+            continue
+        if c == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                last_close = i
+                break
+
+    if last_close != -1:
+        candidate = s[start:last_close + 1]
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    # Last-ditch: if response was truncated, try closing the open braces ourselves
+    open_count = s.count("{") - s.count("}")
+    if open_count > 0:
+        candidate = s[start:] + ("}" * open_count)
+        try:
+            parsed = json.loads(candidate)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError("Unable to parse LLM JSON response")
+
+
+# ── Provider call timeouts ────────────────────────────────────────────
+# Single source of truth so we can tune per-deployment.
+LLM_PRIMARY_TIMEOUT = float(os.getenv("LLM_PRIMARY_TIMEOUT_SECONDS", "30.0"))
+LLM_RETRY_TIMEOUT = float(os.getenv("LLM_RETRY_TIMEOUT_SECONDS", "20.0"))
+LLM_DEFAULT_MAX_TOKENS = int(os.getenv("LLM_DEFAULT_MAX_TOKENS", "800"))
+
+
+async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = LLM_DEFAULT_MAX_TOKENS) -> tuple[dict, dict]:
     """Call OpenAI API. Returns (result_dict, usage_info)."""
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=LLM_PRIMARY_TIMEOUT)
     resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
     response = await client.chat.completions.create(
@@ -361,10 +479,10 @@ async def _call_openai(system_prompt: str, user_prompt: str, model: str | None =
         "tokens_in": usage.prompt_tokens if usage else 0,
         "tokens_out": usage.completion_tokens if usage else 0,
     }
-    return json.loads(content), usage_info
+    return _safe_json_parse(content), usage_info
 
 
-async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
+async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = LLM_DEFAULT_MAX_TOKENS) -> tuple[dict, dict]:
     """Call Google Gemini API. Returns (result_dict, usage_info)."""
     from google import genai
 
@@ -389,10 +507,10 @@ async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None =
         "tokens_in": getattr(usage_meta, 'prompt_token_count', 0) if usage_meta else 0,
         "tokens_out": getattr(usage_meta, 'candidates_token_count', 0) if usage_meta else 0,
     }
-    return json.loads(response.text), usage_info
+    return _safe_json_parse(response.text), usage_info
 
 
-async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
+async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = LLM_DEFAULT_MAX_TOKENS) -> tuple[dict, dict]:
     """Call OpenRouter API (uses OpenAI-compatible SDK). Returns (result_dict, usage_info)."""
     from openai import AsyncOpenAI
 
@@ -406,6 +524,7 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
     client = AsyncOpenAI(
         api_key=api_key,
         base_url="https://openrouter.ai/api/v1",
+        timeout=LLM_PRIMARY_TIMEOUT,
         default_headers={
             "HTTP-Referer": os.getenv("FRONTEND_URL", "http://localhost:3000"),
             "X-Title": "TeamDynamics",
@@ -433,7 +552,7 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
         "tokens_in": usage.prompt_tokens if usage else 0,
         "tokens_out": usage.completion_tokens if usage else 0,
     }
-    return json.loads(content), usage_info
+    return _safe_json_parse(content), usage_info
 
 
 # ── Dispatch helper ───────────────────────────────────────────────────
@@ -444,7 +563,7 @@ async def _dispatch_llm_call(
     provider: str,
     model: str | None = None,
     temperature: float = 0.9,
-    max_tokens: int = 600,
+    max_tokens: int = LLM_DEFAULT_MAX_TOKENS,
 ) -> dict:
     """Route a call to the correct LLM provider with budget enforcement."""
     # Budget gate — blocks if daily cap exceeded
@@ -461,29 +580,46 @@ async def _dispatch_llm_call(
                 budget_tracker.active_calls,
             )
 
+    async def _invoke(target_model: str | None, timeout_seconds: float):
+        if provider == "gemini":
+            return await asyncio.wait_for(
+                _call_gemini(system_prompt, user_prompt, target_model, temperature, max_tokens),
+                timeout=timeout_seconds,
+            )
+        if provider == "openrouter":
+            return await asyncio.wait_for(
+                _call_openrouter(system_prompt, user_prompt, target_model, temperature, max_tokens),
+                timeout=timeout_seconds,
+            )
+        return await asyncio.wait_for(
+            _call_openai(system_prompt, user_prompt, target_model, temperature, max_tokens),
+            timeout=timeout_seconds,
+        )
+
     budget_tracker.begin_call()
     try:
         try:
-            if provider == "gemini":
-                result, usage = await _call_gemini(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
-            elif provider == "openrouter":
-                result, usage = await _call_openrouter(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
-            else:
-                result, usage = await _call_openai(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
+            result, usage = await _invoke(resolved_model, LLM_PRIMARY_TIMEOUT)
         except BudgetExceededError:
             raise
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            cheap_model = _cheap_model_for_provider(provider)
+            if not cheap_model or cheap_model == resolved_model:
+                raise
+            logger.warning(
+                "Primary LLM call timed out (%s); retrying provider=%s with cheap_model=%s",
+                type(e).__name__, provider, cheap_model,
+            )
+            result, usage = await _invoke(cheap_model, LLM_RETRY_TIMEOUT)
         except Exception:
             cheap_model = _cheap_model_for_provider(provider)
             if not cheap_model or cheap_model == resolved_model:
                 raise
-
-            logger.warning("Primary LLM call failed; retrying provider=%s with cheap_model=%s", provider, cheap_model)
-            if provider == "gemini":
-                result, usage = await _call_gemini(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
-            elif provider == "openrouter":
-                result, usage = await _call_openrouter(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
-            else:
-                result, usage = await _call_openai(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
+            logger.warning(
+                "Primary LLM call failed; retrying provider=%s with cheap_model=%s",
+                provider, cheap_model,
+            )
+            result, usage = await _invoke(cheap_model, LLM_RETRY_TIMEOUT)
 
         # Log usage for tracking
         budget_tracker.log_usage(
@@ -578,6 +714,10 @@ async def generate_agent_response(
     Supports per-agent model override via agent['model'].
     Now includes memory, agenda, world state, hierarchy, hidden agendas, and consequences.
     Returns dict with public_message, internal_thought, state_changes, memory_update, action.
+
+    Special keys in the returned dict:
+      _failure_reason: present when the response is a static fallback. One of:
+        "budget_exceeded", "llm_error".
     """
     system_prompt = _build_agent_system_prompt(
         agent, company, crisis_description,
@@ -617,6 +757,22 @@ async def generate_agent_response(
 
         return result
 
+    except BudgetExceededError as be:
+        # Surfaced distinctly so the engine can broadcast a clear system message
+        # rather than making every agent silently appear to "stay silent".
+        logger.warning(
+            f"Budget exceeded while generating response for {agent['name']}: {be}"
+        )
+        return {
+            "public_message": "*[silent — daily AI budget exhausted, simulation paused]*",
+            "internal_thought": "...",
+            "state_changes": {"morale": 0, "stress": 0, "loyalty": 0, "productivity": 0},
+            "memory_update": "",
+            "action": "do_nothing",
+            "action_detail": "",
+            "_failure_reason": "budget_exceeded",
+        }
+
     except Exception as e:
         logger.error(f"LLM call failed for {agent['name']} (provider={provider}): {e}")
 
@@ -631,7 +787,20 @@ async def generate_agent_response(
                 result.setdefault("memory_update", "")
                 result.setdefault("action", "do_nothing")
                 result.setdefault("action_detail", "")
-                return result
+                return _validate_agent_response(result, agent, agenda)
+            except BudgetExceededError as be:
+                logger.warning(
+                    f"Fallback path also blocked by budget for {agent['name']}: {be}"
+                )
+                return {
+                    "public_message": "*[silent — daily AI budget exhausted, simulation paused]*",
+                    "internal_thought": "...",
+                    "state_changes": {"morale": 0, "stress": 0, "loyalty": 0, "productivity": 0},
+                    "memory_update": "",
+                    "action": "do_nothing",
+                    "action_detail": "",
+                    "_failure_reason": "budget_exceeded",
+                }
             except Exception as fallback_err:
                 logger.error(f"Fallback also failed for {agent['name']}: {fallback_err}")
 
@@ -643,6 +812,7 @@ async def generate_agent_response(
             "memory_update": "Everything is falling apart and I can't even think straight.",
             "action": "do_nothing",
             "action_detail": "",
+            "_failure_reason": "llm_error",
         }
 
 

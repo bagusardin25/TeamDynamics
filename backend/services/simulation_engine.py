@@ -410,6 +410,54 @@ async def _broadcast_typing(sim_id: str, agent: AgentFullState, ws_broadcast):
         connections.remove(ws)
 
 
+async def _broadcast_typing_stop(sim_id: str, agent_id: str | None = None):
+    """Broadcast a typing-stop signal so the UI can clear the indicator
+    even when the upcoming message is just a fallback."""
+    from routers.websocket import _ws_connections
+    connections = _ws_connections.get(sim_id, [])
+    payload = {"type": "typing_stop", "agent_id": agent_id}
+    dead = []
+    for ws in connections:
+        try:
+            await ws.send_json(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        connections.remove(ws)
+
+
+async def _broadcast_system_event(sim_id: str, current_round: int, content: str,
+                                   ws_broadcast=None, save_to_db: bool = True) -> dict:
+    """Persist + broadcast a system message and return the message dict."""
+    msg_id = None
+    if save_to_db:
+        try:
+            msg_id = await save_message(
+                sim_id, current_round, None, None, "system",
+                content, timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to persist system message for {sim_id}: {e}")
+
+    msg = {
+        "id": msg_id,
+        "round": current_round,
+        "agent_id": None,
+        "agent_name": None,
+        "type": "system",
+        "content": content,
+        "thought": None,
+        "state_changes": None,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    if ws_broadcast:
+        try:
+            await ws_broadcast(sim_id, msg)
+        except Exception as e:
+            logger.debug(f"Broadcast failed for sim {sim_id}: {e}")
+    return msg
+
+
 async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     """
     Run a single simulation round. Each agent responds sequentially.
@@ -419,6 +467,21 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     state = await get_simulation_state(sim_id)
     if not state:
         raise ValueError(f"Simulation {sim_id} not found")
+
+    # Hard guard: don't advance an already-completed simulation.
+    existing_status = state.get("status")
+    status_value = existing_status.value if hasattr(existing_status, "value") else existing_status
+    if status_value == "completed":
+        logger.info(f"run_simulation_round called on completed sim {sim_id} — no-op")
+        return []
+    if state.get("current_round", 0) >= state.get("total_rounds", 0):
+        logger.info(f"run_simulation_round: sim {sim_id} already at final round — marking completed")
+        state["status"] = SimulationStatus.COMPLETED
+        try:
+            await update_simulation_status(sim_id, "completed", state.get("current_round", 0))
+        except Exception as e:
+            logger.warning(f"Failed to mark sim {sim_id} completed: {e}")
+        return []
 
     current_round = state["current_round"] + 1
     state["current_round"] = current_round
@@ -544,208 +607,251 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
                     )
 
     # ── Each agent responds ───────────────────────────────────────
+    budget_alert_announced = False  # Only show the budget-exhaustion banner once per round
+
     for agent in state["agents"]:
         if agent.has_resigned:
             continue
 
-        # Build agent dict for LLM
-        agent_dict = {
-            "name": agent.name,
-            "role": agent.role,
-            "type": agent.type,
-            "personality": agent.personality.model_dump(by_alias=True),
-            "state": agent.state.model_dump(),
-            "motivation": getattr(agent, "motivation", None) or "",
-            "expertise": getattr(agent, "expertise", None) or "",
-            "model": getattr(agent, "model", None),
-        }
-
-        # Broadcast typing indicator before LLM call
-        if ws_broadcast:
-            await _broadcast_typing(sim_id, agent, ws_broadcast)
-
-        # Build conversation history for context (expanded window for better coherence)
-        conv_history = [
-            {
-                "type": m.get("type", "public"),
-                "agent_name": m.get("agent_name", "System"),
-                "content": m.get("content", ""),
-            }
-            for m in state["messages"][-20:]
-        ]
-
-        # ── Fetch agent memory ────────────────────────────────────
-        try:
-            raw_memory = await get_agent_memory(sim_id, agent.id)
-            memory_list = json.loads(raw_memory) if raw_memory else []
-            # Format as readable text (last 8 memories for richer context)
-            memory_text = "\n".join(
-                f"- Week {m.get('round', '?')}: {m.get('memory', '')}"
-                for m in memory_list[-8:]
-            ) if memory_list else ""
-        except Exception:
-            memory_text = ""
-            memory_list = []
-
-        # ── Call LLM ──────────────────────────────────────────────
-        llm_response = await generate_agent_response(
-            agent=agent_dict,
-            company=company,
-            crisis_description=crisis,
-            round_num=current_round,
-            total_rounds=state["total_rounds"],
-            conversation_history=conv_history,
-            memory=memory_text,
-            agenda=agenda,
-            decision_context=decision_context,
-            world_state_text=world.to_prompt_text(),
-            hierarchy_desc=get_hierarchy_description(agent.role),
-            hidden_agenda=get_hidden_agenda(agent.id),
-            action_consequences=action_consequences,
-        )
-
-        # ── Extract data ──────────────────────────────────────────
-        public_msg = llm_response.get("public_message", "*stays silent*")
-        internal_thought = llm_response.get("internal_thought", "...")
-        raw_changes = llm_response.get("state_changes", {})
-        memory_update = llm_response.get("memory_update", "")
-        action = llm_response.get("action", "do_nothing")
-        action_detail = llm_response.get("action_detail", "")
-
-        state_changes = StateChanges(
-            morale=raw_changes.get("morale", 0),
-            stress=raw_changes.get("stress", 0),
-            loyalty=raw_changes.get("loyalty", 0),
-            productivity=raw_changes.get("productivity", 0),
-        )
-
-        # ── Apply state changes ───────────────────────────────────
-        apply_state_changes(agent, state_changes)
-
-        # ── Update DB agent state ─────────────────────────────────
-        await update_agent_state(
-            sim_id, agent.id,
-            agent.state.morale, agent.state.stress,
-            agent.state.loyalty, agent.state.productivity,
-            agent.has_resigned, agent.resigned_week,
-        )
-
-        # ── Save memory ──────────────────────────────────────────
-        if memory_update:
-            memory_list.append({
-                "round": current_round,
-                "memory": memory_update,
-            })
-            # Keep only last 8 memories to prevent unbounded growth
-            memory_list = memory_list[-8:]
-            try:
-                await update_agent_memory(sim_id, agent.id, json.dumps(memory_list))
-            except Exception as e:
-                logger.warning(f"Failed to save memory for {agent.name}: {e}")
-
-        # ── Process action through Decision Engine ────────────────
         agent_display_name = f"{agent.name} ({agent.role})"
-        decision_msg = process_agent_action(
-            sim_id, current_round, agent_display_name, agent.role,
-            action, action_detail, world=world,
-        )
 
-        # ── Save public message ───────────────────────────────────
-        changes_dict = {
-            "morale": state_changes.morale,
-            "stress": state_changes.stress,
-            "loyalty": state_changes.loyalty,
-            "productivity": state_changes.productivity,
-        }
-
-        msg_id = await save_message(
-            sim_id, current_round, agent.id, agent_display_name,
-            "public", public_msg, thought=internal_thought,
-            state_changes=changes_dict,
-            timestamp=datetime.now(timezone.utc).isoformat(),
-        )
-
-        agent_msg = {
-            "id": msg_id,
-            "round": current_round,
-            "agent_id": agent.id,
-            "agent_name": agent_display_name,
-            "type": "public",
-            "content": public_msg,
-            "thought": internal_thought,
-            "state_changes": changes_dict,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-        state["messages"].append(agent_msg)
-        new_messages.append(agent_msg)
-
-        if ws_broadcast:
-            await ws_broadcast(sim_id, agent_msg)
-
-        # ── Broadcast decision engine events ──────────────────────
-        if decision_msg:
-            dec_msg_id = await save_message(
-                sim_id, current_round, None, None, "system",
-                decision_msg, timestamp=datetime.now(timezone.utc).isoformat(),
-            )
-            dec_sys_msg = {
-                "id": dec_msg_id,
-                "round": current_round,
-                "agent_id": None,
-                "agent_name": None,
-                "type": "system",
-                "content": decision_msg,
-                "thought": None,
-                "state_changes": None,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+        try:
+            # Build agent dict for LLM
+            agent_dict = {
+                "name": agent.name,
+                "role": agent.role,
+                "type": agent.type,
+                "personality": agent.personality.model_dump(by_alias=True),
+                "state": agent.state.model_dump(),
+                "motivation": getattr(agent, "motivation", None) or "",
+                "expertise": getattr(agent, "expertise", None) or "",
+                "model": getattr(agent, "model", None),
             }
-            state["messages"].append(dec_sys_msg)
-            new_messages.append(dec_sys_msg)
+
+            # Broadcast typing indicator before LLM call
             if ws_broadcast:
-                await ws_broadcast(sim_id, dec_sys_msg)
+                await _broadcast_typing(sim_id, agent, ws_broadcast)
 
-            # Update decision context for next agent in this round
-            decision_context = tracker.get_decision_summary()
+            # Build conversation history for context (capped to keep prompts small)
+            conv_history = [
+                {
+                    "type": m.get("type", "public"),
+                    "agent_name": m.get("agent_name", "System"),
+                    "content": (m.get("content", "") or "")[:200],
+                }
+                for m in state["messages"][-10:]
+            ]
 
-        # ── Check for critical events ─────────────────────────────
-        critical = check_critical_events(agent, current_round)
-        if critical:
-            crit_msg_id = await save_message(
-                sim_id, current_round, agent.id, agent_display_name,
-                "system", critical,
-                timestamp=datetime.now(timezone.utc).isoformat(),
+            # ── Fetch agent memory ────────────────────────────────────
+            try:
+                raw_memory = await get_agent_memory(sim_id, agent.id)
+                memory_list = json.loads(raw_memory) if raw_memory else []
+                # Format as readable text (last 5 memories — capped to keep prompt small)
+                memory_text = "\n".join(
+                    f"- Week {m.get('round', '?')}: {m.get('memory', '')}"
+                    for m in memory_list[-5:]
+                ) if memory_list else ""
+            except Exception as e:
+                logger.debug(f"Memory fetch failed for {agent.name}: {e}")
+                memory_text = ""
+                memory_list = []
+
+            # ── Call LLM ──────────────────────────────────────────────
+            llm_response = await generate_agent_response(
+                agent=agent_dict,
+                company=company,
+                crisis_description=crisis,
+                round_num=current_round,
+                total_rounds=state["total_rounds"],
+                conversation_history=conv_history,
+                memory=memory_text,
+                agenda=agenda,
+                decision_context=decision_context,
+                world_state_text=world.to_prompt_text(),
+                hierarchy_desc=get_hierarchy_description(agent.role),
+                hidden_agenda=get_hidden_agenda(agent.id),
+                action_consequences=action_consequences,
             )
-            crit_msg = {
-                "id": crit_msg_id,
-                "round": current_round,
-                "agent_id": agent.id,
-                "agent_name": agent_display_name,
-                "type": "system",
-                "content": critical,
-                "thought": None,
-                "state_changes": None,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-            state["messages"].append(crit_msg)
-            new_messages.append(crit_msg)
 
+            # Stop typing indicator now that we have a response (or fallback)
             if ws_broadcast:
-                await ws_broadcast(sim_id, crit_msg)
+                await _broadcast_typing_stop(sim_id, agent.id)
 
-            # Update DB if resigned
-            if agent.has_resigned:
+            # ── If LLM service signaled budget exhaustion, broadcast once ─
+            failure_reason = llm_response.get("_failure_reason")
+            if failure_reason == "budget_exceeded" and not budget_alert_announced:
+                budget_alert_announced = True
+                banner = (
+                    "⏸️ Daily AI budget reached — agents will appear silent until "
+                    "the cap resets or is increased. Existing simulation state is preserved."
+                )
+                banner_msg = await _broadcast_system_event(
+                    sim_id, current_round, banner, ws_broadcast=ws_broadcast,
+                )
+                state["messages"].append(banner_msg)
+                new_messages.append(banner_msg)
+
+            # ── Extract data ──────────────────────────────────────────
+            public_msg = llm_response.get("public_message", "*stays silent*")
+            internal_thought = llm_response.get("internal_thought", "...")
+            raw_changes = llm_response.get("state_changes", {}) or {}
+            memory_update = llm_response.get("memory_update", "")
+            action = llm_response.get("action", "do_nothing")
+            action_detail = llm_response.get("action_detail", "")
+
+            state_changes = StateChanges(
+                morale=raw_changes.get("morale", 0),
+                stress=raw_changes.get("stress", 0),
+                loyalty=raw_changes.get("loyalty", 0),
+                productivity=raw_changes.get("productivity", 0),
+            )
+
+            # ── Apply state changes ───────────────────────────────────
+            apply_state_changes(agent, state_changes)
+
+            # ── Update DB agent state ─────────────────────────────────
+            try:
                 await update_agent_state(
                     sim_id, agent.id,
                     agent.state.morale, agent.state.stress,
                     agent.state.loyalty, agent.state.productivity,
-                    True, agent.resigned_week,
+                    agent.has_resigned, agent.resigned_week,
                 )
-                # Resignation affects world state
-                apply_resignation_to_world(world, len(state["agents"]))
+            except Exception as e:
+                logger.warning(f"DB update_agent_state failed for {agent.name}: {e}")
+
+            # ── Save memory ──────────────────────────────────────────
+            if memory_update:
+                memory_list.append({
+                    "round": current_round,
+                    "memory": memory_update[:150],  # Limit memory length
+                })
+                # Keep only last 5 memories to prevent unbounded growth
+                memory_list = memory_list[-5:]
+                try:
+                    await update_agent_memory(sim_id, agent.id, json.dumps(memory_list))
+                except Exception as e:
+                    logger.warning(f"Failed to save memory for {agent.name}: {e}")
+
+            # ── Process action through Decision Engine ────────────────
+            decision_msg = process_agent_action(
+                sim_id, current_round, agent_display_name, agent.role,
+                action, action_detail, world=world,
+            )
+
+            # ── Save public message ───────────────────────────────────
+            changes_dict = {
+                "morale": state_changes.morale,
+                "stress": state_changes.stress,
+                "loyalty": state_changes.loyalty,
+                "productivity": state_changes.productivity,
+            }
+
+            try:
+                msg_id = await save_message(
+                    sim_id, current_round, agent.id, agent_display_name,
+                    "public", public_msg, thought=internal_thought,
+                    state_changes=changes_dict,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
+            except Exception as e:
+                logger.warning(f"DB save_message failed for {agent.name}: {e}")
+                msg_id = None
+
+            agent_msg = {
+                "id": msg_id,
+                "round": current_round,
+                "agent_id": agent.id,
+                "agent_name": agent_display_name,
+                "type": "public",
+                "content": public_msg,
+                "thought": internal_thought,
+                "state_changes": changes_dict,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+            state["messages"].append(agent_msg)
+            new_messages.append(agent_msg)
+
+            if ws_broadcast:
+                try:
+                    await ws_broadcast(sim_id, agent_msg)
+                except Exception as e:
+                    logger.debug(f"Broadcast failed for agent message: {e}")
+
+            # ── Broadcast decision engine events ──────────────────────
+            if decision_msg:
+                dec_sys_msg = await _broadcast_system_event(
+                    sim_id, current_round, decision_msg, ws_broadcast=ws_broadcast,
+                )
+                state["messages"].append(dec_sys_msg)
+                new_messages.append(dec_sys_msg)
+                # Update decision context for next agent in this round
+                decision_context = tracker.get_decision_summary()
+
+            # ── Check for critical events ─────────────────────────────
+            critical = check_critical_events(agent, current_round)
+            if critical:
+                try:
+                    crit_msg_id = await save_message(
+                        sim_id, current_round, agent.id, agent_display_name,
+                        "system", critical,
+                        timestamp=datetime.now(timezone.utc).isoformat(),
+                    )
+                except Exception as e:
+                    logger.warning(f"DB save critical event failed: {e}")
+                    crit_msg_id = None
+
+                crit_msg = {
+                    "id": crit_msg_id,
+                    "round": current_round,
+                    "agent_id": agent.id,
+                    "agent_name": agent_display_name,
+                    "type": "system",
+                    "content": critical,
+                    "thought": None,
+                    "state_changes": None,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                state["messages"].append(crit_msg)
+                new_messages.append(crit_msg)
+
+                if ws_broadcast:
+                    try:
+                        await ws_broadcast(sim_id, crit_msg)
+                    except Exception:
+                        pass
+
+                # Update DB if resigned
+                if agent.has_resigned:
+                    try:
+                        await update_agent_state(
+                            sim_id, agent.id,
+                            agent.state.morale, agent.state.stress,
+                            agent.state.loyalty, agent.state.productivity,
+                            True, agent.resigned_week,
+                        )
+                    except Exception as e:
+                        logger.warning(f"DB resign update failed: {e}")
+                    # Resignation affects world state
+                    apply_resignation_to_world(world, len(state["agents"]))
+
+        except Exception as agent_err:
+            # One agent failing must not abort the entire round.
+            logger.exception(
+                f"Agent loop error for {agent_display_name} in sim {sim_id} round {current_round}: {agent_err}"
+            )
+            if ws_broadcast:
+                await _broadcast_typing_stop(sim_id, agent.id)
 
         # Pacing delay between agent responses
         pacing_delay = {"slow": 3.0, "normal": 1.5, "fast": 0.5}
         await asyncio.sleep(pacing_delay.get(state.get("pacing", "normal"), 1.5))
+
+    # Trim in-memory message list to prevent unbounded growth (DB has full history).
+    # Keeps Redis writes small and memory bounded across long simulations.
+    MAX_IN_MEMORY_MESSAGES = 80
+    if len(state["messages"]) > MAX_IN_MEMORY_MESSAGES:
+        state["messages"] = state["messages"][-MAX_IN_MEMORY_MESSAGES:]
 
     # Record metrics snapshot for this round
     record_metrics_snapshot(sim_id, current_round, state["agents"])
@@ -764,27 +870,18 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round, world)
         outcome_msg = build_outcome_message(outcome, world)
 
-        end_msg_id = await save_message(
-            sim_id, current_round, None, None, "system",
-            outcome_msg, timestamp=datetime.now(timezone.utc).isoformat(),
+        end_msg = await _broadcast_system_event(
+            sim_id, current_round, outcome_msg, ws_broadcast=ws_broadcast,
         )
-        end_msg = {
-            "id": end_msg_id, "round": current_round,
-            "agent_id": None, "agent_name": None,
-            "type": "system",
-            "content": outcome_msg,
-            "thought": None, "state_changes": None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
         state["messages"].append(end_msg)
         new_messages.append(end_msg)
-        if ws_broadcast:
-            await ws_broadcast(sim_id, end_msg)
+
+        # Persist final state BEFORE removing the in-memory tracker / events / world,
+        # so the DB/Redis snapshots reflect the true terminal values.
+        await _persist_round_state(sim_id)
 
         cleanup_tracker(sim_id)
         cleanup_events(sim_id)
-        # Final persist before cleanup of in-memory world state
-        await _persist_round_state(sim_id)
         _world_states.pop(sim_id, None)
         return new_messages
 
@@ -797,27 +894,17 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round, world)
         outcome_msg = build_outcome_message(outcome, world)
 
-        end_msg_id = await save_message(
-            sim_id, current_round, None, None, "system",
-            outcome_msg, timestamp=datetime.now(timezone.utc).isoformat(),
+        end_msg = await _broadcast_system_event(
+            sim_id, current_round, outcome_msg, ws_broadcast=ws_broadcast,
         )
-        end_msg = {
-            "id": end_msg_id, "round": current_round,
-            "agent_id": None, "agent_name": None,
-            "type": "system",
-            "content": outcome_msg,
-            "thought": None, "state_changes": None,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
         state["messages"].append(end_msg)
         new_messages.append(end_msg)
-        if ws_broadcast:
-            await ws_broadcast(sim_id, end_msg)
+
+        # Persist final state BEFORE removing the in-memory tracker / events / world.
+        await _persist_round_state(sim_id)
 
         cleanup_tracker(sim_id)
         cleanup_events(sim_id)
-        # Final persist before cleanup of in-memory world state
-        await _persist_round_state(sim_id)
         _world_states.pop(sim_id, None)
 
     return new_messages
@@ -864,13 +951,24 @@ async def process_intervention(sim_id: str, intervention_type: InterventionType,
     for agent in state["agents"]:
         if agent.has_resigned:
             continue
-        changes = apply_intervention(agent, intervention_type)
-        apply_state_changes(agent, changes)
-        await update_agent_state(
-            sim_id, agent.id,
-            agent.state.morale, agent.state.stress,
-            agent.state.loyalty, agent.state.productivity,
-        )
+        try:
+            changes = apply_intervention(agent, intervention_type)
+            apply_state_changes(agent, changes)
+            await update_agent_state(
+                sim_id, agent.id,
+                agent.state.morale, agent.state.stress,
+                agent.state.loyalty, agent.state.productivity,
+                agent.has_resigned, agent.resigned_week,
+            )
+        except Exception as e:
+            logger.warning(f"Intervention apply failed for {agent.name}: {e}")
+
+    # Sync updated state to Redis so other workers and reconnecting clients
+    # see the post-intervention values.
+    try:
+        await _sync_sim_to_redis(sim_id)
+    except Exception as e:
+        logger.debug(f"Redis sync after intervention failed for {sim_id}: {e}")
 
     return sys_msg
 
