@@ -4,14 +4,15 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 const poppins = Poppins({
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   subsets: ["latin"],
   variable: "--font-poppins",
 });
 
 export const metadata: Metadata = {
   title: "TeamDynamics | Startup Simulator",
-  description: "What happens when you push your team too hard? A multi-agent AI sandbox to explore office politics, morale, and productivity.",
+  description:
+    "What happens when you push your team too hard? A multi-agent AI sandbox to explore office politics, morale, and productivity.",
 };
 
 export default function RootLayout({
@@ -22,13 +23,10 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body
-        className={`${poppins.variable} antialiased min-h-screen bg-background text-foreground font-sans`}
+        className={`${poppins.variable} min-h-screen bg-background font-sans text-foreground antialiased`}
       >
-        <Providers>
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
-

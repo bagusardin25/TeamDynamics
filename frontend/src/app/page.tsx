@@ -1,339 +1,337 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle, Sun, Moon, LogIn } from "lucide-react";
-import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import {
+  Activity,
+  ArrowRight,
+  Bot,
+  FileText,
+  MessageSquare,
+  Shield,
+  SlidersHorizontal,
+  type LucideIcon,
+} from "lucide-react";
+
+import { InteractiveHero } from "@/components/landing/interactive-hero";
+import { LandingNav } from "@/components/landing/landing-nav";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-context";
+
+export const metadata: Metadata = {
+  title: "TeamDynamics — AI Team Scenario Simulator",
+  description:
+    "Stress-test team scenarios with configurable AI personas and review how morale, communication, and output respond under pressure.",
+};
+
+const workflowSteps: Array<{
+  number: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}> = [
+  {
+    number: "01",
+    icon: SlidersHorizontal,
+    title: "Configure the scenario",
+    description:
+      "Set the team roles, operating context, and crisis you want to rehearse.",
+  },
+  {
+    number: "02",
+    icon: MessageSquare,
+    title: "Observe the response",
+    description:
+      "Watch each persona reason, communicate, and adapt as pressure changes.",
+  },
+  {
+    number: "03",
+    icon: Activity,
+    title: "Review risk signals",
+    description:
+      "Compare morale, output, and communication patterns before making a real decision.",
+  },
+];
+
+const decisionOutputs: Array<{
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}> = [
+  {
+    icon: MessageSquare,
+    title: "Live team response",
+    description:
+      "Follow public messages, internal reasoning, and decision changes round by round.",
+  },
+  {
+    icon: Activity,
+    title: "Risk timeline",
+    description:
+      "Review how morale, stress, output, and team stability move across the scenario.",
+  },
+  {
+    icon: FileText,
+    title: "Decision brief",
+    description:
+      "Leave with critical findings, resiliency profiles, recommended actions, and a shareable report.",
+  },
+];
+
+const useCases = [
+  "Aggressive delivery plan",
+  "Leadership or team change",
+  "Crisis communication",
+];
+
+const personas = [
+  {
+    name: "Alex",
+    role: "Senior Engineer",
+    traits: ["High output", "Direct", "Debt-sensitive"],
+    description:
+      "Surfaces delivery risks early and becomes resistant when technical debt is repeatedly ignored.",
+  },
+  {
+    name: "Jordan",
+    role: "Product Manager",
+    traits: ["Outcome-focused", "Optimistic", "Scope-aware"],
+    description:
+      "Keeps the team aligned on outcomes while testing how added scope affects delivery pressure.",
+  },
+  {
+    name: "Taylor",
+    role: "Junior Developer",
+    traits: ["Curious", "Developing", "Support-sensitive"],
+    description:
+      "Learns quickly and benefits from explicit priorities when the scenario becomes ambiguous.",
+  },
+  {
+    name: "Morgan",
+    role: "Tech Lead",
+    traits: ["Protective", "Experienced", "Load-bearing"],
+    description:
+      "Balances delivery and team health while absorbing coordination pressure from both sides.",
+  },
+];
 
 export default function LandingPage() {
-  const [pressure, setPressure] = useState([20]);
-  const { resolvedTheme, setTheme } = useTheme();
-  const { user } = useAuth();
-
-
-  // Dynamic styles based on pressure
-  const pressureValue = pressure[0];
-  const isDark = resolvedTheme === "dark";
-  const isHighPressure = pressureValue > 70;
-  const isExtreme = pressureValue > 90;
-
-  const getHeadlineColor = () => {
-    if (isExtreme) return "from-red-600 to-orange-600";
-    if (isHighPressure) return "from-orange-500 to-amber-500";
-    return "from-primary to-primary/60";
-  };
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative bg-background antialiased overflow-x-hidden">
-      {/* Background Grid - Subtle Animation */}
-      <div className="pointer-events-none absolute inset-0 bg-size-[40px_40px] bg-[linear-gradient(to_right,#80808025_1px,transparent_1px),linear-gradient(to_bottom,#80808025_1px,transparent_1px)] opacity-80"></div>
-      
-      {/* Ambient Glow */}
-      <div className={cn(
-        "pointer-events-none absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[120px] transition-colors duration-1000 opacity-20",
-        isHighPressure ? "bg-red-500" : "bg-primary"
-      )}></div>
+    <div className="relative min-h-screen bg-background text-foreground antialiased">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 bg-size-[40px_40px] bg-[linear-gradient(to_right,#80808018_1px,transparent_1px),linear-gradient(to_bottom,#80808018_1px,transparent_1px)] opacity-60"
+      />
 
-      {/* Navbar/Header */}
-      <header className="fixed top-0 w-full p-4 md:p-6 flex justify-center z-50">
-        <div className="w-full max-w-7xl flex justify-between items-center px-6 py-3 rounded-2xl border border-border/40 backdrop-blur-md bg-background/60 shadow-sm">
-          <div className="flex items-center gap-3 group cursor-pointer">
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="relative w-10 h-10 flex items-center justify-center rounded-xl overflow-hidden bg-[#18181b] shadow-lg shadow-violet-500/20 border border-violet-500/30"
-            >
-              <Image src="/logo.svg" alt="TeamDynamics Logo" width={28} height={28} className="object-cover scale-[1.15]" priority />
-            </motion.div>
-            <div className="flex items-center gap-2">
-              <span className="font-bold text-xl tracking-tight text-foreground">TeamDynamics</span>
-              <span className="hidden sm:flex px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest border border-primary/20">Beta</span>
-            </div>
-          </div>
-          <nav className="flex items-center gap-2">
-            <Link href="/docs">
-              <Button variant="ghost" size="sm" className="hidden sm:flex text-muted-foreground hover:text-foreground font-medium rounded-lg">
-                Docs
-              </Button>
-            </Link>
-            <Link href="https://github.com/bagusardin25/TeamDynamics" target="_blank" rel="noopener noreferrer">
-              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-foreground hidden sm:flex border border-border/40">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-                  <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
-                  <path d="M9 18c-4.51 2-5-2-7-2" />
-                </svg>
-                <span className="sr-only">GitHub Repository</span>
-              </Button>
-            </Link>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
-              onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              aria-label="Toggle theme"
-            >
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Toggle theme</span>
-            </Button>
-            {user ? (
-              <Link href="/dashboard">
-                <Button size="sm" className="shadow-sm rounded-lg font-semibold px-5">
-                  Dashboard
-                </Button>
-              </Link>
-            ) : (
-              <>
-                <Link href="/login">
-                  <Button variant="ghost" size="sm" className="hidden sm:flex text-muted-foreground hover:text-foreground font-medium rounded-lg">
-                    <LogIn className="w-4 h-4 mr-1.5" /> Sign In
-                  </Button>
-                </Link>
-                <Link href="/setup">
-                  <Button size="sm" className="shadow-sm rounded-lg font-semibold px-5">
-                    Start Simulation
-                  </Button>
-                </Link>
-              </>
-            )}
-          </nav>
-        </div>
-      </header>
+      <LandingNav />
 
-      {/* Hero Section */}
-      <main className="z-10 flex flex-col items-center px-6 max-w-7xl mx-auto mt-24 md:mt-32 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 w-full items-center mb-24">
-          
-          {/* Left Column: Copy & CTAs */}
-          <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className={cn(
-                "inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-sm font-medium mb-8 shadow-sm transition-colors duration-300",
-                isHighPressure ? "bg-orange-500/10 border-orange-500/20 text-orange-600" : "bg-secondary border-border text-foreground"
-              )}
-            >
-              {isHighPressure ? <AlertTriangle className="w-4 h-4 animate-pulse" /> : <Bot className="w-4 h-4 text-primary" />}
-              <span>{isHighPressure ? "System Warning: Burnout Imminent" : "The AI-Powered Simulation Engine for Engineering Teams"}</span>
-            </motion.div>
+      <main className="relative z-10">
+        <InteractiveHero />
 
-            <div className="relative mb-6 w-full">
-              <motion.h1
-                animate={isExtreme ? { x: [0, -1, 1, -1, 1, 0], transition: { repeat: Infinity, duration: 0.1 } } : {}}
-                className={cn(
-                  "text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter transition-all duration-500 leading-[0.95]",
-                  isHighPressure ? "scale-[1.02]" : "scale-100"
-                )}
-              >
-                What happens when you <br className="hidden md:block" />
-                <span className={cn(
-                  "text-transparent bg-clip-text bg-[linear-gradient(to_right,var(--color-primary),var(--color-primary)_60%)] transition-all duration-700",
-                  getHeadlineColor()
-                )}>
-                  push them too hard?
-                </span>
-              </motion.h1>
-              
-              {/* Stress Particles */}
-              <AnimatePresence>
-                {isHighPressure && (
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute -top-4 right-0 lg:-right-8"
-                  >
-                    <Zap className="w-8 h-8 text-orange-500 animate-bounce" />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <motion.p
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="text-lg md:text-xl text-muted-foreground max-w-xl mb-10 font-medium leading-relaxed"
-            >
-              Simulate team dynamics, inject crises, and predict burnout before it costs you your best talent.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto"
-            >
-              <Link href="/setup" className="w-full sm:w-auto">
-                <Button size="lg" className="h-14 px-8 text-base font-bold w-full shadow-xl shadow-primary/20 rounded-xl group hover:scale-[1.02] active:scale-[0.98] transition-all">
-                  Start Your Free Simulation 
-                  <motion.span
-                    animate={{ x: [0, 4, 0] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
-                  >
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </motion.span>
-                </Button>
-              </Link>
-              <Link href="/demo" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold w-full rounded-xl group">
-                  <Zap className="mr-2 w-4 h-4 text-orange-500 group-hover:animate-pulse" />
-                  Try Quick Demo
-                </Button>
-              </Link>
-            </motion.div>
-          </div>
-
-          {/* Right Column: Interactive Sandbox */}
-          <div className="flex justify-center lg:justify-end w-full relative lg:-mt-16 xl:-mt-24">
-            {/* Glowing backing for the sandbox to make it pop */}
-            <div className={cn(
-              "absolute inset-0 blur-[80px] rounded-full transition-colors duration-1000 opacity-20 -z-10",
-              isHighPressure ? "bg-orange-500" : "bg-primary"
-            )}></div>
-
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.4 }}
-              className="w-full max-w-md bg-card/60 backdrop-blur-xl border border-border/60 p-8 rounded-3xl shadow-2xl relative group hover:border-primary/20 transition-colors"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <span className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Pressure Simulator</span>
-                <span className={cn(
-                  "text-2xl font-black tabular-nums transition-colors",
-                  isHighPressure ? "text-orange-500" : "text-primary"
-                )}>
-                  {pressureValue}%
-                </span>
-              </div>
-              
-              <Slider 
-                value={pressure} 
-                onValueChange={(val) => setPressure(val as number[])}
-                max={100}
-                step={1}
-                className="mb-4"
-              />
-              
-              <div className="flex justify-between text-[10px] font-bold text-muted-foreground/60 uppercase tracking-tighter mb-5">
-                <span>Chill</span>
-                <span>Crunch</span>
-                <span>Burnout</span>
-              </div>
-
-              {/* Reactive stats based on pressure */}
-              <div className="flex justify-between gap-3">
-                <div className={cn(
-                  "flex-1 rounded-xl p-3 flex items-center gap-3 border transition-colors duration-300",
-                  pressureValue > 70 ? "bg-red-500/10 border-red-500/20" : "bg-emerald-500/10 border-emerald-500/20"
-                )}>
-                  <div className={cn("p-1.5 rounded-lg text-white", pressureValue > 70 ? "bg-red-500" : "bg-emerald-500")}>
-                    <Users className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground">Morale</span>
-                    <span className="text-sm font-black tabular-nums">{Math.max(0, Math.round(100 - (pressureValue * 0.8)))}%</span>
-                  </div>
-                </div>
-                <div className={cn(
-                  "flex-1 rounded-xl p-3 flex items-center gap-3 border transition-colors duration-300",
-                  pressureValue >= 80 ? "bg-orange-500/10 border-orange-500/20" : "bg-blue-500/10 border-blue-500/20"
-                )}>
-                  <div className={cn("p-1.5 rounded-lg text-white", pressureValue >= 80 ? "bg-orange-500" : "bg-blue-500")}>
-                    <Activity className="w-3 h-3" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold uppercase text-muted-foreground">Output</span>
-                    <span className="text-sm font-black tabular-nums">{Math.max(0, Math.round(pressureValue < 80 ? pressureValue + 20 : 40))}%</span>
-                  </div>
-                </div>
-              </div>
-
-            </motion.div>
-          </div>
-        </div>
-
-        {/* Feature Highlights - Enhanced Cards */}
-        <motion.div 
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7, delay: 0.2 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-32 mb-20 w-full"
+        <section
+          aria-labelledby="workflow-title"
+          className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 md:py-28"
         >
-          <FeatureCard 
-            icon={<Users className="w-6 h-6" />}
-            title="Assemble Personas"
-            description="Design deep psychological profiles from empathy to raw ambition."
-          />
-          <FeatureCard 
-            icon={<MessageSquare className="w-6 h-6" />}
-            title="Live Drama"
-            description="Watch internal thoughts vs. public Slack chats unfold in real-time."
-            highlight
-          />
-          <FeatureCard 
-            icon={<Activity className="w-6 h-6" />}
-            title="Burnout Analysis"
-            description="Predict exactly when your best talent will quit before they do."
-          />
-        </motion.div>
-        {/* Agent Registry / Social Proof Section */}
-        <section className="w-full mt-20 mb-32 relative">
-          <div className="absolute inset-0 bg-secondary/30 rounded-3xl -z-10 blur-3xl"></div>
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-5xl font-black tracking-tight mb-4">Meet Your Simulation Roster</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">These custom-trained AI Personas react to your management style, deadlines, and project scope based on real engineering archetypes.</p>
+          <div className="grid items-end gap-6 border-t border-border/60 pt-10 md:grid-cols-[0.9fr_1.1fr] md:gap-14">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                How it works
+              </p>
+              <h2
+                id="workflow-title"
+                className="mt-4 max-w-xl text-3xl font-extrabold tracking-[-0.035em] sm:text-4xl md:text-5xl"
+              >
+                Rehearse the decision before the real pressure arrives.
+              </h2>
+            </div>
+            <p className="max-w-2xl text-base leading-relaxed text-muted-foreground md:justify-self-end md:text-lg">
+              TeamDynamics turns a management assumption into a visible,
+              repeatable scenario—so you can examine trade-offs without
+              experimenting on a real team.
+            </p>
           </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <AgentCard 
-              name="Alex" 
-              role="Sr. Engineer" 
-              traits={["High Performer", "Cynical", "Flight Risk"]} 
-              description="The 10x engineer who ships fast but complains endlessly about tech debt." 
-            />
-            <AgentCard 
-              name="Jordan" 
-              role="Product Manager" 
-              traits={["Optimist", "Metrics-Driven", "Scope Creep"]} 
-              description="Always trying to squeeze one more small feature into the sprint." 
-            />
-            <AgentCard 
-              name="Taylor" 
-              role="Junior Dev" 
-              traits={["Eager", "Overwhelmed", "Fast Learner"]} 
-              description="Enthusiastic but constantly blocked by obscure setup issues." 
-            />
-            <AgentCard 
-              name="Morgan" 
-              role="Tech Lead" 
-              traits={["Protector", "Exhausted", "Wise"]} 
-              description="Shields the team from upper management but is secretly burning out." 
-            />
+
+          <ol className="mt-12 grid gap-4 md:grid-cols-3">
+            {workflowSteps.map((step) => (
+              <WorkflowStep key={step.number} {...step} />
+            ))}
+          </ol>
+        </section>
+
+        <section
+          aria-labelledby="outcomes-title"
+          className="relative border-y border-border/50 bg-card/25"
+        >
+          <div className="mx-auto grid w-full max-w-7xl gap-12 px-5 py-24 sm:px-6 md:py-28 lg:grid-cols-[0.82fr_1.18fr] lg:items-center lg:gap-16">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                What you leave with
+              </p>
+              <h2
+                id="outcomes-title"
+                className="mt-4 max-w-xl text-3xl font-extrabold tracking-[-0.035em] sm:text-4xl md:text-5xl"
+              >
+                Not another dashboard. A decision brief.
+              </h2>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground md:text-lg">
+                Each run turns a live simulation into a structured scenario
+                record you can review, discuss, and use to challenge the
+                original plan.
+              </p>
+
+              <div className="mt-8">
+                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-muted-foreground">
+                  Useful when testing
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {useCases.map((useCase) => (
+                    <span
+                      key={useCase}
+                      className="rounded-full border border-border/70 bg-background/55 px-3 py-2 text-xs font-bold text-foreground/80"
+                    >
+                      {useCase}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <aside className="mt-8 flex max-w-xl gap-3 rounded-2xl border border-border/60 bg-background/40 p-4">
+                <Shield
+                  aria-hidden="true"
+                  className="mt-0.5 size-5 shrink-0 text-primary"
+                />
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Built for scenario rehearsal—not employee surveillance,
+                  diagnosis, or prediction.
+                </p>
+              </aside>
+            </div>
+
+            <div className="overflow-hidden rounded-[2rem] border border-border/70 bg-background/70 shadow-2xl shadow-black/10">
+              <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-5 sm:px-8">
+                <div>
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-muted-foreground">
+                    Scenario output
+                  </p>
+                  <p className="mt-1 text-lg font-extrabold">
+                    What one completed run produces
+                  </p>
+                </div>
+                <span className="hidden rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.12em] text-primary sm:block">
+                  Post-sim
+                </span>
+              </div>
+
+              <div className="divide-y divide-border/55 px-6 sm:px-8">
+                {decisionOutputs.map((output) => (
+                  <OutcomeItem key={output.title} {...output} />
+                ))}
+              </div>
+
+              <div className="border-t border-border/60 bg-secondary/20 px-6 py-5 sm:px-8">
+                <Link
+                  href="/docs#reports"
+                  className="inline-flex items-center gap-2 rounded-md text-sm font-extrabold text-primary transition-colors hover:text-primary/80 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+                >
+                  Explore report details
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
           </div>
         </section>
 
+        <section
+          aria-labelledby="roster-title"
+          className="relative border-b border-border/50 bg-secondary/20"
+        >
+          <div className="mx-auto w-full max-w-7xl px-5 py-24 sm:px-6 md:py-28">
+            <div className="grid gap-6 md:grid-cols-[1fr_0.9fr] md:items-end">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                  Example team model
+                </p>
+                <h2
+                  id="roster-title"
+                  className="mt-4 text-3xl font-extrabold tracking-[-0.035em] sm:text-4xl md:text-5xl"
+                >
+                  Meet your simulation roster.
+                </h2>
+              </div>
+              <p className="max-w-xl text-base leading-relaxed text-muted-foreground md:justify-self-end md:text-lg">
+                Configurable AI personas respond to management style,
+                deadlines, and scope through distinct roles, priorities, and
+                stress tolerances.
+              </p>
+            </div>
+
+            <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {personas.map((persona) => (
+                <PersonaCard key={persona.name} {...persona} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          aria-labelledby="final-cta-title"
+          className="mx-auto w-full max-w-7xl px-5 py-20 sm:px-6 md:py-24"
+        >
+          <div className="relative overflow-hidden rounded-[2rem] border border-primary/20 bg-primary/8 px-6 py-12 text-center sm:px-10 md:py-16">
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-1/4 -top-32 h-64 rounded-full bg-primary/15 blur-3xl"
+            />
+            <div className="relative">
+              <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                Start with a low-stakes rehearsal
+              </p>
+              <h2
+                id="final-cta-title"
+                className="mx-auto mt-4 max-w-3xl text-3xl font-extrabold tracking-[-0.035em] sm:text-4xl md:text-5xl"
+              >
+                Pressure-test the plan before it becomes a people problem.
+              </h2>
+              <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg">
+                Run the guided demo first, or use the Quick Start guide when
+                you are ready to configure your own team and scenario.
+              </p>
+              <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+                <Link
+                  href="/demo"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-extrabold text-primary-foreground shadow-lg shadow-primary/15 transition-[background-color,transform] hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+                >
+                  Run 2-minute demo
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+                <Link
+                  href="/docs#quick-start"
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-border/80 bg-background/60 px-6 text-sm font-extrabold transition-[background-color,border-color] hover:border-primary/30 hover:bg-background focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+                >
+                  Read Quick Start
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 w-full border-t border-border/40 py-10">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground font-medium">
-          <span>© 2026 TeamDynamics Simulation Engine. Built for High-Stakes Founders.</span>
+      <footer className="relative z-10 w-full border-t border-border/40 py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 text-center text-sm font-medium text-muted-foreground sm:px-6 md:flex-row md:text-left">
+          <span>
+            © 2026 TeamDynamics. Built for founders and people leaders.
+          </span>
           <div className="flex items-center gap-3">
-            <Link href="/terms" className="hover:text-foreground transition-colors">
+            <Link
+              href="/terms"
+              className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+            >
               Terms of Service
             </Link>
-            <span className="text-border">·</span>
-            <Link href="/privacy" className="hover:text-foreground transition-colors">
+            <span aria-hidden="true" className="text-border">
+              ·
+            </span>
+            <Link
+              href="/privacy"
+              className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 motion-reduce:transition-none"
+            >
               Privacy Policy
             </Link>
           </div>
@@ -343,54 +341,101 @@ export default function LandingPage() {
   );
 }
 
-function FeatureCard({ icon, title, description, highlight = false }: { icon: React.ReactNode, title: string, description: string, highlight?: boolean }) {
+function WorkflowStep({
+  number,
+  icon: Icon,
+  title,
+  description,
+}: {
+  number: string;
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
   return (
-    <motion.div 
-      whileHover={{ y: -8, scale: 1.02 }}
-      className={cn(
-        "group p-8 rounded-3xl flex flex-col items-center text-center transition-all duration-300 border backdrop-blur-sm",
-        highlight 
-          ? "bg-primary/[0.03] border-primary/20 shadow-lg shadow-primary/5" 
-          : "bg-card/40 border-border/60 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5"
-      )}
-    >
-      <div className={cn(
-        "w-14 h-14 rounded-2xl flex items-center justify-center mb-6 transition-transform group-hover:scale-110 group-hover:rotate-3 shadow-inner",
-        highlight ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
-      )}>
-        {icon}
+    <li className="group rounded-3xl border border-border/60 bg-card/45 p-6 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-1 hover:border-primary/30 hover:bg-card/70 motion-reduce:transition-none md:p-7">
+      <div className="flex items-center justify-between">
+        <span className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <Icon className="size-5" aria-hidden="true" />
+        </span>
+        <span className="text-xs font-extrabold tracking-[0.18em] text-muted-foreground/55">
+          {number}
+        </span>
       </div>
-      <h3 className="text-xl font-bold mb-3 tracking-tight">{title}</h3>
-      <p className="text-muted-foreground text-base leading-relaxed">{description}</p>
-    </motion.div>
+      <h3 className="mt-8 text-xl font-bold tracking-[-0.02em]">{title}</h3>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground sm:text-base">
+        {description}
+      </p>
+    </li>
   );
 }
 
-function AgentCard({ name, role, traits, description }: { name: string, role: string, traits: string[], description: string }) {
+function OutcomeItem({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
   return (
-    <motion.div 
-      whileHover={{ y: -5 }}
-      className="group flex flex-col bg-card/40 backdrop-blur-md border border-border/60 hover:border-primary/40 rounded-3xl p-6 transition-all duration-300 hover:shadow-xl hover:shadow-primary/5"
-    >
-      <div className="flex justify-between items-start mb-5">
-        <div>
-          <h4 className="text-lg font-black tracking-tight mb-1">{name}</h4>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded-md">{role}</span>
-        </div>
-        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:rotate-6 transition-transform shadow-inner">
-          <Bot className="w-5 h-5" />
-        </div>
+    <div className="grid grid-cols-[auto_1fr] gap-4 py-6">
+      <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <Icon className="size-5" aria-hidden="true" />
+      </span>
+      <div>
+        <h3 className="font-extrabold tracking-[-0.01em]">{title}</h3>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {description}
+        </p>
       </div>
-      <p className="text-sm text-muted-foreground mb-6 flex-grow leading-relaxed font-medium">
+    </div>
+  );
+}
+
+function PersonaCard({
+  name,
+  role,
+  traits,
+  description,
+}: {
+  name: string;
+  role: string;
+  traits: string[];
+  description: string;
+}) {
+  return (
+    <article className="group flex min-h-72 flex-col rounded-3xl border border-border/60 bg-card/55 p-6 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-1 hover:border-primary/30 hover:bg-card/75 motion-reduce:transition-none">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-extrabold tracking-[-0.02em]">{name}</h3>
+          <p className="mt-1.5 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            {role}
+          </p>
+        </div>
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/8 text-primary transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none">
+          <Bot className="size-5" aria-hidden="true" />
+        </span>
+      </div>
+
+      <p className="mt-6 flex-1 text-sm font-medium leading-relaxed text-muted-foreground">
         {description}
       </p>
-      <div className="flex flex-wrap gap-2 mt-auto">
-        {traits.map(trait => (
-          <span key={trait} className="px-2 py-1 rounded-md bg-secondary/50 border border-border text-[9px] font-bold uppercase tracking-wider text-muted-foreground w-max">
+
+      <div className="mt-6 flex flex-wrap gap-2" aria-label={`${name} traits`}>
+        {traits.map((trait) => (
+          <span
+            key={trait}
+            className={cn(
+              "w-max rounded-md border border-border/70 bg-background/45 px-2.5 py-1.5",
+              "text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground",
+            )}
+          >
             {trait}
           </span>
         ))}
       </div>
-    </motion.div>
+    </article>
   );
 }
