@@ -1,522 +1,170 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import {
-  Users, Plus, Clock, Play, CheckCircle, AlertTriangle,
-  LogOut, Crown, CreditCard, Sun, Moon, Film, GitCompareArrows,
-  CheckSquare, Square, X, Sparkles,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+
+import { DashboardNav } from "@/components/dashboard/dashboard-nav";
+import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
+import { SimulationHistory } from "@/components/dashboard/simulation-history";
 import { useAuth } from "@/contexts/auth-context";
-import { useTheme } from "next-themes";
-import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import {
+  getDashboardSummary,
+  getPrimarySimulation,
+  type SimulationRecord,
+} from "@/lib/dashboard-model";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const GUIDE_STORAGE_KEY = "td_dashboard_guide_dismissed";
 
-interface SimulationRecord {
-  id: string;
-  status: string;
-  current_round: number;
-  total_rounds: number;
-  company_name: string;
-  crisis_scenario: string;
-  pacing: string;
-  created_at: string;
+function subscribeToGuideVisibility(onStoreChange: () => void) {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key === GUIDE_STORAGE_KEY) {
+      onStoreChange();
+    }
+  };
+
+  window.addEventListener("storage", handleStorage);
+  return () => window.removeEventListener("storage", handleStorage);
 }
 
-const CRISIS_LABELS: Record<string, string> = {
-  rnd1: "Mandatory Weekend Coding",
-  rnd2: "Layoffs Announced",
-  rnd3: "CEO Resigns",
-  rnd4: "Database Deleted",
-  custom: "Custom Crisis",
-};
+function getGuideVisibilitySnapshot() {
+  return localStorage.getItem(GUIDE_STORAGE_KEY) !== "true";
+}
 
-const SPARKLINE_DATA = [
-  { value: 10 }, { value: 25 }, { value: 15 }, { value: 40 }, { value: 30 }, { value: 60 }
-];
+function getGuideVisibilityServerSnapshot() {
+  return true;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
   const { user, token, isLoading, isAdmin, logout } = useAuth();
-  const { resolvedTheme, setTheme } = useTheme();
   const [simulations, setSimulations] = useState<SimulationRecord[]>([]);
-  const [loadingSims, setLoadingSims] = useState(true);
-  const [showChecklist, setShowChecklist] = useState(true);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [guideDismissedThisSession, setGuideDismissedThisSession] =
+    useState(false);
+  const isPersistedGuideVisible = useSyncExternalStore(
+    subscribeToGuideVisibility,
+    getGuideVisibilitySnapshot,
+    getGuideVisibilityServerSnapshot,
+  );
+  const showGuide =
+    isPersistedGuideVisible && !guideDismissedThisSession;
 
-  // Load checklist dismiss state
-  useEffect(() => {
-    const dismissed = localStorage.getItem("td_checklist_dismissed");
-    if (dismissed === "true") setShowChecklist(false);
-  }, []);
-
-  // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !user) {
       router.replace("/login");
     }
-  }, [isLoading, user, router]);
+  }, [isLoading, router, user]);
 
-  // Fetch simulations
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      return;
+    }
+
+    const controller = new AbortController();
+
     async function fetchSimulations() {
+      setIsHistoryLoading(true);
+      setHistoryError(null);
+
       try {
-        const res = await fetch(`${API_BASE}/api/auth/me/simulations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setSimulations(data);
+        const response = await fetch(
+          `${API_BASE}/api/auth/me/simulations`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
         }
-      } catch {
-        // silently fail
+
+        const data: unknown = await response.json();
+        if (!Array.isArray(data)) {
+          throw new Error("The server returned an invalid history response");
+        }
+
+        setSimulations(data as SimulationRecord[]);
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        setHistoryError(
+          error instanceof Error
+            ? error.message
+            : "Please refresh the page and try again.",
+        );
       } finally {
-        setLoadingSims(false);
+        if (!controller.signal.aborted) {
+          setIsHistoryLoading(false);
+        }
       }
     }
-    fetchSimulations();
+
+    void fetchSimulations();
+
+    return () => controller.abort();
   }, [token]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <p className="text-sm font-semibold text-muted-foreground" role="status">
+          Loading workspace
+        </p>
       </div>
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    return null;
+  }
 
-  const statusConfig: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
-    idle: { icon: <Clock className="w-3.5 h-3.5" />, color: "text-blue-400 border-blue-500/20 bg-blue-500/10", label: "Idle" },
-    running: { icon: <Play className="w-3.5 h-3.5" />, color: "text-orange-400 border-orange-500/20 bg-orange-500/10", label: "Running" },
-    completed: { icon: <CheckCircle className="w-3.5 h-3.5" />, color: "text-green-400 border-green-500/20 bg-green-500/10", label: "Completed" },
-  };
-
-  const getSimulationHref = (sim: SimulationRecord) =>
-    sim.status === "completed" ? `/report?id=${sim.id}` : `/simulation?id=${sim.id}`;
+  const summary = getDashboardSummary(simulations);
+  const primarySimulation = getPrimarySimulation(simulations);
+  const firstName = user.name.trim().split(/\s+/)[0] || "there";
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 backdrop-blur-md bg-background/60">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 group">
-            <div className="relative w-9 h-9 flex items-center justify-center rounded-xl overflow-hidden bg-[#18181b] shadow-lg shadow-violet-500/20 border border-violet-500/30 group-hover:scale-105 transition-transform">
-              <Image src="/logo.svg" alt="TeamDynamics Logo" width={24} height={24} className="object-cover scale-[1.15]" priority />
-            </div>
-            <span className="font-bold text-lg tracking-tight">TeamDynamics</span>
-          </Link>
+    <div className="relative min-h-screen overflow-x-clip bg-background text-foreground antialiased">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 bg-size-[40px_40px] bg-[linear-gradient(to_right,#80808018_1px,transparent_1px),linear-gradient(to_bottom,#80808018_1px,transparent_1px)] opacity-60"
+      />
 
-          <div className="flex items-center gap-3">
-            {/* Credits */}
-            <div
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-secondary/50 border border-border/40 cursor-pointer hover:bg-secondary/70 transition-colors"
-              onClick={() => router.push("/pricing")}
-              role="link"
-            >
-              <CreditCard className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold">
-                {isAdmin ? (
-                  <span className="text-primary">Unlimited</span>
-                ) : (
-                  <>{user.credits} credits</>
-                )}
-              </span>
-            </div>
+      <DashboardNav
+        user={user}
+        isAdmin={isAdmin}
+        onSignOut={() => {
+          logout();
+          window.location.assign("/login");
+        }}
+      />
 
-            {isAdmin && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden md:flex h-9 rounded-lg"
-                onClick={() => router.push("/admin/llm-usage")}
-              >
-                <CreditCard className="w-3.5 h-3.5 mr-2" />
-                LLM Cost
-              </Button>
-            )}
+      <main className="relative z-10 mx-auto w-full max-w-7xl px-5 pb-16 pt-8 sm:px-6 md:pb-24 md:pt-10">
+        <DashboardOverview
+          firstName={firstName}
+          credits={user.credits}
+          isAdmin={isAdmin}
+          simulations={simulations}
+          summary={summary}
+          primarySimulation={primarySimulation}
+          showGuide={showGuide}
+          onDismissGuide={() => {
+            setGuideDismissedThisSession(true);
+            localStorage.setItem(GUIDE_STORAGE_KEY, "true");
+          }}
+        />
 
-            {/* Theme toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              aria-label={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-            >
-              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">{resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}</span>
-            </Button>
-
-            {/* User */}
-            <div className="flex items-center gap-2.5 pl-3 border-l border-border/40">
-              <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                <span className="text-xs font-bold text-primary">
-                  {user.name.substring(0, 2).toUpperCase()}
-                </span>
-              </div>
-              <div className="hidden sm:block">
-                <div className="text-sm font-semibold leading-none flex items-center gap-1.5">
-                  {user.name}
-                  {isAdmin && <Crown className="w-3.5 h-3.5 text-yellow-500" />}
-                </div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{user.email}</div>
-              </div>
-              <Button
-                id="logout-button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-red-400"
-                aria-label="Sign out"
-                onClick={() => {
-                  logout();
-                  window.location.href = "/login";
-                }}
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
+        <div className="mt-14 border-t border-border/60 pt-10 md:mt-16 md:pt-12">
+          <SimulationHistory
+            simulations={simulations}
+            isLoading={isHistoryLoading}
+            errorMessage={historyError}
+          />
         </div>
-      </header>
-
-      {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-10">
-        {/* Welcome */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
-        >
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Welcome back, {user.name.split(" ")[0]} 👋
-          </h1>
-          <p className="text-muted-foreground">
-            Manage your simulations and explore team dynamics.
-          </p>
-        </motion.div>
-
-        {/* Quick stats */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10"
-        >
-          <Card className="relative bg-card/40 border-border/50 overflow-hidden group">
-            <div className="absolute inset-x-0 bottom-0 h-1/2 opacity-20 pointer-events-none transition-transform group-hover:scale-y-110 origin-bottom duration-500">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={SPARKLINE_DATA}>
-                  <Area type="monotone" dataKey="value" stroke="var(--primary)" fill="currentColor" className="text-primary" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <CardContent className="p-4 relative z-10">
-              <div className="text-xs text-muted-foreground font-medium mb-1">Total Simulations</div>
-              <div className="text-2xl font-bold">{simulations.length}</div>
-            </CardContent>
-          </Card>
-          <Card className="relative bg-card/40 border-border/50 overflow-hidden group">
-             <div className="absolute inset-x-0 bottom-0 h-1/2 opacity-20 pointer-events-none transition-transform group-hover:scale-y-110 origin-bottom duration-500">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={[...SPARKLINE_DATA].reverse()}>
-                  <Area type="monotone" dataKey="value" stroke="#22c55e" fill="#22c55e" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <CardContent className="p-4 relative z-10">
-              <div className="text-xs text-muted-foreground font-medium mb-1">Completed</div>
-              <div className="text-2xl font-bold text-green-500">
-                {simulations.filter((s) => s.status === "completed").length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="relative bg-card/40 border-border/50 overflow-hidden group">
-            <div className="absolute inset-x-0 bottom-0 h-1/2 opacity-20 pointer-events-none transition-transform group-hover:scale-y-110 origin-bottom duration-500">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={SPARKLINE_DATA.map(d=>( {value: d.value * (0.5 + Math.random()*0.5)} ))}>
-                  <Area type="monotone" dataKey="value" stroke="#f97316" fill="#f97316" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <CardContent className="p-4 relative z-10">
-              <div className="text-xs text-muted-foreground font-medium mb-1">Running</div>
-              <div className="text-2xl font-bold text-orange-500">
-                {simulations.filter((s) => s.status === "running").length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card
-            className="relative bg-card/40 border-border/50 overflow-hidden cursor-pointer hover:border-primary/30 transition-all"
-            onClick={() => router.push("/pricing")}
-          >
-            <CardContent className="p-4 relative z-10">
-              <div className="text-xs text-muted-foreground font-medium mb-1">Credits Left</div>
-              <div className="text-2xl font-bold text-primary">
-                {isAdmin ? "∞" : user.credits}
-              </div>
-              {!isAdmin && user.credits <= 2 && (
-                <div className="text-[10px] text-orange-400 font-medium mt-1">Buy more →</div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Onboarding Checklist — shows for new users */}
-        {showChecklist && !loadingSims && simulations.length < 3 && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="mb-10"
-          >
-            <Card className="relative bg-card/40 border-primary/20 overflow-hidden shadow-lg shadow-primary/5">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-violet-500/5 pointer-events-none" />
-              <CardContent className="p-6 relative z-10">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm">Getting Started</h3>
-                      <p className="text-[10px] text-muted-foreground">Complete these steps to master TeamDynamics</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowChecklist(false);
-                      localStorage.setItem("td_checklist_dismissed", "true");
-                    }}
-                    className="text-muted-foreground hover:text-foreground transition-colors p-1"
-                    aria-label="Dismiss checklist"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Step 1: Account — always done */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
-                    <CheckSquare className="w-4 h-4 text-green-500 shrink-0" />
-                    <div>
-                      <div className="text-xs font-semibold text-green-500">Create account</div>
-                      <div className="text-[10px] text-muted-foreground">You're in! 🎉</div>
-                    </div>
-                  </div>
-
-                  {/* Step 2: First simulation */}
-                  {simulations.length > 0 ? (
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
-                      <CheckSquare className="w-4 h-4 text-green-500 shrink-0" />
-                      <div>
-                        <div className="text-xs font-semibold text-green-500">Run first simulation</div>
-                        <div className="text-[10px] text-muted-foreground">Nice work!</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50 cursor-pointer hover:border-primary/30 transition-colors"
-                      onClick={() => router.push("/setup")}
-                    >
-                      <Square className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div>
-                        <div className="text-xs font-semibold">Run first simulation</div>
-                        <div className="text-[10px] text-muted-foreground">Assemble a team & inject a crisis →</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Step 3: Read a report */}
-                  {simulations.some(s => s.status === "completed") ? (
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-green-500/5 border border-green-500/10">
-                      <CheckSquare className="w-4 h-4 text-green-500 shrink-0" />
-                      <div>
-                        <div className="text-xs font-semibold text-green-500">Read your first report</div>
-                        <div className="text-[10px] text-muted-foreground">Insights unlocked!</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                      <Square className="w-4 h-4 text-muted-foreground shrink-0" />
-                      <div>
-                        <div className="text-xs font-semibold text-muted-foreground">Read your first report</div>
-                        <div className="text-[10px] text-muted-foreground">Complete a simulation first</div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Step 4: Try God Mode */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg bg-background/50 border border-border/50">
-                    <Square className="w-4 h-4 text-muted-foreground shrink-0" />
-                    <div>
-                      <div className="text-xs font-semibold text-muted-foreground">Try God Mode intervention</div>
-                      <div className="text-[10px] text-muted-foreground">Drop a bonus or pizza party mid-sim 🍕</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="mt-4 flex items-center gap-3">
-                  <Progress
-                    value={(() => {
-                      let done = 1;
-                      if (simulations.length > 0) done++;
-                      if (simulations.some(s => s.status === "completed")) done++;
-                      return (done / 4) * 100;
-                    })()}
-                    className="h-1.5 flex-1"
-                  />
-                  <span className="text-[10px] text-muted-foreground font-mono">
-                    {(() => { let d=1; if(simulations.length>0)d++; if(simulations.some(s=>s.status==="completed"))d++; return d; })()}/4
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* New simulation + History */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold">Simulation History</h2>
-          <div className="flex items-center gap-2">
-            <Link href="/compare">
-              <Button variant="outline" className="rounded-lg font-semibold shadow-sm text-violet-400 border-violet-500/20 hover:bg-violet-500/10 hover:text-violet-300">
-                <GitCompareArrows className="w-4 h-4 mr-2" /> Compare
-              </Button>
-            </Link>
-            <Link href="/setup">
-              <Button className="rounded-lg font-semibold shadow-sm">
-                <Plus className="w-4 h-4 mr-2" /> New Simulation
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {loadingSims ? (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 rounded-xl bg-card/40 border border-border/50 animate-pulse" />
-            ))}
-          </div>
-        ) : simulations.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-24 relative overflow-hidden rounded-2xl border border-dashed border-border/60 bg-card/10 backdrop-blur-sm"
-          >
-            <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
-            <motion.div 
-               animate={{ y: [0, -10, 0] }}
-               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-               className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-6 shadow-[0_0_40px_-10px_rgba(var(--primary),0.5)]"
-            >
-              <Play className="w-8 h-8 text-primary ml-1" />
-            </motion.div>
-            <h3 className="text-xl font-bold mb-3 tracking-tight">Your Simulation Sandbox awaits</h3>
-            <p className="text-sm text-muted-foreground mb-8 max-w-sm mx-auto leading-relaxed">
-              Assemble your team and inject unexpected chaos. Watch how agents interact and make decisions under pressure.
-            </p>
-            <Link href="/setup">
-              <Button className="rounded-full px-8 h-12 font-semibold shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all hover:-translate-y-1">
-                <Plus className="w-4 h-4 mr-2" /> Create First Simulation
-              </Button>
-            </Link>
-          </motion.div>
-        ) : (
-          <div className="space-y-3">
-            {simulations.map((sim, idx) => {
-              const cfg = statusConfig[sim.status] || statusConfig.idle;
-              const href = getSimulationHref(sim);
-              return (
-                <motion.div
-                  key={sim.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                >
-                  <Card
-                    role="link"
-                    tabIndex={0}
-                    data-testid={`simulation-card-${sim.id}`}
-                    aria-label={`Open simulation ${sim.company_name}`}
-                    onClick={() => router.push(href)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        router.push(href);
-                      }
-                    }}
-                    className="bg-card/40 border-border/50 hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-r from-primary/0 via-primary/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 pointer-events-none" />
-                    <CardContent className="p-5 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${cfg.color} transition-transform group-hover:scale-110`}>
-                          {cfg.icon}
-                        </div>
-                        <div className="flex-1 min-w-0 pr-4">
-                          <div className="font-semibold text-sm group-hover:text-primary transition-colors truncate">
-                            {sim.company_name}
-                          </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1">
-                            <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:block">
-                              {CRISIS_LABELS[sim.crisis_scenario] || sim.crisis_scenario}
-                            </span>
-                            <div className="flex items-center gap-1.5 flex-1 max-w-[150px]">
-                              <Progress value={(sim.current_round / sim.total_rounds) * 100} className="h-1.5" />
-                              <span className="text-[10px] text-muted-foreground font-mono">{Math.round((sim.current_round / sim.total_rounds) * 100)}%</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4 shrink-0">
-                        <div className="text-[10px] text-muted-foreground hidden md:block text-right">
-                          {sim.created_at ? new Date(sim.created_at).toLocaleDateString() : ""}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`text-[10px] font-semibold ${cfg.color}`}>
-                            {cfg.label}
-                          </Badge>
-                          {sim.status === "completed" && (
-                            <Link
-                              href={`/replay?id=${sim.id}`}
-                              onClick={(e) => e.stopPropagation()}
-                              aria-label={`Replay ${sim.company_name}`}
-                              className="inline-flex h-7 items-center justify-center rounded-full bg-violet-500/10 border border-violet-500/20 px-2.5 text-[0.8rem] font-medium text-violet-500 shadow-sm transition-colors hover:bg-violet-500/20"
-                            >
-                              <Film className="w-3 h-3 mr-1" />
-                              Replay
-                            </Link>
-                          )}
-                          <Link
-                            href={href}
-                            onClick={(e) => e.stopPropagation()}
-                            aria-label={`Open ${sim.company_name}`}
-                            className="inline-flex h-7 items-center justify-center rounded-full bg-secondary px-2.5 text-[0.8rem] font-medium text-secondary-foreground shadow-sm transition-colors hover:bg-secondary/80"
-                          >
-                            {sim.status === "completed" ? "View Report" : "Open"}
-                          </Link>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
       </main>
     </div>
   );
