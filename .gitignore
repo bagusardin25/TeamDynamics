@@ -1,7 +1,3 @@
+# Keep planning, audit, and generated Markdown local.
 *.md
 !**/README.md
-!OPENAI_BUILD_WEEK_AUDIT.md
-!BUILD_WEEK_CHANGELOG.md
-!docs/superpowers/specs/*.md
-!docs/superpowers/plans/*.md
-!testsprite_tests/**/*.md

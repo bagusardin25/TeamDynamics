@@ -5,48 +5,62 @@
 <h1 align="center">TeamDynamics</h1>
 
 <p align="center">
-  <strong>Multi-Agent Gamified SaaS Simulation for Team Crisis Analysis</strong>
+  <strong>See how a team breaks — before the stakes are real.</strong><br />
+  <em>A living multi-agent AI crisis lab for people, decisions, and leadership.</em>
 </p>
 
 <p align="center">
-  <a href="#-quick-start"><img src="https://img.shields.io/badge/Status-Production_Ready-brightgreen?style=for-the-badge" alt="Status" /></a>
+  <a href="https://teamdynamics.vercel.app/demo"><img src="https://img.shields.io/badge/Launch_Live_Demo-6C63FF?style=for-the-badge&logo=vercel&logoColor=white" alt="Launch Live Demo" /></a>
+  <a href="https://youtu.be/f7nNENWoRI4"><img src="https://img.shields.io/badge/Watch_Demo-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" /></a>
+  <a href="#-quick-start"><img src="https://img.shields.io/badge/Production_Ready-16A34A?style=for-the-badge" alt="Production Ready" /></a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/Next.js-16.2-black?style=for-the-badge&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/FastAPI-0.115-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React" />
-  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/PostgreSQL-Ready-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="Database" />
 </p>
 
 <p align="center">
-  <em>Identify the exact breaking point of your startup before it happens in real life.</em>
+  <em>Hidden thoughts become visible. Decisions reshape the world. Every intervention leaves a trace.</em>
 </p>
 
 ---
 
 ## 📖 Overview
 
-TeamDynamics is a **multi-agent AI-powered simulation platform** that lets startup founders, HR leaders, and team managers stress-test their team's resilience under corporate crises. Assemble a virtual team of psychologically-profiled AI agents, inject a real-world crisis scenario, and observe in real-time how your team reacts — predicting burnout cascades, communication breakdowns, and resignation waves before they happen.
+TeamDynamics turns an invisible organizational risk into something you can
+**see, measure, and safely challenge**. Build a psychologically distinct AI
+team, inject a high-stakes company crisis, and watch morale, stress, loyalty,
+alliances, decisions, and business metrics evolve together in real time.
 
-### Public Quick Demo
+Instead of asking a chatbot what *might* happen, TeamDynamics creates a living
+system where every personality, vote, intervention, and consequence becomes
+part of the outcome.
 
-Open `/demo` to run the fixed Northstar Labs crisis without signing in or
-configuring a team. The Quick Demo uses nine deterministic mock responses
-across three agents and three rounds, so it makes **no external LLM request and
-incurs no model cost**. Those responses still pass through the real simulation
-engine, decision tracking, state changes, persistence, WebSocket streaming, and
-outcome generation.
+### ⚡ Judges' Fast Track
 
-Authenticated custom simulations remain separate and can use OpenAI GPT-5.6,
-Gemini, OpenRouter, or another configured provider.
+1. **[Launch the Northstar Labs crisis](https://teamdynamics.vercel.app/demo)** —
+   no account, API key, or setup required.
+2. **Watch three distinct agents collide** across public debate, private
+   thoughts, shifting emotions, and team decisions.
+3. **Open God Mode** to pause time, preview a targeted intervention, apply it,
+   inspect its receipt, and safely undo it when eligible.
+4. **Follow the consequences** into the world state and final executive outcome.
 
-### Why TeamDynamics?
+The public demo sends **18 deterministic messages from three agents across
+three rounds** through the real simulation engine, state transitions,
+persistence, WebSocket stream, decision tracking, and outcome generator —
+without external model spend.
 
-| Challenge | How TeamDynamics Solves It |
+### Why It Stands Out
+
+| Typical AI Demo | TeamDynamics |
 |:---|:---|
-| **Unpredictable team reactions** | Personality-weighted AI agents produce realistic, differentiated behavior |
-| **Costly trial-and-error** | Simulate weeks of crisis in minutes with zero real-world risk |
-| **Hidden team fracture points** | Expose breaking points through morale, stress, and loyalty tracking |
-| **One-size-fits-all management** | Test different interventions (bonuses, overtime cancellation, etc.) and compare outcomes |
+| A single chatbot response | A society of agents with distinct psychology, memory, influence, and hidden intent |
+| A scripted conversation | A stateful crisis where dialogue, team health, and company metrics affect one another |
+| A magic action button | Previewed, scoped, confirmable interventions with receipts and safe undo |
+| A static result | A live decision journey ending in an executive-grade diagnosis |
 
 ---
 
@@ -59,7 +73,7 @@ Each agent is equipped with a **5-trait personality system** (Empathy, Ambition,
 Watch agents interact in a **Slack-like surveillance interface** via WebSocket connections. See public messages alongside hidden internal thoughts, with typing indicators and system event broadcasts.
 
 ### 🎮 God-Mode Interventions
-Inject **Pizza Parties**, **Cancel Overtime**, **Bonuses**, or declare new crises on-the-fly. Watch immediate morale shifts with effects modulated by each agent's personality.
+Change the simulation without losing control. The backend-authoritative **Observe / Intervene** console can target the whole team, one agent, the project, or the decision process. Preview deterministic impact before applying, confirm high-impact actions, inspect an auditable receipt, and safely undo eligible changes. The console starts collapsed on desktop and mobile so the agents remain center stage.
 
 ### 🌍 Dynamic World State
 A persistent **economic simulation layer** tracks budget, reputation, customer satisfaction, technical debt, and deadline pressure — making every agent decision consequential.
@@ -264,6 +278,7 @@ TeamDynamics/
 │   │   └── websocket.py           # WebSocket real-time streaming
 │   └── services/
 │       ├── auth_service.py        # JWT, password hashing, Google OAuth
+│       ├── interventions.py       # Preview, apply, receipt, and safe-undo rules
 │       ├── simulation_engine.py   # Core simulation orchestrator
 │       ├── llm_service.py         # Multi-provider LLM integration
 │       ├── decision_engine.py     # Proposal system & hierarchy voting
@@ -318,7 +333,10 @@ TeamDynamics/
 |:---|:---|:---|
 | `POST` | `/api/simulation/create` | Create & launch a new simulation |
 | `GET` | `/api/simulation/{id}/status` | Get simulation state & messages |
-| `POST` | `/api/simulation/{id}/intervene` | Send God-Mode intervention |
+| `POST` | `/api/simulation/{id}/interventions/preview` | Preview a scoped intervention |
+| `POST` | `/api/simulation/{id}/intervene` | Apply a previewed God-Mode intervention |
+| `POST` | `/api/simulation/{id}/interventions/{intervention_id}/undo` | Safely undo the latest eligible intervention |
+| `POST` | `/api/simulation/{id}/control` | Pause, resume, or step one agent turn |
 | `GET` | `/api/simulation/{id}/report` | Generate executive report |
 | `POST` | `/api/simulation/generate-crisis` | AI-generate a crisis scenario |
 
@@ -345,7 +363,7 @@ TeamDynamics/
 
 1. **Setup** — Configure your company profile, assemble a team (4-8 agents) with custom personalities, and choose simulation parameters.
 2. **Crisis Injection** — Select a pre-built crisis (layoffs, CEO resignation, database wipe) or let AI generate one from uploaded documents.
-3. **Live Simulation** — Watch agents debate, propose solutions, burn out, or resign in real-time. Use God-Mode to intervene with bonuses, pizza parties, or overtime cancellation.
+3. **Live Simulation** — Watch agents debate, propose solutions, burn out, or resign in real-time. Open the collapsed God Mode console only when needed to pause, preview, apply, audit, or safely undo a scoped intervention.
 4. **Report** — Receive an AI-generated executive report with per-agent analysis, morale/stress timelines, survival classifications, and actionable recommendations.
 
 ### Simulation Engine Details
@@ -372,26 +390,6 @@ TeamDynamics/
 
 ---
 
-## 🧪 Testing (TestSprite)
-
-This project was tested using **TestSprite MCP** with **35 automated end-to-end test cases** covering:
-
-| Category | Tests | Pass Rate |
-|:---|:---:|:---:|
-| Authentication (register, login, OAuth, guards) | 6 | 100% |
-| Dashboard (stats, history, logout) | 4 | 50%* |
-| Simulation Setup (wizard, agents, crisis gen) | 4 | 100% |
-| Report & Analytics (metrics, PDF export, share) | 6 | 83% |
-| Landing Page & Navigation (CTAs, 404, docs) | 4 | 75%** |
-| Theme & Accessibility | 3 | 100% |
-
-> \*TC008 and TC016 failures were root-caused and fixed post-test run.
-> \*\*TC015 blocked due to test plan targeting a deprecated feature — not a product defect.
-
-📂 All test cases and the full report are in [`testsprite_tests/`](./testsprite_tests/).
-
----
-
 ## 🛣️ Roadmap
 
 - [ ] Parallel simulation execution for A/B testing
@@ -412,5 +410,5 @@ This project is proprietary. All rights reserved.
 ---
 
 <p align="center">
-  <em>Built with passion, caffeine, and a whole lot of AI for Hackathon Season 2.</em>
+  <em>Built for leaders who would rather simulate the crisis than survive it.</em>
 </p>
