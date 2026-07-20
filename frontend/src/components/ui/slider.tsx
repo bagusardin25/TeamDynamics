@@ -13,6 +13,11 @@ interface SliderProps
   value?: number | number[]
   defaultValue?: number | number[]
   onValueChange?: (value: number | number[]) => void
+  thumbClassName?: string
+  thumbProps?: Omit<
+    React.ComponentPropsWithoutRef<typeof SliderPrimitive.Thumb>,
+    "className"
+  >
 }
 
 function Slider({
@@ -20,11 +25,12 @@ function Slider({
   defaultValue,
   value,
   onValueChange,
+  thumbClassName,
+  thumbProps,
   min = 0,
   max = 100,
   ...props
 }: SliderProps) {
-  // Normalize value/defaultValue to arrays for Radix
   const normalizedValue = React.useMemo(
     () =>
       value !== undefined
@@ -45,9 +51,12 @@ function Slider({
     [defaultValue]
   )
 
-  // Track whether the original prop was a single number to unwrap on callback
   const isSingleValue =
-    value !== undefined ? !Array.isArray(value) : defaultValue !== undefined ? !Array.isArray(defaultValue) : true
+    value !== undefined
+      ? !Array.isArray(value)
+      : defaultValue !== undefined
+        ? !Array.isArray(defaultValue)
+        : true
 
   const handleValueChange = React.useCallback(
     (newValue: number[]) => {
@@ -58,7 +67,7 @@ function Slider({
     [onValueChange, isSingleValue]
   )
 
-  const _values = normalizedValue ?? normalizedDefault ?? [min]
+  const values = normalizedValue ?? normalizedDefault ?? [min]
 
   return (
     <SliderPrimitive.Root
@@ -83,11 +92,15 @@ function Slider({
           className="absolute h-full bg-primary"
         />
       </SliderPrimitive.Track>
-      {_values.map((_, index) => (
+      {values.map((_, index) => (
         <SliderPrimitive.Thumb
           data-slot="slider-thumb"
           key={index}
-          className="block size-3 shrink-0 rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50"
+          className={cn(
+            "relative block size-3 shrink-0 rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50",
+            thumbClassName
+          )}
+          {...thumbProps}
         />
       ))}
     </SliderPrimitive.Root>
