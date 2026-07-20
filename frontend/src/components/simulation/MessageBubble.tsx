@@ -1,10 +1,19 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Volume2, Brain, TrendingUp, TrendingDown, Activity, Zap, Sparkles, Target, Award } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import type { SimMessage } from "@/app/simulation/types";
+import {
+  Activity,
+  Brain,
+  TrendingDown,
+  TrendingUp,
+  Volume2,
+} from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import type { SimMessage, SimulationEventEffect } from '@/app/simulation/types';
+import {
+  getMessageEvent,
+  getSimulationEventPresentation,
+} from '@/lib/simulation-events';
 
 interface MessageBubbleProps {
   msg: SimMessage;
@@ -12,227 +21,176 @@ interface MessageBubbleProps {
   isRunning: boolean;
 }
 
-export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) {
-  if (msg.type === "system") {
-    const isOutcome = msg.content.includes("SIMULATION OUTCOME:");
-    const isDecision = msg.content.includes("TEAM DECISION REACHED:");
+function parseFinalWorldState(content: string): Record<string, string> {
+  const worldState = content.split(/FINAL WORLD STATE:/i)[1];
+  if (!worldState) return {};
 
-    if (isOutcome) {
-      const rawLines = msg.content
-        .replace("SIMULATION OUTCOME:", "")
-        .split("\n")
-        .map(l => l.trim())
-        .filter(l => l.length > 0 && !/^={3,}$/.test(l));
+  return Object.fromEntries(
+    worldState
+      .split('|')
+      .map((item) => item.trim())
+      .map((item) => {
+        const separator = item.indexOf(':');
+        if (separator < 0) return null;
+        return [item.slice(0, separator).trim(), item.slice(separator + 1).trim()];
+      })
+      .filter((item): item is [string, string] => Boolean(item?.[0] && item?.[1])),
+  );
+}
 
-      const titleLine = rawLines.length > 0 ? rawLines[0] : "Outcome";
-      const statsIndex = rawLines.findIndex(l => l.toUpperCase().includes("FINAL WORLD STATE"));
-      
-      let bodyLines: string[] = [];
-      let statLines: string[] = [];
-      
-      if (statsIndex !== -1) {
-         bodyLines = rawLines.slice(1, statsIndex);
-         statLines = rawLines.slice(statsIndex + 1);
-      } else {
-         bodyLines = rawLines.slice(1);
-      }
-      
-      const statsDict: Record<string, string> = {};
-      if (statLines.length > 0) {
-         const joinedStats = statLines.join(" | ");
-         joinedStats.split("|").forEach(item => {
-             const parts = item.split(":");
-             if (parts.length >= 2) {
-                 const k = parts[0].trim().replace(/^[-*•\s]+/, '');
-                 const v = parts.slice(1).join(":").trim().replace(/['"\[\]]+/g, '');
-                 if (k && v) statsDict[k] = v;
-             }
-         });
-      }
-
-      return (
-        <motion.div
-          initial={{ opacity: 0, y: 15, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.7, type: "spring", stiffness: 90 }}
-          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/15 via-card to-orange-500/10 border-2 border-amber-500/40 p-6 shadow-xl shadow-amber-500/10 my-6"
-        >
-          {/* Decorative glowing orb behind */}
-          <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
-          
-          <div className="flex flex-col gap-4 relative z-10">
-             <div className="flex items-center gap-4 border-b border-amber-500/20 pb-4">
-               <div className="p-3.5 rounded-2xl bg-amber-500/20 shrink-0 shadow-inner ring-1 ring-amber-500/30">
-                 <Award className="w-8 h-8 text-amber-500 drop-shadow-sm" />
-               </div>
-               <div>
-                  <h3 className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                    Simulation Outcome
-                  </h3>
-                  <div className="text-xl sm:text-2xl font-black text-foreground drop-shadow-md">
-                     {titleLine.replace(/^🏆\s*/, '🏆 ')}
-                  </div>
-               </div>
-             </div>
-             
-             {bodyLines.length > 0 && (
-               <div className="leading-relaxed font-medium text-foreground/90 whitespace-pre-line text-sm sm:text-base">
-                 {bodyLines.join("\n\n")}
-               </div>
-             )}
-
-             {Object.keys(statsDict).length > 0 && (
-               <div className="mt-2 pt-4 border-t border-amber-500/20">
-                 <h4 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-3">Final World State</h4>
-                 <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                   {Object.entries(statsDict).map(([k, v], i) => (
-                      <div key={i} className="bg-background/60 border border-amber-500/10 rounded-xl p-3 flex flex-col items-center justify-center text-center shadow-sm hover:border-amber-500/30 transition-colors">
-                        <span className="text-[10px] text-muted-foreground uppercase font-semibold mb-1 line-clamp-1" title={k}>{k}</span>
-                        <span className="text-lg font-bold text-amber-600 dark:text-amber-400">{v}</span>
-                      </div>
-                   ))}
-                 </div>
-               </div>
-             )}
-          </div>
-        </motion.div>
-      );
-    }
-
-    if (isDecision) {
-      return (
-        <motion.div
-          initial={{ opacity: 0, y: 10, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
-          className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-500/10 to-teal-500/5 border border-emerald-500/30 p-4 shadow-sm my-3 flex items-start gap-4"
-        >
-          <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />
-          <div className="p-2 rounded-xl bg-emerald-500/20 shrink-0">
-             <Target className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="pt-0.5">
-            <h4 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-1">Team Decision</h4>
-            <div className="leading-relaxed font-medium text-foreground/90">{msg.content.replace("TEAM DECISION REACHED:", "").trim()}</div>
-          </div>
-        </motion.div>
-      );
-    }
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 10, scale: 0.98 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ duration: 0.5, type: "spring", stiffness: 100 }}
-        className="w-full relative overflow-hidden rounded-2xl bg-gradient-to-r from-indigo-500/10 to-purple-500/5 border border-indigo-500/20 p-4 shadow-sm my-3 flex items-start gap-4 hover:shadow-md transition-shadow"
-      >
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500/80" />
-        <div className="p-2 rounded-xl bg-indigo-500/10 shrink-0 shadow-inner">
-           <Zap className="w-5 h-5 text-indigo-500" />
-        </div>
-        <div className="pt-0.5 flex-1 text-sm">
-          <h4 className="text-xs font-bold text-indigo-500/80 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-            <Sparkles className="w-3 h-3" /> System Update
-          </h4>
-          <div className="leading-relaxed font-medium text-foreground/80">{msg.content}</div>
-        </div>
-      </motion.div>
-    );
-  }
-  const playVoice = (text: string, stressDelta: number = 0) => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Hackathon Gamification: Change voice properties under stress!
-      const isHighlyStressed = stressDelta >= 5;
-      utterance.pitch = isHighlyStressed ? 0.6 : 1.0; // Voice drop
-      utterance.rate = isHighlyStressed ? 1.2 : 1.0;  // Speak faster
-      
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+function EffectBadge({ effect }: { effect: SimulationEventEffect }) {
+  const toneClass =
+    effect.tone === 'positive'
+      ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+      : effect.tone === 'negative'
+        ? 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-400'
+        : 'border-border bg-muted text-muted-foreground';
 
   return (
-    <div className="flex gap-4 w-full">
-      <div className="relative shrink-0">
-        {isLatest && isRunning && (
-          <motion.div
-            className="absolute -inset-1 rounded-full bg-primary/20"
-            animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
-          />
-        )}
-        <Avatar className="h-9 w-9 mt-1 border border-border relative">
-          <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
-            {(msg.agent || msg.agent_name || "??").substring(0, 2).toUpperCase()}
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${toneClass}`}>
+      <span>{effect.label}</span>
+      <span>{effect.value}</span>
+    </span>
+  );
+}
+
+function SystemEventCard({ msg }: { msg: SimMessage }) {
+  const event = getMessageEvent(msg.content, msg.event);
+  const presentation = getSimulationEventPresentation(event.kind);
+  const Icon = presentation.icon;
+  const worldState = event.kind === 'outcome' ? parseFinalWorldState(msg.content) : {};
+  const showTitle = event.title !== presentation.label;
+
+  return (
+    <article
+      className={`relative my-3 w-full overflow-hidden rounded-2xl border p-4 shadow-sm ${presentation.containerClass}`}
+      aria-label={presentation.label}
+    >
+      <div className='flex items-start gap-3.5'>
+        <div className={`mt-0.5 rounded-xl p-2.5 ${presentation.iconClass}`}>
+          <Icon className='h-5 w-5' aria-hidden='true' />
+        </div>
+
+        <div className='min-w-0 flex-1'>
+          <div className={`text-[11px] font-bold uppercase tracking-[0.16em] ${presentation.eyebrowClass}`}>
+            {presentation.label}
+          </div>
+          {showTitle && (
+            <h3 className='mt-1 text-sm font-bold leading-snug text-foreground sm:text-base'>
+              {event.title}
+            </h3>
+          )}
+          {event.summary && (
+            <p className={`${showTitle ? 'mt-1.5' : 'mt-1'} whitespace-pre-line text-sm font-medium leading-relaxed text-foreground/80`}>
+              {event.summary}
+            </p>
+          )}
+
+          {event.effects.length > 0 && (
+            <div className='mt-3 flex flex-wrap gap-2' aria-label='State changes'>
+              {event.effects.map((effect) => (
+                <EffectBadge key={`${effect.label}-${effect.value}`} effect={effect} />
+              ))}
+            </div>
+          )}
+
+          {Object.keys(worldState).length > 0 && (
+            <div className='mt-4 border-t border-current/10 pt-3'>
+              <div className='mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground'>
+                Final World State
+              </div>
+              <div className='grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5'>
+                {Object.entries(worldState).map(([label, value]) => (
+                  <div key={label} className='rounded-lg border border-border/60 bg-background/55 p-2.5'>
+                    <div className='truncate text-[9px] font-semibold uppercase tracking-wide text-muted-foreground' title={label}>
+                      {label}
+                    </div>
+                    <div className='mt-1 text-base font-bold text-foreground'>{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export function MessageBubble({ msg, isLatest, isRunning }: MessageBubbleProps) {
+  if (msg.type === 'system') return <SystemEventCard msg={msg} />;
+
+  const playVoice = (text: string, stressDelta = 0) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const isHighlyStressed = stressDelta >= 5;
+    utterance.pitch = isHighlyStressed ? 0.6 : 1;
+    utterance.rate = isHighlyStressed ? 1.2 : 1;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const moraleDelta = msg.changes?.morale ?? msg.state_changes?.morale ?? 0;
+  const stressDelta = msg.changes?.stress ?? msg.state_changes?.stress ?? 0;
+  const agentName = msg.agent || msg.agent_name || 'Agent';
+
+  return (
+    <div className='flex w-full gap-3 sm:gap-4'>
+      <div className='relative shrink-0'>
+        <Avatar className={`relative mt-1 h-9 w-9 border ${isLatest && isRunning ? 'border-primary/60 ring-2 ring-primary/10' : 'border-border'}`}>
+          <AvatarFallback className='bg-primary/10 text-xs font-bold text-primary'>
+            {agentName.substring(0, 2).toUpperCase()}
           </AvatarFallback>
         </Avatar>
       </div>
-      <div className="flex-1 min-w-0 space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-sm truncate">{msg.agent || msg.agent_name}</span>
-          <Button 
-             variant="ghost" 
-             size="icon" 
-             className="h-5 w-5 ml-1 bg-transparent hover:bg-primary/20 text-muted-foreground hover:text-primary rounded-full transition-colors"
-             onClick={() => playVoice(msg.content, msg.changes?.stress || msg.state_changes?.stress || 0)}
-             title="Listen In"
+
+      <div className='min-w-0 flex-1 space-y-1.5'>
+        <div className='flex items-center gap-2'>
+          <span className='truncate text-sm font-semibold'>{agentName}</span>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='ml-1 h-8 w-8 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary'
+            onClick={() => playVoice(msg.content, stressDelta)}
+            aria-label={`Listen to ${agentName}`}
           >
-             <Volume2 className="h-3 w-3" />
+            <Volume2 className='h-3.5 w-3.5' aria-hidden='true' />
           </Button>
         </div>
-        <motion.div
-          initial={{ opacity: 0, x: -8, y: 5 }}
-          animate={{ opacity: 1, x: 0, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut", delay: 0.1 }}
-          className="text-sm bg-card border border-border/60 rounded-2xl rounded-tl-sm p-4 shadow-sm hover:shadow-md transition-shadow group-hover:border-primary/20 relative"
+
+        <div
+          className='relative rounded-2xl rounded-tl-sm border border-border/60 bg-card p-4 text-sm shadow-sm transition-shadow hover:shadow-md'
         >
-          <div className="leading-relaxed text-foreground/90 whitespace-pre-wrap">
+          <div className='whitespace-pre-wrap leading-relaxed text-foreground/90'>
             {msg.content}
           </div>
-          
+
           {msg.thought && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              transition={{ duration: 0.3, delay: 0.2 }}
-              className="mt-4 pt-4 border-t border-border/50 space-y-3 overflow-hidden"
-            >
-              <div className="flex gap-2.5 text-xs text-muted-foreground items-start bg-secondary/40 p-3 rounded-xl border border-border/30">
-                <Brain className="w-4 h-4 mt-0.5 shrink-0 text-primary/60" />
-                <span className="italic leading-relaxed flex-1">&quot;{msg.thought}&quot;</span>
+            <div className='mt-4 space-y-3 border-t border-border/50 pt-4'>
+              <div className='flex items-start gap-2.5 rounded-xl border border-border/30 bg-secondary/40 p-3 text-xs text-muted-foreground'>
+                <Brain className='mt-0.5 h-4 w-4 shrink-0 text-primary/60' aria-hidden='true' />
+                <span className='flex-1 italic leading-relaxed'>&quot;{msg.thought}&quot;</span>
               </div>
-              
-              {/* Impact Indicators */}
-              {(msg.changes?.morale !== undefined || msg.state_changes?.morale !== undefined || msg.changes?.stress !== undefined || msg.state_changes?.stress !== undefined) && (
-                (() => {
-                  const mDelta = msg.changes?.morale ?? msg.state_changes?.morale ?? 0;
-                  const sDelta = msg.changes?.stress ?? msg.state_changes?.stress ?? 0;
-                  
-                  if (mDelta === 0 && sDelta === 0) return null;
-                  
-                  return (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {mDelta !== 0 && (
-                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${mDelta > 0 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400' : 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400'}`}>
-                          {mDelta > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                          <span>Morale {mDelta > 0 ? '+' : ''}{mDelta}</span>
-                        </div>
-                      )}
-                      {sDelta !== 0 && (
-                        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full border ${sDelta > 0 ? 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400' : 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400'}`}>
-                          {sDelta > 0 ? <Activity className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
-                          <span>Stress {sDelta > 0 ? '+' : ''}{sDelta}</span>
-                        </div>
-                      )}
+
+              {(moraleDelta !== 0 || stressDelta !== 0) && (
+                <div className='flex flex-wrap gap-2 pt-1'>
+                  {moraleDelta !== 0 && (
+                    <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold ${moraleDelta > 0 ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
+                      {moraleDelta > 0 ? <TrendingUp className='h-3.5 w-3.5' /> : <TrendingDown className='h-3.5 w-3.5' />}
+                      <span>Morale {moraleDelta > 0 ? '+' : ''}{moraleDelta}</span>
                     </div>
-                  );
-                })()
+                  )}
+                  {stressDelta !== 0 && (
+                    <div className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold ${stressDelta > 0 ? 'border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400' : 'border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-400'}`}>
+                      {stressDelta > 0 ? <Activity className='h-3.5 w-3.5' /> : <TrendingDown className='h-3.5 w-3.5' />}
+                      <span>Stress {stressDelta > 0 ? '+' : ''}{stressDelta}</span>
+                    </div>
+                  )}
+                </div>
               )}
-            </motion.div>
+            </div>
           )}
-        </motion.div>
+        </div>
       </div>
     </div>
   );

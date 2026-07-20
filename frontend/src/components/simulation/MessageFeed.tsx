@@ -1,15 +1,43 @@
-"use client";
+'use client';
 
-import { useRef, useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, ArrowRight } from "lucide-react";
-import Link from "next/link";
-import { MessageBubble } from "./MessageBubble";
-import type { SimMessage, SimulationOutcome, MetricsSnapshot, Metrics } from "@/app/simulation/types";
-import { getSimulationTimeLabels } from "@/lib/simulation-labels";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import Link from 'next/link';
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowRight,
+  Bot,
+  CheckCircle2,
+  Gauge,
+  Loader2,
+  MessageSquareText,
+  Pause,
+  Play,
+  Settings2,
+  Trophy,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import type {
+  Metrics,
+  MetricsSnapshot,
+  SimMessage,
+  SimulationOutcome,
+} from '@/app/simulation/types';
+import {
+  filterSimulationMessages,
+  getFeedRevealDelay,
+  getInitialFeedVisibleCount,
+  getNextFeedVisibleCount,
+  getQueuedAgentName,
+  isFeedNearBottom,
+  type FeedFilter,
+  type FeedSpeed,
+} from '@/lib/simulation-feed';
+import { getSimulationTimeLabels } from '@/lib/simulation-labels';
+import { MessageBubble } from './MessageBubble';
 
 interface MessageFeedProps {
   messages: SimMessage[];
@@ -21,129 +49,94 @@ interface MessageFeedProps {
   outcome: SimulationOutcome | null;
   metricsHistory: MetricsSnapshot[];
   metrics: Metrics;
+  initialMessageCount?: number | null;
+  onPresentedAgentChange?: (agentName: string | null) => void;
   isDemo?: boolean;
+  showPacingControls?: boolean;
 }
 
-const THINKING_PHRASES = [
-  "is thinking...",
-  "is formulating a response...",
-  "is considering the situation...",
-  "is composing a message...",
-  "is reflecting...",
+const SPEEDS: FeedSpeed[] = [0.75, 1, 1.5, 2];
+const FILTERS: Array<{ value: FeedFilter; label: string; icon: typeof Bot }> = [
+  { value: 'all', label: 'All', icon: MessageSquareText },
+  { value: 'agents', label: 'Agents', icon: Bot },
+  { value: 'system', label: 'System', icon: Settings2 },
 ];
 
 function OutcomeSummaryCard({
-  outcome, metrics, metricsHistory, simId,
+  outcome,
+  metrics,
+  metricsHistory,
+  simId,
 }: {
   outcome: SimulationOutcome;
   metrics: Metrics;
   metricsHistory: MetricsSnapshot[];
   simId: string | null;
 }) {
-  // Mini sparkline for the outcome card
-  const moraleData = metricsHistory.map(m => m.morale);
+  const moraleData = metricsHistory.map((snapshot) => snapshot.morale);
   const width = 200;
   const height = 40;
+  let sparklinePath = '';
 
-  let sparklinePath = "";
   if (moraleData.length > 1) {
     const max = Math.max(...moraleData, 100);
     const min = Math.min(...moraleData, 0);
     const range = max - min || 1;
-    sparklinePath = moraleData.map((v, i) => {
-      const x = (i / (moraleData.length - 1)) * width;
-      const y = height - ((v - min) / range) * height;
-      return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-    }).join(" ");
+    sparklinePath = moraleData
+      .map((value, index) => {
+        const x = (index / (moraleData.length - 1)) * width;
+        const y = height - ((value - min) / range) * height;
+        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+      })
+      .join(' ');
   }
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
+      initial={{ opacity: 0, scale: 0.96, y: 18 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="w-full max-w-xl mx-auto my-8"
+      transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+      className='mx-auto my-8 w-full max-w-xl'
     >
-      <Card className="relative overflow-hidden border-2 border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 shadow-2xl shadow-primary/10">
-        {/* Decorative gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-[60px] pointer-events-none" />
-
-        <CardContent className="relative p-6 space-y-5">
-          {/* Header */}
-          <div className="text-center space-y-2">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="text-5xl mb-2"
-            >
-              {outcome.emoji}
-            </motion.div>
-            <h3 className="text-xl font-bold tracking-tight">{outcome.title}</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto">
+      <Card className='relative overflow-hidden border-2 border-primary/30 bg-gradient-to-br from-card via-card to-primary/5 shadow-xl shadow-primary/10'>
+        <CardContent className='relative space-y-5 p-6'>
+          <div className='space-y-2 text-center'>
+            <div className='mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-500'>
+              <Trophy className='h-7 w-7' aria-hidden='true' />
+            </div>
+            <h3 className='text-xl font-bold tracking-tight'>{outcome.title}</h3>
+            <p className='mx-auto max-w-md text-sm leading-relaxed text-muted-foreground'>
               {outcome.description}
             </p>
           </div>
 
-          {/* Divider */}
-          <div className="h-px bg-border/50" />
-
-          {/* Final Metrics Grid */}
-          <div className="grid grid-cols-4 gap-3">
-            <div className="text-center space-y-1">
-              <div className={`text-lg font-bold ${metrics.avgMorale < 40 ? "text-red-500" : metrics.avgMorale < 60 ? "text-yellow-500" : "text-green-500"}`}>
-                {metrics.avgMorale}%
+          <div className='h-px bg-border/50' />
+          <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
+            {[
+              ['Morale', `${metrics.avgMorale}%`],
+              ['Stress', `${metrics.avgStress}%`],
+              ['Output', `${metrics.productivity}%`],
+              ['Resigned', String(metrics.resignations)],
+            ].map(([label, value]) => (
+              <div key={label} className='rounded-xl border border-border/60 bg-background/40 p-3 text-center'>
+                <div className='text-lg font-bold'>{value}</div>
+                <div className='text-[10px] text-muted-foreground'>{label}</div>
               </div>
-              <div className="text-[10px] text-muted-foreground">Morale</div>
-            </div>
-            <div className="text-center space-y-1">
-              <div className={`text-lg font-bold ${metrics.avgStress > 70 ? "text-red-500" : metrics.avgStress > 50 ? "text-orange-500" : "text-blue-500"}`}>
-                {metrics.avgStress}%
-              </div>
-              <div className="text-[10px] text-muted-foreground">Stress</div>
-            </div>
-            <div className="text-center space-y-1">
-              <div className={`text-lg font-bold ${metrics.productivity < 40 ? "text-red-500" : "text-blue-500"}`}>
-                {metrics.productivity}%
-              </div>
-              <div className="text-[10px] text-muted-foreground">Output</div>
-            </div>
-            <div className="text-center space-y-1">
-              <div className={`text-lg font-bold ${metrics.resignations > 0 ? "text-red-500" : "text-green-500"}`}>
-                {metrics.resignations}
-              </div>
-              <div className="text-[10px] text-muted-foreground">Resigned</div>
-            </div>
+            ))}
           </div>
 
-          {/* Mini Timeline */}
           {sparklinePath && (
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-[10px] text-muted-foreground">Morale Timeline</span>
-              <svg width={width} height={height} className="opacity-70">
-                <defs>
-                  <linearGradient id="outcomeLine" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor="#22c55e" />
-                    <stop offset="100%" stopColor={metrics.avgMorale < 40 ? "#ef4444" : "#22c55e"} />
-                  </linearGradient>
-                </defs>
-                <path
-                  d={sparklinePath}
-                  fill="none"
-                  stroke="url(#outcomeLine)"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+            <div className='flex flex-col items-center gap-1'>
+              <span className='text-[10px] text-muted-foreground'>Morale timeline</span>
+              <svg width={width} height={height} aria-label='Morale timeline chart'>
+                <path d={sparklinePath} fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' className='text-emerald-500' />
               </svg>
             </div>
           )}
 
-          {/* CTA */}
-          <Link href={`/report?id=${simId}`} className="block">
-            <Button className="w-full h-11 font-semibold shadow-lg shadow-primary/20">
-              View Full Report <ArrowRight className="w-4 h-4 ml-2" />
+          <Link href={`/report?id=${simId}`} className='block'>
+            <Button className='h-11 w-full font-semibold'>
+              View Full Report <ArrowRight className='ml-2 h-4 w-4' />
             </Button>
           </Link>
         </CardContent>
@@ -153,211 +146,298 @@ function OutcomeSummaryCard({
 }
 
 export function MessageFeed({
-  messages, status, isTyping, typingAgent, connectionError, simId,
-  outcome, metricsHistory, metrics,
+  messages,
+  status,
+  isTyping,
+  typingAgent,
+  connectionError,
+  simId,
+  outcome,
+  metricsHistory,
+  metrics,
+  initialMessageCount,
+  onPresentedAgentChange,
   isDemo = false,
+  showPacingControls = true,
 }: MessageFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [phraseIndex, setPhraseIndex] = useState(0);
+  const initializedRef = useRef(false);
+  const renderedCountRef = useRef(0);
+  const firstAutoScrollRef = useRef(true);
+  const messageCountRef = useRef(messages.length);
+  const shouldReduceMotion = useReducedMotion();
+  const [filter, setFilter] = useState<FeedFilter>('all');
+  const [speed, setSpeed] = useState<FeedSpeed>(1);
+  const [isPaused, setIsPaused] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(
+    showPacingControls ? 0 : messages.length,
+  );
+  const [unreadCount, setUnreadCount] = useState(0);
   const timeLabels = getSimulationTimeLabels(isDemo);
+  const resolvedInitialMessageCount = initialMessageCount === undefined
+    ? messages.length
+    : initialMessageCount;
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    if (scrollRef.current) {
-      requestAnimationFrame(() => {
-        if (scrollRef.current) {
-          scrollRef.current.scrollTo({
-            top: scrollRef.current.scrollHeight,
-            behavior: "smooth",
-          });
-        }
-      });
+    messageCountRef.current = messages.length;
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (!showPacingControls || initializedRef.current) return;
+    const nextVisibleCount = getInitialFeedVisibleCount(
+      messages.length,
+      visibleCount,
+      initializedRef.current,
+      resolvedInitialMessageCount,
+    );
+    if (nextVisibleCount === null) return;
+
+    initializedRef.current = true;
+    setVisibleCount(nextVisibleCount);
+  }, [messages.length, resolvedInitialMessageCount, showPacingControls, visibleCount]);
+
+  const nextMessage = showPacingControls ? messages[visibleCount] : undefined;
+  const previousMessage = visibleCount > 0 ? messages[visibleCount - 1] : undefined;
+  const nextMessageId = nextMessage?.id ?? null;
+  const nextRevealDelay = nextMessage
+    ? getFeedRevealDelay(speed, nextMessage, previousMessage)
+    : null;
+
+  useEffect(() => {
+    if (
+      !showPacingControls
+      || !initializedRef.current
+      || nextMessageId === null
+      || nextRevealDelay === null
+    ) return;
+
+    const timer = window.setTimeout(
+      () => setVisibleCount((count) => (
+        getNextFeedVisibleCount(messageCountRef.current, count) ?? count
+      )),
+      nextRevealDelay,
+    );
+    return () => window.clearTimeout(timer);
+  }, [nextMessageId, nextRevealDelay, showPacingControls]);
+
+  const effectiveVisibleCount = showPacingControls
+    ? visibleCount
+    : messages.length;
+  const visibleMessages = useMemo(
+    () => filterSimulationMessages(messages.slice(0, effectiveVisibleCount), filter),
+    [effectiveVisibleCount, filter, messages],
+  );
+  const pendingCount = Math.max(0, messages.length - effectiveVisibleCount);
+  const newUpdateCount = pendingCount + unreadCount;
+  const presentationComplete = status === 'completed' && pendingCount === 0;
+  const outcomeScrollKey = outcome?.title ?? null;
+  const showNewUpdateButton = isPaused && newUpdateCount > 0;
+  const queuedAgentName = showPacingControls
+    ? getQueuedAgentName(messages, effectiveVisibleCount)
+    : null;
+  const presentationTypingAgent = !isPaused && filter !== 'system'
+    ? queuedAgentName || (pendingCount === 0 && isTyping ? typingAgent : null)
+    : null;
+
+  useEffect(() => {
+    const delta = Math.max(0, effectiveVisibleCount - renderedCountRef.current);
+    renderedCountRef.current = effectiveVisibleCount;
+    if (delta > 0 && isPaused) {
+      setUnreadCount((count) => count + delta);
     }
-  }, [messages, isTyping, outcome]);
+  }, [effectiveVisibleCount, isPaused]);
 
-  // Rotate thinking phrases
   useEffect(() => {
-    if (!isTyping || status === "completed") return;
-    const interval = setInterval(() => {
-      setPhraseIndex((prev) => (prev + 1) % THINKING_PHRASES.length);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [isTyping, status]);
+    onPresentedAgentChange?.(presentationTypingAgent);
+  }, [onPresentedAgentChange, presentationTypingAgent]);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior) => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    scroller.scrollTo({
+      top: scroller.scrollHeight,
+      behavior,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isPaused) return;
+    const behavior: ScrollBehavior = firstAutoScrollRef.current || shouldReduceMotion
+      ? 'auto'
+      : 'smooth';
+    firstAutoScrollRef.current = false;
+    const frame = requestAnimationFrame(() => {
+      scrollToLatest(behavior);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [effectiveVisibleCount, filter, isPaused, outcomeScrollKey, presentationComplete, presentationTypingAgent, scrollToLatest, shouldReduceMotion]);
+
+  const jumpToLatest = useCallback(() => {
+    setUnreadCount(0);
+    requestAnimationFrame(() => {
+      scrollToLatest(shouldReduceMotion ? 'auto' : 'smooth');
+    });
+  }, [scrollToLatest, shouldReduceMotion]);
+
+  const toggleAutoFollow = () => {
+    if (isPaused) {
+      setIsPaused(false);
+      jumpToLatest();
+      return;
+    }
+    setIsPaused(true);
+  };
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 min-h-0 custom-scroll" ref={scrollRef}>
-      <div className="space-y-6 max-w-3xl mx-auto pb-40">
-        {connectionError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full rounded-xl bg-red-500/10 border border-red-500/20 p-4 flex items-center gap-3 text-sm text-foreground my-4"
-          >
-            <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
-            <div className="flex-1">
-              <p className="font-medium text-red-400">{connectionError}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                The simulation may have expired or the server is unreachable.
-              </p>
-            </div>
-            <Link href="/setup">
-              <Button
-                size="sm"
-                variant="outline"
-                className="border-red-500/20 text-red-400 hover:bg-red-500/10 shrink-0"
+    <div className='relative flex min-h-0 flex-1 flex-col'>
+      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-background/80 px-3 py-2 backdrop-blur sm:px-5'>
+        <div className='flex items-center gap-1' aria-label='Message filter'>
+          {FILTERS.map((option) => {
+            const Icon = option.icon;
+            const active = filter === option.value;
+            return (
+              <button
+                key={option.value}
+                type='button'
+                onClick={() => setFilter(option.value)}
+                aria-pressed={active}
+                className={`inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-semibold transition-colors ${active ? 'bg-primary/12 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
               >
-                New Simulation
-              </Button>
-            </Link>
-          </motion.div>
-        )}
-
-        <div className="flex items-center justify-center my-6">
-          <Badge variant="secondary" className="bg-card font-normal text-xs text-muted-foreground">
-            Simulation Started
-          </Badge>
+                <Icon className='h-3.5 w-3.5' aria-hidden='true' />
+                {option.label}
+              </button>
+            );
+          })}
         </div>
 
-        {messages.map((msg, idx) => {
-          const prevRound = idx > 0 ? messages[idx - 1].round : null;
-          const showWeekDivider = msg.round && msg.round !== prevRound;
+        {showPacingControls && (!presentationComplete || isPaused) && (
+          <div className='flex items-center gap-1.5'>
+            <div className='hidden items-center gap-0.5 sm:flex' aria-label='Update speed'>
+              <Gauge className='mr-1 h-3.5 w-3.5 text-muted-foreground' aria-hidden='true' />
+              {SPEEDS.map((value) => (
+                <button
+                  key={value}
+                  type='button'
+                  onClick={() => setSpeed(value)}
+                  aria-pressed={speed === value}
+                  className={`h-7 rounded-md px-2 text-[10px] font-semibold ${speed === value ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  {value}x
+                </button>
+              ))}
+            </div>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              className='h-8 gap-1.5 px-2.5 text-[11px]'
+              onClick={toggleAutoFollow}
+              aria-label={isPaused ? 'Resume follow and show latest updates' : 'Pause follow'}
+            >
+              {isPaused ? <Play className='h-3.5 w-3.5' /> : <Pause className='h-3.5 w-3.5' />}
+              <span>{isPaused ? 'Resume follow' : 'Pause follow'}</span>
+            </Button>
+          </div>
+        )}
+      </div>
 
-          return (
-            <div key={msg.id}>
-              {showWeekDivider && (
-                <div className="flex items-center gap-3 my-6">
-                  <div className="flex-1 h-px bg-border/50" />
-                  <Badge
-                    variant="secondary"
-                    className="bg-card font-medium text-xs text-muted-foreground px-3 py-1"
-                  >
-                    📅 {timeLabels.round} {msg.round}
-                  </Badge>
-                  <div className="flex-1 h-px bg-border/50" />
-                </div>
-              )}
+      <div
+        ref={scrollRef}
+        className='min-h-0 flex-1 overflow-y-auto p-4 custom-scroll sm:p-6'
+        onScroll={(event) => {
+          if (isFeedNearBottom(event.currentTarget)) setUnreadCount(0);
+        }}
+      >
+        <div className='mx-auto max-w-3xl space-y-5 pb-8'>
+          {connectionError && (
+            <div className='my-4 flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm'>
+              <AlertTriangle className='h-5 w-5 shrink-0 text-red-500' />
+              <div className='flex-1'>
+                <p className='font-medium text-red-400'>{connectionError}</p>
+                <p className='mt-1 text-xs text-muted-foreground'>The simulation may have expired or the server is unreachable.</p>
+              </div>
+              <Link href='/setup'><Button size='sm' variant='outline'>New Simulation</Button></Link>
+            </div>
+          )}
+
+          <div className='flex items-center justify-center py-2'>
+            <Badge variant='secondary' className='font-normal text-muted-foreground'>Simulation Started</Badge>
+          </div>
+
+          {visibleMessages.map((message, index) => {
+            const previousRound = index > 0 ? visibleMessages[index - 1].round : null;
+            const showRoundDivider = Boolean(message.round && message.round !== previousRound);
+            return (
               <motion.div
-                initial={{ opacity: 0, y: 12, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
-                layout={false}
-                className="flex gap-4 group w-full overflow-hidden"
+                key={message.id}
+                data-message-entry={message.id}
+                initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
               >
+                {showRoundDivider && (
+                  <div className='my-6 flex items-center gap-3' aria-label={`${timeLabels.round} ${message.round}`}>
+                    <div className='h-px flex-1 bg-border/50' />
+                    <Badge variant='secondary' className='bg-card px-3 py-1 text-xs font-medium text-muted-foreground'>
+                      {timeLabels.round} {message.round}
+                    </Badge>
+                    <div className='h-px flex-1 bg-border/50' />
+                  </div>
+                )}
                 <MessageBubble
-                  msg={msg}
-                  isLatest={idx === messages.length - 1}
-                  isRunning={status === "running"}
+                  msg={message}
+                  isLatest={index === visibleMessages.length - 1}
+                  isRunning={!presentationComplete && !isPaused}
                 />
               </motion.div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        {/* Enhanced Typing Indicator */}
-        <AnimatePresence>
-          {isTyping && status !== "completed" && (
-            <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.3 }}
-              className="flex gap-4"
-            >
-              {/* Avatar placeholder with pulse */}
-              <div className="relative shrink-0">
-                <motion.div
-                  className="absolute -inset-1 rounded-full bg-primary/20"
-                  animate={{ scale: [1, 1.4, 1], opacity: [0.3, 0, 0.3] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-                <div className="h-9 w-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center relative">
-                  <span className="text-primary text-xs font-bold">
-                    {typingAgent ? typingAgent.substring(0, 2).toUpperCase() : "AI"}
-                  </span>
+          {presentationTypingAgent && !presentationComplete && (
+              <div className='flex gap-3' role='status' aria-live='polite'>
+                <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/10 text-xs font-bold text-primary'>
+                  {presentationTypingAgent.substring(0, 2).toUpperCase()}
                 </div>
-              </div>
-
-              {/* Typing card with shimmer */}
-              <div className="flex-1 min-w-0 space-y-1.5">
-                <motion.div
-                  key={typingAgent || "generic"}
-                  initial={{ opacity: 0, x: -8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-sm font-semibold text-muted-foreground"
-                >
-                  {typingAgent || "Agent"}
-                </motion.div>
-                <div className="relative overflow-hidden bg-card border border-border border-l-primary/30 border-l-4 rounded-r-lg p-3 shadow-sm max-w-xs">
-                  {/* Shimmer overlay */}
-                  <div className="absolute inset-0 shimmer-effect" />
-
-                  <div className="flex items-center gap-2 relative z-10">
-                    {/* Bouncing dots */}
-                    <div className="flex gap-1 items-center">
-                      <motion.span
-                        className="w-2 h-2 bg-primary/60 rounded-full"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1 }}
-                      />
-                      <motion.span
-                        className="w-2 h-2 bg-primary/60 rounded-full"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1, delay: 0.15 }}
-                      />
-                      <motion.span
-                        className="w-2 h-2 bg-primary/60 rounded-full"
-                        animate={{ y: [0, -6, 0] }}
-                        transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.1, delay: 0.3 }}
-                      />
-                    </div>
-                    {/* Rotating phrase */}
-                    <AnimatePresence mode="wait">
-                      <motion.span
-                        key={phraseIndex}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        transition={{ duration: 0.2 }}
-                        className="text-xs text-muted-foreground italic"
-                      >
-                        {THINKING_PHRASES[phraseIndex]}
-                      </motion.span>
-                    </AnimatePresence>
+                <div className='min-w-0 flex-1'>
+                  <div className='text-sm font-semibold text-muted-foreground'>{presentationTypingAgent}</div>
+                  <div className='mt-1 inline-flex min-w-48 items-center gap-2 rounded-r-lg border border-l-4 border-border border-l-primary/30 bg-card px-3 py-2 text-xs italic text-muted-foreground shadow-sm'>
+                    <Loader2 className='h-3.5 w-3.5 shrink-0 animate-spin text-primary/70' aria-hidden='true' />
+                    is thinking...
                   </div>
                 </div>
               </div>
-            </motion.div>
           )}
-        </AnimatePresence>
 
-        {/* Simulation Completed — Outcome Summary Card */}
-        {status === "completed" && (
-          <>
-            <div className="flex items-center justify-center my-6">
-              <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-none font-medium">
-                ✅ Simulation Completed — {timeLabels.completed}
-              </Badge>
-            </div>
-            {outcome && (
-              <OutcomeSummaryCard
-                outcome={outcome}
-                metrics={metrics}
-                metricsHistory={metricsHistory}
-                simId={simId}
-              />
-            )}
-            {!outcome && (
-              <div className="flex justify-center my-4">
-                <Link href={`/report?id=${simId}`}>
-                  <Button variant="outline" className="shadow-sm">
-                    View Report <ArrowRight className="w-4 h-4 ml-2" />
-                  </Button>
-                </Link>
+          {presentationComplete && (
+            <>
+              <div className='flex items-center justify-center py-4'>
+                <Badge variant='secondary' className='gap-1.5 border-none bg-green-500/10 font-medium text-green-500'>
+                  <CheckCircle2 className='h-3.5 w-3.5' /> Simulation Completed — {timeLabels.completed}
+                </Badge>
               </div>
-            )}
-          </>
-        )}
+              {outcome ? (
+                <OutcomeSummaryCard outcome={outcome} metrics={metrics} metricsHistory={metricsHistory} simId={simId} />
+              ) : (
+                <div className='flex justify-center py-4'>
+                  <Link href={`/report?id=${simId}`}><Button variant='outline'>View Report <ArrowRight className='ml-2 h-4 w-4' /></Button></Link>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
+
+      {showNewUpdateButton && (
+        <button
+          type='button'
+          onClick={jumpToLatest}
+          className='absolute bottom-4 left-1/2 z-20 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-3.5 py-2 text-xs font-semibold text-primary shadow-lg backdrop-blur hover:bg-primary/10'
+          aria-label={`Show ${newUpdateCount} new updates`}
+        >
+          <ArrowDown className='h-3.5 w-3.5' />
+          {newUpdateCount} New updates
+        </button>
+      )}
     </div>
   );
 }

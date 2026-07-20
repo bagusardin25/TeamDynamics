@@ -20,6 +20,7 @@ function SimulationContent() {
 
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [presentedAgent, setPresentedAgent] = useState<string | null>(null);
 
   const {
     agents,
@@ -35,6 +36,7 @@ function SimulationContent() {
     isConnected,
     isTyping,
     typingAgent,
+    initialMessageCount,
     connectionError,
     worldState,
     decisionStatus,
@@ -92,6 +94,7 @@ function SimulationContent() {
           soundEnabled={soundEnabled}
           onToggleSound={() => setSoundEnabled(!soundEnabled)}
           onEndSimulation={handleEndSimulation}
+          isDemo={isDemo}
           onExit={() => router.push(isDemo ? "/demo" : "/dashboard")}
         />
       </div>
@@ -116,16 +119,23 @@ function SimulationContent() {
       {/* Main 3-Column Layout */}
       <main className="flex-1 flex overflow-hidden min-h-0 relative z-10">
         {/* Left: Agent Sidebar (desktop) */}
-        <AgentSidebar agents={agents} connectionError={connectionError} typingAgentId={typingAgent} />
+        <AgentSidebar agents={agents} connectionError={connectionError} typingAgentId={presentedAgent} />
 
         {/* Center: Chat Feed */}
         <section className="flex-1 flex flex-col bg-background/50 relative min-h-0 backdrop-blur-xs">
-          <MobileAgentBar agents={agents} />
+          <MobileAgentBar
+            agents={agents}
+            metrics={metrics}
+            worldState={worldState}
+            decisionStatus={decisionStatus}
+          />
           <MessageFeed
             messages={messages}
             status={status}
             isTyping={isTyping}
             typingAgent={typingAgent}
+            initialMessageCount={initialMessageCount}
+            onPresentedAgentChange={setPresentedAgent}
             connectionError={connectionError}
             simId={simId}
             outcome={outcome}
@@ -133,7 +143,13 @@ function SimulationContent() {
             metrics={metrics}
             isDemo={isDemo}
           />
-          <InterventionPanel status={status} onIntervene={handleIntervene} metrics={metrics} worldState={worldState} />
+          <InterventionPanel
+            status={status}
+            onIntervene={handleIntervene}
+            metrics={metrics}
+            worldState={worldState}
+            isDemo={isDemo}
+          />
         </section>
 
         {/* Right: Metrics Dashboard */}

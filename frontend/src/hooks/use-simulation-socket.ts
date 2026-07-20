@@ -31,6 +31,7 @@ interface UseSimulationSocketReturn {
   isConnected: boolean;
   isTyping: boolean;
   typingAgent: string | null;
+  initialMessageCount: number | null;
   connectionError: string | null;
   worldState: WorldState | null;
   decisionStatus: DecisionStatus | null;
@@ -56,6 +57,7 @@ export function useSimulationSocket(
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingAgent, setTypingAgent] = useState<string | null>(null);
+  const [initialMessageCount, setInitialMessageCount] = useState<number | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [prevMetrics, setPrevMetrics] = useState<Metrics | null>(null);
   const [worldState, setWorldState] = useState<WorldState | null>(null);
@@ -99,7 +101,8 @@ export function useSimulationSocket(
 
       ws.onopen = () => {
         setIsConnected(true);
-        setIsTyping(true);
+        setIsTyping(false);
+        setTypingAgent(null);
         setConnectionError(null);
         reconnectAttemptsRef.current = 0;
       };
@@ -108,8 +111,10 @@ export function useSimulationSocket(
         const payload = JSON.parse(event.data);
 
         if (payload.type === "init") {
+          const initialMessages = payload.messages || [];
           setAgents(payload.agents || []);
-          setMessages(payload.messages || []);
+          setMessages(initialMessages);
+          setInitialMessageCount(initialMessages.length);
           setMetrics(payload.metrics || DEFAULT_METRICS);
           setCurrentRound(payload.currentRound || 0);
           setTotalRounds(payload.totalRounds || 12);
@@ -117,7 +122,7 @@ export function useSimulationSocket(
           setCompanyName(payload.company?.name || "Simulation");
           setMode(payload.mode || "standard");
           setRuntimeModel(payload.runtimeModel || null);
-          setIsTyping(payload.status !== "completed");
+          setIsTyping(false);
           setTypingAgent(null);
           if (payload.worldState) setWorldState(payload.worldState);
           if (payload.decisionStatus) setDecisionStatus(payload.decisionStatus);
@@ -152,7 +157,7 @@ export function useSimulationSocket(
           if (payload.status) setStatus(payload.status);
           if (payload.worldState) setWorldState(payload.worldState);
           if (payload.decisionStatus) setDecisionStatus(payload.decisionStatus);
-          setIsTyping(true);
+          setIsTyping(false);
           setTypingAgent(null);
         } else if (payload.type === "completed") {
           setStatus("completed");
@@ -167,12 +172,14 @@ export function useSimulationSocket(
         } else if (payload.type === "error") {
           setConnectionError(payload.message || "Simulation error");
           setIsTyping(false);
+          setTypingAgent(null);
         }
       };
 
       ws.onclose = (event) => {
         setIsConnected(false);
         setIsTyping(false);
+        setTypingAgent(null);
 
         if (isCancelled || statusRef.current === "completed" || event.code === 1000) return;
 
@@ -190,13 +197,15 @@ export function useSimulationSocket(
       ws.onerror = () => {
         setIsConnected(false);
         setIsTyping(false);
+        setTypingAgent(null);
       };
     }
 
-    connect();
+    const initialConnectTimer = window.setTimeout(connect, 0);
 
     return () => {
       isCancelled = true;
+      window.clearTimeout(initialConnectTimer);
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
@@ -261,6 +270,7 @@ export function useSimulationSocket(
     isConnected,
     isTyping,
     typingAgent,
+    initialMessageCount,
     connectionError,
     worldState,
     decisionStatus,

@@ -33,6 +33,33 @@ export interface SimMessage {
     loyalty?: number;
     productivity?: number;
   };
+  event?: SimulationEvent;
+}
+
+export type SimulationEventKind =
+  | 'crisis'
+  | 'phase_shift'
+  | 'unexpected_event'
+  | 'proposal'
+  | 'decision'
+  | 'impact'
+  | 'intervention'
+  | 'team_signal'
+  | 'outcome'
+  | 'update';
+
+export interface SimulationEventEffect {
+  label: string;
+  value: string;
+  tone: 'positive' | 'negative' | 'neutral';
+}
+
+export interface SimulationEvent {
+  kind: SimulationEventKind;
+  title: string;
+  summary: string;
+  severity: 'info' | 'success' | 'warning' | 'critical';
+  effects: SimulationEventEffect[];
 }
 
 export interface Metrics {
@@ -82,7 +109,7 @@ export interface MetricsSnapshot {
 }
 
 export interface SimulationOutcome {
-  emoji: string;
+  icon?: string;
   title: string;
   description: string;
 }

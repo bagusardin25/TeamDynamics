@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
   Activity, Users, Heart, Shield,
-  DollarSign, Star, Clock, MessageSquare, AlertTriangle, Target
+  DollarSign, Star, Clock, MessageSquare, AlertTriangle, Target,
+  Globe2, CheckCircle2, ClipboardList
 } from "lucide-react";
 import type { Metrics, Agent, WorldState, DecisionStatus, MetricsSnapshot } from "@/app/simulation/types";
 import { RadialGauge } from "./RadialGauge";
@@ -96,7 +97,7 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 }
 
 export function MetricsDashboard({
-  metrics, prevMetrics, status, currentRound, agents,
+  metrics, prevMetrics, status, currentRound,
   worldState, decisionStatus, metricsHistory,
   isDemo = false,
 }: MetricsDashboardProps) {
@@ -187,7 +188,7 @@ export function MetricsDashboard({
             </div>
             <CardHeader className="py-3 px-4 border-b border-border/20 bg-secondary/20">
               <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-                🌍 Project State
+                <Globe2 className='h-3.5 w-3.5' aria-hidden='true' /> Project State
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3">
@@ -244,7 +245,7 @@ export function MetricsDashboard({
               {decisionStatus.hasDecision ? (
                 <div className="text-xs">
                   <Badge variant="outline" className="text-green-400 border-green-500/20 bg-green-500/10 text-[10px] mb-2">
-                    ✅ Decision Reached
+                    <CheckCircle2 className='mr-1 h-3 w-3' aria-hidden='true' /> Decision Reached
                   </Badge>
                   <p className="text-muted-foreground leading-relaxed">
                     {decisionStatus.decidedProposal}
@@ -253,7 +254,7 @@ export function MetricsDashboard({
               ) : decisionStatus.leadingProposal ? (
                 <div className="text-xs">
                   <Badge variant="outline" className="text-orange-400 border-orange-500/20 bg-orange-500/10 text-[10px] mb-2">
-                    📋 Leading Proposal
+                    <ClipboardList className='mr-1 h-3 w-3' aria-hidden='true' /> Leading Proposal
                   </Badge>
                   <p className="text-muted-foreground leading-relaxed">
                     {decisionStatus.leadingProposal}
@@ -277,51 +278,6 @@ export function MetricsDashboard({
                   {decisionStatus.resignThreats} resign threat{decisionStatus.resignThreats > 1 ? "s" : ""}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Per-Agent Status */}
-        {agents.length > 0 && (
-          <Card className="bg-background/40 border-border/50 shadow-sm">
-            <CardHeader className="py-3 px-4 border-b border-border/20">
-              <CardTitle className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Users className="w-3 h-3" /> Agent Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3 space-y-2">
-              {agents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className={`flex items-center gap-2 p-2 rounded-lg ${agent.has_resigned ? "opacity-40" : "bg-background/30"}`}
-                >
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[9px] font-bold shrink-0">
-                    {agent.initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[10px] font-medium truncate">
-                      {agent.name}
-                    </div>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <div className="flex-1 h-1 rounded-full bg-secondary overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            agent.morale < 30 ? "bg-red-500" :
-                            agent.morale < 50 ? "bg-yellow-500" : "bg-green-500"
-                          }`}
-                          style={{ width: `${agent.morale}%` }}
-                        />
-                      </div>
-                      <span className="text-[8px] text-muted-foreground w-6 text-right">{agent.morale}</span>
-                    </div>
-                  </div>
-                  {agent.has_resigned && (
-                    <Badge variant="outline" className="text-[8px] text-red-400 border-red-500/20 shrink-0">
-                      Left
-                    </Badge>
-                  )}
-                </div>
-              ))}
             </CardContent>
           </Card>
         )}

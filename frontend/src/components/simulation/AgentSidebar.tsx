@@ -1,11 +1,22 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Loader2, AlertTriangle } from "lucide-react";
-import type { Agent } from "@/app/simulation/types";
+import {
+  Activity,
+  AlertTriangle,
+  Flame,
+  Frown,
+  Gauge,
+  Heart,
+  Loader2,
+  MessageSquareText,
+  Sparkles,
+  TriangleAlert,
+  Users,
+} from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import type { Agent } from '@/app/simulation/types';
 
 interface AgentSidebarProps {
   agents: Agent[];
@@ -13,176 +24,109 @@ interface AgentSidebarProps {
   typingAgentId: string | null;
 }
 
-export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSidebarProps) {
-  const parseAgentName = (fullName: string) => {
-    let name = fullName;
-    let role = "Team Member";
-    
-    // Check "Name (Role)" format
-    const parenMatch = fullName.match(/(.*?)\s*\((.*?)\)/);
-    if (parenMatch) {
-      name = parenMatch[1].trim();
-      role = parenMatch[2].trim();
-    } else if (fullName.includes(" - ")) {
-      // Check "Name - Role" format
-      const parts = fullName.split(" - ");
-      name = parts[0].trim();
-      role = parts[1].trim();
-    }
-    return { name, role };
-  };
+function parseAgentName(fullName: string) {
+  const parenthesized = fullName.match(/(.*?)\s*\((.*?)\)/);
+  if (parenthesized) {
+    return { name: parenthesized[1].trim(), role: parenthesized[2].trim() };
+  }
+  const [name, role] = fullName.split(' - ');
+  return { name: name.trim(), role: role?.trim() || 'Team Member' };
+}
 
-  const getAgentState = (morale: number, stress: number) => {
-    if (stress >= 85) return { label: "Burnout", emoji: "🔥", color: "text-red-500 bg-red-500/10 border-red-500/20" };
-    if (stress >= 65) return { label: "Stressed", emoji: "😰", color: "text-orange-500 bg-orange-500/10 border-orange-500/20" };
-    if (morale <= 40) return { label: "Frustrated", emoji: "😡", color: "text-rose-500 bg-rose-500/10 border-rose-500/20" };
-    if (morale >= 70 && stress <= 45) return { label: "Motivated", emoji: "✨", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" };
-    return { label: "Active", emoji: "⚡", color: "text-blue-500 bg-blue-500/10 border-blue-500/20" };
-  };
+function getAgentState(morale: number, stress: number) {
+  if (stress >= 85) return { label: 'Burnout', icon: Flame, color: 'text-red-500 bg-red-500/10 border-red-500/20' };
+  if (stress >= 65) return { label: 'High stress', icon: TriangleAlert, color: 'text-orange-500 bg-orange-500/10 border-orange-500/20' };
+  if (morale <= 40) return { label: 'Low mood', icon: Frown, color: 'text-rose-500 bg-rose-500/10 border-rose-500/20' };
+  if (morale >= 70 && stress <= 45) return { label: 'Good mood', icon: Sparkles, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' };
+  return { label: 'Stable', icon: Activity, color: 'text-blue-500 bg-blue-500/10 border-blue-500/20' };
+}
+
+export function AgentSidebar({ agents, connectionError, typingAgentId }: AgentSidebarProps) {
   return (
-    <aside className="w-[300px] border-r border-border bg-card/20 p-4 hidden md:flex flex-col shrink-0 overflow-y-auto custom-scroll">
-      <div className="space-y-1 mb-6">
-        <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Users className="w-4 h-4 text-primary" /> Active Agents
+    <aside className='hidden w-[280px] shrink-0 flex-col overflow-y-auto border-r border-border bg-card/20 p-4 custom-scroll md:flex xl:w-[300px]'>
+      <div className='mb-5 space-y-1'>
+        <h2 className='flex items-center gap-2 text-sm font-semibold'>
+          <Users className='h-4 w-4 text-primary' aria-hidden='true' /> Active Agents
         </h2>
-        <p className="text-xs text-muted-foreground">Live psychological state</p>
+        <p className='text-xs text-muted-foreground'>Live psychological state</p>
       </div>
 
-      <div className="space-y-4 flex-1">
+      <div className='flex-1 space-y-3'>
         {agents.map((agent) => {
-          // Match by agent name since typingAgentId is "Name (Role)" format
-          const isTyping = typingAgentId ? agent.name.includes(typingAgentId.split(" (")[0]) : false;
-
-          const { name: parsedName, role: parsedRole } = parseAgentName(agent.name);
-          const stateData = getAgentState(agent.morale, agent.stress);
+          const parsed = parseAgentName(agent.name);
+          const isTyping = Boolean(
+            typingAgentId && agent.name.includes(typingAgentId.split(' (')[0]),
+          );
+          const state = getAgentState(agent.morale, agent.stress);
+          const StateIcon = state.icon;
 
           return (
-            <motion.div
-              key={agent.id}
-              animate={isTyping ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-              transition={isTyping ? { duration: 1.5, repeat: Infinity } : {}}
-            >
-              <Card
-                className={`bg-background/40 border-border/50 transition-all duration-500 ${
-                  agent.has_resigned
-                    ? "opacity-50 grayscale"
-                    : isTyping
-                      ? "border-primary/50 shadow-[0_0_15px_rgba(var(--primary-rgb,139,92,246),0.15)]"
-                      : ""
-                }`}
-              >
-                <CardContent className="p-4 flex gap-3 relative overflow-hidden">
-                  {/* Subtle state background glow */}
-                  {!agent.has_resigned && (
-                     <div className={`absolute -right-4 -top-4 w-16 h-16 rounded-full blur-2xl opacity-20 ${stateData.label === 'Burnout' ? 'bg-red-500' : stateData.label === 'Motivated' ? 'bg-emerald-500' : ''}`} />
-                  )}
-
-                  <div className="relative shrink-0">
-                    {isTyping && (
-                      <motion.div
-                        className="absolute -inset-1 rounded-full bg-primary/20"
-                        animate={{ scale: [1, 1.4, 1], opacity: [0.4, 0, 0.4] }}
-                        transition={{ duration: 1.5, repeat: Infinity }}
-                      />
-                    )}
-                    <Avatar className="h-10 w-10 border border-border relative bg-card">
-                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+            <div key={agent.id}>
+              <Card className={`border-border/50 bg-background/45 ${agent.has_resigned ? 'opacity-50 grayscale' : isTyping ? 'border-primary/45' : ''}`}>
+                <CardContent className='flex gap-3 p-3'>
+                  <div className='relative shrink-0'>
+                    <Avatar className={`relative h-10 w-10 border bg-card ${isTyping ? 'border-primary ring-2 ring-primary/15' : 'border-border'}`}>
+                      <AvatarFallback className='bg-primary/10 text-xs font-bold text-primary'>
                         {agent.initials}
                       </AvatarFallback>
                     </Avatar>
                   </div>
-                  <div className="flex-1 space-y-2 min-w-0 z-10">
+
+                  <div className='min-w-0 flex-1 space-y-1.5'>
                     <div>
-                        <div className="font-bold text-sm leading-tight truncate flex items-center gap-2">
-                          {parsedName}
-                          {agent.has_resigned ? (
-                            <Badge variant="outline" className="text-red-400 border-red-500/20 text-[9px] px-1.5 py-0">
-                              Resigned
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className={`text-[9px] px-1.5 py-0 border ${stateData.color}`}>
-                              {stateData.emoji} {stateData.label}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider truncate mt-0.5">
-                          {parsedRole}
-                        </div>
+                      <div className='flex items-center gap-2'>
+                        <span className='truncate text-sm font-bold'>{parsed.name}</span>
+                        {agent.has_resigned ? (
+                          <Badge variant='outline' className='w-[82px] justify-center border-red-500/20 px-1.5 py-0 text-[9px] text-red-400'>Resigned</Badge>
+                        ) : isTyping ? (
+                          <Badge variant='outline' className='w-[82px] justify-center gap-1 border-primary/30 bg-primary/10 px-1.5 py-0 text-[9px] text-primary'>
+                            <MessageSquareText className='h-2.5 w-2.5' aria-hidden='true' />
+                            Thinking
+                          </Badge>
+                        ) : (
+                          <Badge variant='outline' className={`w-[82px] justify-center gap-1 px-1.5 py-0 text-[9px] ${state.color}`}>
+                            <StateIcon className='h-2.5 w-2.5' aria-hidden='true' />
+                            {state.label}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className='mt-0.5 truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground'>
+                        {parsed.role}
+                      </div>
                     </div>
 
-                    {/* Typing status label */}
-                    {isTyping && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: "auto" }}
-                        className="flex items-center gap-1.5"
+                    <div className='flex flex-wrap gap-1.5' data-agent-mood>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold ${agent.morale < 40 ? 'border-rose-500/25 bg-rose-500/10 text-rose-500' : 'border-emerald-500/20 bg-emerald-500/8 text-emerald-600 dark:text-emerald-400'}`}
+                        aria-label={`Morale ${agent.morale}%`}
                       >
-                        <div className="flex gap-0.5">
-                          <motion.span
-                            className="w-1 h-1 bg-primary rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 0.8, repeat: Infinity }}
-                          />
-                          <motion.span
-                            className="w-1 h-1 bg-primary rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}
-                          />
-                          <motion.span
-                            className="w-1 h-1 bg-primary rounded-full"
-                            animate={{ opacity: [0.3, 1, 0.3] }}
-                            transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-primary font-medium">Thinking...</span>
-                      </motion.div>
-                    )}
-
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                        <span>Morale</span>
-                        <span className={agent.morale < 40 ? "text-red-400" : ""}>{agent.morale}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                        <motion.div
-                          className={`h-full ${agent.morale < 40 ? "bg-red-500" : "bg-green-500"}`}
-                          initial={false}
-                          animate={{ width: `${agent.morale}%` }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                        <span>Stress</span>
-                        <span className={agent.stress > 70 ? "text-orange-400" : ""}>{agent.stress}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                        <motion.div
-                          className={`h-full ${agent.stress > 70 ? "bg-orange-500" : "bg-blue-500"}`}
-                          initial={false}
-                          animate={{ width: `${agent.stress}%` }}
-                          transition={{ duration: 0.5, ease: "easeOut" }}
-                        />
-                      </div>
+                        <Heart className='h-3 w-3' aria-hidden='true' />
+                        {agent.morale}%
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold ${agent.stress > 70 ? 'border-orange-500/25 bg-orange-500/10 text-orange-500' : 'border-blue-500/20 bg-blue-500/8 text-blue-600 dark:text-blue-400'}`}
+                        aria-label={`Stress ${agent.stress}%`}
+                      >
+                        <Gauge className='h-3 w-3' aria-hidden='true' />
+                        {agent.stress}%
+                      </span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            </motion.div>
+            </div>
           );
         })}
+
         {agents.length === 0 && (
-          <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
+          <div className='flex h-40 items-center justify-center text-sm text-muted-foreground'>
             {connectionError ? (
-              <div className="text-center space-y-2">
-                <AlertTriangle className="w-5 h-5 text-orange-500 mx-auto" />
-                <p className="text-xs text-orange-400">Connection lost</p>
+              <div className='space-y-2 text-center'>
+                <AlertTriangle className='mx-auto h-5 w-5 text-orange-500' />
+                <p className='text-xs text-orange-400'>Connection lost</p>
               </div>
             ) : (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin mr-2" /> Loading agents...
-              </>
+              <><Loader2 className='mr-2 h-4 w-4 animate-spin' /> Loading agents...</>
             )}
           </div>
         )}

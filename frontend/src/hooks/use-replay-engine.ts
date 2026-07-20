@@ -10,6 +10,8 @@ import {
   MetricsSnapshot,
 } from "@/app/simulation/types";
 
+import { getReplayPresentationStatus } from '@/lib/simulation-replay';
+
 interface ReplayRound {
   round: number;
   messages: SimMessage[];
@@ -17,6 +19,7 @@ interface ReplayRound {
 }
 
 interface ReplayData {
+  mode?: string;
   simulation_id: string;
   company: { name: string; culture: string };
   crisis_scenario: string;
@@ -49,6 +52,7 @@ interface UseReplayEngineReturn {
   totalRounds: number;
   status: string;
   companyName: string;
+  mode: string;
   metricsHistory: MetricsSnapshot[];
 
   // Replay-specific
@@ -78,6 +82,7 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
   const [prevMetrics, setPrevMetrics] = useState<Metrics | null>(null);
   const [currentRound, setCurrentRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(12);
+  const [mode, setMode] = useState('standard');
   const [companyName, setCompanyName] = useState("Simulation");
   const [metricsHistory, setMetricsHistory] = useState<MetricsSnapshot[]>([]);
 
@@ -86,6 +91,7 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [totalMessages, setTotalMessages] = useState(0);
 
   // Ref for replay data
   const dataRef = useRef<ReplayData | null>(null);
@@ -94,6 +100,7 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
   const speedRef = useRef(speed);
   const isPlayingRef = useRef(false);
   const currentIndexRef = useRef(0);
+  const playNextMessageRef = useRef<() => void>(() => undefined);
 
   // Keep refs in sync
   useEffect(() => { speedRef.current = speed; }, [speed]);
@@ -118,6 +125,7 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
         // Set initial state
         setCompanyName(data.company.name);
         setTotalRounds(data.total_rounds);
+        setMode(data.mode || (data.total_rounds === 3 ? 'demo' : 'standard'));
         setMetricsHistory(data.metrics_history || []);
 
         // Build initial agents (starting state: default values before simulation ran)
@@ -145,6 +153,7 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
           }
         }
         allMessagesRef.current = flat;
+        setTotalMessages(flat.length);
 
         setIsLoading(false);
       } catch (err: unknown) {
@@ -243,12 +252,19 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
     if (isPlayingRef.current && idx + 1 < msgs.length) {
       const baseDelay = msg.type === "system" ? 1500 : 2000;
       const delay = baseDelay / speedRef.current;
-      timerRef.current = setTimeout(playNextMessage, delay);
+      timerRef.current = setTimeout(
+        () => playNextMessageRef.current(),
+        delay,
+      );
     } else if (idx + 1 >= msgs.length) {
       setIsPlaying(false);
       isPlayingRef.current = false;
     }
   }, [updateAgentStatesForIndex, updateMetricsForRound]);
+
+  useEffect(() => {
+    playNextMessageRef.current = playNextMessage;
+  }, [playNextMessage]);
 
   // Controls
   const play = useCallback(() => {
@@ -356,8 +372,10 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
     };
   }, []);
 
-  const totalMessages = allMessagesRef.current.length;
-  const progress = totalMessages > 0 ? (currentMessageIndex / (totalMessages - 1)) * 100 : 0;
+  const progress = totalMessages > 1
+    ? (currentMessageIndex / (totalMessages - 1)) * 100
+    : 0;
+  const replayStatus = getReplayPresentationStatus(messages.length, totalMessages, isPlaying);
 
   return {
     agents,
@@ -366,8 +384,9 @@ export function useReplayEngine(simId: string | null): UseReplayEngineReturn {
     prevMetrics,
     currentRound,
     totalRounds,
-    status: "completed",
+    status: replayStatus,
     companyName,
+    mode,
     metricsHistory,
 
     isPlaying,

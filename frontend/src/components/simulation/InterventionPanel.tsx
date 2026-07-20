@@ -1,139 +1,143 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import { Send, Zap, Coffee, Terminal, Sparkles, Heart, CalendarPlus, ShieldAlert, ChevronRight } from "lucide-react";
-import type { Metrics, WorldState } from "@/app/simulation/types";
+import { useState } from 'react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Coffee,
+  Gift,
+  Send,
+  Sparkles,
+  Terminal,
+  TimerOff,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import type { Metrics, WorldState } from '@/app/simulation/types';
 
 interface InterventionPanelProps {
   status: string;
   onIntervene: (type: string, customMsg?: string) => void;
   metrics?: Metrics;
   worldState?: WorldState | null;
+  isDemo?: boolean;
 }
 
-export function InterventionPanel({ status, onIntervene, metrics, worldState }: InterventionPanelProps) {
-  const [customIntervention, setCustomIntervention] = useState("");
+interface InterventionSuggestion {
+  id: 'bonus' | 'pizza' | 'cancel_overtime';
+  label: string;
+  impact: string;
+  icon: typeof Coffee;
+}
 
-  const handleCustomIntervention = () => {
-    if (!customIntervention.trim()) return;
-    onIntervene("custom", customIntervention);
-    setCustomIntervention("");
+export function InterventionPanel({
+  status,
+  onIntervene,
+  metrics,
+  isDemo = false,
+}: InterventionPanelProps) {
+  const [customIntervention, setCustomIntervention] = useState('');
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const isCompleted = status === 'completed';
+
+  const suggestions: InterventionSuggestion[] = (metrics?.avgStress ?? 0) > 70
+    ? [{ id: 'cancel_overtime', label: 'Cancel Overtime', impact: 'Stress down, output trade-off', icon: TimerOff }]
+    : [{ id: 'pizza', label: 'Team Reset', impact: 'Morale up, stress down', icon: Coffee }];
+
+  if (metrics && metrics.avgMorale < 45) {
+    suggestions.push({ id: 'bonus', label: 'Emergency Bonus', impact: 'Morale and loyalty up', icon: Gift });
+  }
+
+  const submitCustomIntervention = () => {
+    const value = customIntervention.trim();
+    if (!value || isCompleted) return;
+    onIntervene('custom', value);
+    setCustomIntervention('');
   };
 
-  const suggestions = [];
-
-  if (metrics && metrics.avgStress > 70) {
-    suggestions.push({
-      id: "wellness",
-      label: "Wellness Day Off",
-      icon: Heart,
-      color: "text-rose-500",
-      tooltip: "-15 Stress, small Productivity dip"
-    });
-  } else {
-     suggestions.push({
-      id: "pizza",
-      label: "Pizza Party",
-      icon: Coffee,
-      color: "text-orange-400",
-      tooltip: "+10 Morale, -5 Stress"
-    });
-  }
-
-  if (metrics && metrics.avgMorale < 40) {
-    suggestions.push({
-      id: "bonus",
-      label: "Emergency Bonus",
-      icon: Zap,
-      color: "text-amber-500",
-      tooltip: "+20 Morale, heavily impacts Budget"
-    });
-  }
-
-  if (worldState && worldState.deadlineWeeksLeft <= 2) {
-    suggestions.push({
-      id: "extend_deadline",
-      label: "Extend Deadline",
-      icon: CalendarPlus,
-      color: "text-blue-500",
-      tooltip: "Reduces Stress, but hurts Reputation"
-    });
-  }
-
   return (
-    <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-background via-background/90 to-transparent z-20">
-      <div className="max-w-4xl mx-auto space-y-2">
-        
-        {/* Dynamic Context Suggestions */}
-        {suggestions.length > 0 && status !== "completed" && (
-           <div className="flex justify-center gap-2 mb-2">
-             {suggestions.map(s => {
-               const Icon = s.icon;
-               return (
-                  <TooltipProvider key={s.id}>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          className="inline-flex items-center justify-center h-8 px-3 rounded-md text-[10px] uppercase tracking-wider font-semibold border border-primary/20 bg-card hover:bg-primary/10 shadow-sm transition-all cursor-pointer select-none"
-                          onClick={() => onIntervene(s.id)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onIntervene(s.id); }}
-                        >
-                          <Icon className={`w-3 h-3 mr-1.5 ${s.color}`} />
-                          {s.label}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent>{s.tooltip}</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-               );
-             })}
-           </div>
-        )}
+    <div className='shrink-0 border-t border-border/70 bg-background/95 backdrop-blur'>
+      <button
+        type='button'
+        className='flex w-full items-center justify-between px-4 py-2.5 text-sm md:hidden'
+        onClick={() => setMobileOpen((open) => !open)}
+        aria-expanded={mobileOpen}
+        aria-controls='god-mode-panel'
+      >
+        <span className='flex items-center gap-2 font-semibold'>
+          <Terminal className='h-4 w-4 text-primary' aria-hidden='true' /> God Mode
+          <Badge variant='outline' className='text-[9px]'>State override</Badge>
+        </span>
+        {mobileOpen ? <ChevronDown className='h-4 w-4' /> : <ChevronUp className='h-4 w-4' />}
+      </button>
 
-        <Card className="shadow-2xl border-primary/30 bg-card/90 backdrop-blur-xl ring-1 ring-primary/10 overflow-hidden group focus-within:ring-primary/50 transition-all">
-          <CardContent className="p-0">
-            <div className="flex items-center">
-              <div className="flex items-center gap-2 pl-4 pr-3 py-3 border-r border-border/50 bg-secondary/30 shrink-0">
-                <Terminal className="w-4 h-4 text-primary" />
-                <Badge variant="secondary" className="bg-primary/20 text-primary hover:bg-primary/20 text-[10px] uppercase tracking-widest font-bold">
-                  God Mode
-                </Badge>
-              </div>
+      <div id='god-mode-panel' className={`${mobileOpen ? 'block' : 'hidden'} p-3 md:block md:p-4`}>
+        <div className='mx-auto max-w-4xl space-y-2.5'>
+          {!isCompleted && (
+            <div className='flex gap-2 overflow-x-auto pb-0.5 custom-scroll' aria-label='Suggested interventions'>
+              {suggestions.map((suggestion) => {
+                const Icon = suggestion.icon;
+                return (
+                  <Button
+                    key={suggestion.id}
+                    type='button'
+                    variant='outline'
+                    className='h-auto shrink-0 gap-2 px-3 py-2 text-left'
+                    onClick={() => onIntervene(suggestion.id)}
+                    aria-label={`${suggestion.label}: ${suggestion.impact}`}
+                  >
+                    <Icon className='h-4 w-4 text-primary' aria-hidden='true' />
+                    <span>
+                      <span className='block text-[11px] font-semibold'>{suggestion.label}</span>
+                      <span className='block text-[9px] font-normal text-muted-foreground'>{suggestion.impact}</span>
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          )}
 
-              <div className="flex-1 relative flex items-center bg-black/5 dark:bg-black/20">
-                <ChevronRight className="w-4 h-4 text-primary/50 ml-3 shrink-0" />
+          <Card className='overflow-hidden border-primary/25 bg-card/90 shadow-lg ring-1 ring-primary/5 focus-within:ring-primary/35'>
+            <CardContent className='p-0'>
+              <div className='flex items-center'>
+                <div className='hidden shrink-0 items-center gap-2 border-r border-border/50 bg-secondary/30 px-3 py-3 sm:flex'>
+                  <Sparkles className='h-4 w-4 text-primary' aria-hidden='true' />
+                  <span className='text-[10px] font-bold uppercase tracking-widest text-primary'>God Mode</span>
+                </div>
                 <Input
-                  placeholder="Execute override command... (e.g. 'Cancel weekend work', 'Hire consultant')"
-                  className="bg-transparent border-0 focus-visible:ring-0 shadow-none font-mono text-[13px] placeholder:text-muted-foreground/60 h-12 rounded-none px-3 text-primary"
+                  placeholder='Describe a management intervention...'
+                  className='h-12 flex-1 rounded-none border-0 bg-transparent px-3 text-[13px] shadow-none focus-visible:ring-0'
                   value={customIntervention}
-                  onChange={(e) => setCustomIntervention(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCustomIntervention();
+                  onChange={(event) => setCustomIntervention(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') submitCustomIntervention();
                   }}
-                  disabled={status === "completed"}
+                  disabled={isCompleted}
+                  aria-label='Custom God Mode intervention'
                 />
-                
                 <Button
-                  size="icon"
-                  className="h-9 w-9 my-1.5 mr-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg shadow-md transition-transform active:scale-95"
-                  onClick={handleCustomIntervention}
-                  disabled={status === "completed" || !customIntervention.trim()}
+                  type='button'
+                  size='icon'
+                  className='mr-2 h-9 w-9 shrink-0 rounded-lg'
+                  onClick={submitCustomIntervention}
+                  disabled={isCompleted || !customIntervention.trim()}
+                  aria-label='Apply God Mode intervention'
                 >
-                  <Send className="w-4 h-4 ml-0.5" />
+                  <Send className='h-4 w-4' aria-hidden='true' />
                 </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <p className='px-1 text-[10px] leading-relaxed text-muted-foreground'>
+            {isDemo
+              ? 'Overrides update live team metrics and are logged in the feed. Demo dialogue remains scripted.'
+              : 'Overrides update team state immediately and are logged as a highlighted simulation event.'}
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-
