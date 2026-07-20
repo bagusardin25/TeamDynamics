@@ -42,18 +42,16 @@ function SimulationContent() {
     decisionStatus,
     metricsHistory,
     outcome,
-    sendIntervention,
+    interventions,
+    previewIntervention,
+    applyIntervention,
+    undoIntervention,
+    controlSimulation,
+    interventionPending,
+    interventionError,
   } = useSimulationSocket(simId, soundEnabled);
 
   const isDemo = searchParams.get("demo") === "1" || mode === "demo";
-
-  const handleIntervene = useCallback(
-    (type: string, customMsg?: string) => {
-      // Use WebSocket to send intervention natively
-      sendIntervention(type, customMsg);
-    },
-    [sendIntervention]
-  );
 
   const handleEndSimulation = useCallback(() => {
     if (status === "completed") {
@@ -142,12 +140,19 @@ function SimulationContent() {
             metricsHistory={metricsHistory}
             metrics={metrics}
             isDemo={isDemo}
+            interventions={interventions}
           />
           <InterventionPanel
             status={status}
-            onIntervene={handleIntervene}
+            agents={agents}
+            interventions={interventions}
+            onPreview={previewIntervention}
+            onApply={applyIntervention}
+            onUndo={undoIntervention}
+            onControl={controlSimulation}
+            interventionPending={interventionPending}
+            interventionError={interventionError}
             metrics={metrics}
-            worldState={worldState}
             isDemo={isDemo}
           />
         </section>

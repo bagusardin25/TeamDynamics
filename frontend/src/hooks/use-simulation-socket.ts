@@ -7,15 +7,29 @@ import {
   SimMessage,
   Metrics,
   DEFAULT_METRICS,
-  API_BASE,
   WS_BASE,
   WorldState,
   DecisionStatus,
   MetricsSnapshot,
   SimulationOutcome,
+  InterventionDraft,
+  InterventionPreview,
+  InterventionReceipt,
+  SimulationControlAction,
 } from "@/app/simulation/types";
+import {
+  applyIntervention as requestApplyIntervention,
+  controlSimulation as requestControlSimulation,
+  normalizeInterventionReceipts,
+  previewIntervention as requestPreviewIntervention,
+  undoIntervention as requestUndoIntervention,
+} from "@/lib/interventions";
 
 const MAX_RECONNECT_ATTEMPTS = 3;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Intervention request failed.";
+}
 
 interface UseSimulationSocketReturn {
   agents: Agent[];
@@ -37,8 +51,13 @@ interface UseSimulationSocketReturn {
   decisionStatus: DecisionStatus | null;
   metricsHistory: MetricsSnapshot[];
   outcome: SimulationOutcome | null;
-  sendIntervention: (type: string, customMsg?: string) => void;
-  sendInterventionRest: (type: string, customMsg?: string) => Promise<void>;
+  interventions: InterventionReceipt[];
+  previewIntervention: (draft: InterventionDraft) => Promise<InterventionPreview>;
+  applyIntervention: (draft: InterventionDraft, previewToken: string, confirmed: boolean) => Promise<InterventionReceipt>;
+  undoIntervention: (interventionId: string) => Promise<InterventionReceipt>;
+  controlSimulation: (action: SimulationControlAction) => Promise<void>;
+  interventionPending: boolean;
+  interventionError: string | null;
 }
 
 export function useSimulationSocket(
@@ -64,6 +83,9 @@ export function useSimulationSocket(
   const [decisionStatus, setDecisionStatus] = useState<DecisionStatus | null>(null);
   const [metricsHistory, setMetricsHistory] = useState<MetricsSnapshot[]>([]);
   const [outcome, setOutcome] = useState<SimulationOutcome | null>(null);
+  const [interventions, setInterventions] = useState<InterventionReceipt[]>([]);
+  const [interventionPending, setInterventionPending] = useState(false);
+  const [interventionError, setInterventionError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -109,6 +131,14 @@ export function useSimulationSocket(
 
       ws.onmessage = (event) => {
         const payload = JSON.parse(event.data);
+        if (payload.interventions) {
+          setInterventions((current) => (
+            normalizeInterventionReceipts(current, payload)
+          ));
+        }
+        if (payload.control?.status) {
+          setStatus(payload.control.status);
+        }
 
         if (payload.type === "init") {
           const initialMessages = payload.messages || [];
@@ -215,45 +245,94 @@ export function useSimulationSocket(
     };
   }, [simId, playMessageTick, playNotification]);
 
-  // Send intervention via WebSocket
-  const sendIntervention = useCallback(
-    (type: string, customMsg?: string) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-
-      wsRef.current.send(
-        JSON.stringify({
-          type: "intervene",
-          intervention_type: type,
-          custom_message: customMsg,
-        })
-      );
-    },
-    []
-  );
-
-  // Send intervention via REST as fallback
-  const sendInterventionRest = useCallback(
-    async (type: string, customMsg?: string) => {
-      if (!simId) return;
+  const previewIntervention = useCallback(
+    async (draft: InterventionDraft) => {
+      if (!simId) throw new Error("Simulation is not available.");
+      setInterventionPending(true);
+      setInterventionError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/simulation/${simId}/intervene`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type, custom_message: customMsg }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.agents) setAgents(data.agents);
-          if (data.metrics) {
-            setPrevMetrics(metricsRef.current);
-            setMetrics(data.metrics);
-          }
-        }
-      } catch (err) {
-        console.error("Intervention failed:", err);
+        return await requestPreviewIntervention(simId, draft);
+      } catch (error) {
+        const message = getErrorMessage(error);
+        setInterventionError(message);
+        throw error;
+      } finally {
+        setInterventionPending(false);
       }
     },
-    [simId]
+    [simId],
+  );
+
+  const applyIntervention = useCallback(
+    async (
+      draft: InterventionDraft,
+      previewToken: string,
+      confirmed: boolean,
+    ) => {
+      if (!simId) throw new Error("Simulation is not available.");
+      setInterventionPending(true);
+      setInterventionError(null);
+      try {
+        const receipt = await requestApplyIntervention(
+          simId,
+          draft,
+          previewToken,
+          confirmed,
+        );
+        setInterventions((current) => (
+          normalizeInterventionReceipts(current, receipt)
+        ));
+        return receipt;
+      } catch (error) {
+        const message = getErrorMessage(error);
+        setInterventionError(message);
+        throw error;
+      } finally {
+        setInterventionPending(false);
+      }
+    },
+    [simId],
+  );
+
+  const undoIntervention = useCallback(
+    async (interventionId: string) => {
+      if (!simId) throw new Error("Simulation is not available.");
+      setInterventionPending(true);
+      setInterventionError(null);
+      try {
+        const receipt = await requestUndoIntervention(simId, interventionId);
+        setInterventions((current) => (
+          normalizeInterventionReceipts(current, receipt)
+        ));
+        return receipt;
+      } catch (error) {
+        const message = getErrorMessage(error);
+        setInterventionError(message);
+        throw error;
+      } finally {
+        setInterventionPending(false);
+      }
+    },
+    [simId],
+  );
+
+  const controlSimulation = useCallback(
+    async (action: SimulationControlAction) => {
+      if (!simId) return;
+      setInterventionPending(true);
+      setInterventionError(null);
+      try {
+        const control = await requestControlSimulation(simId, action);
+        setStatus(control.status);
+      } catch (error) {
+        const message = getErrorMessage(error);
+        setInterventionError(message);
+        throw error;
+      } finally {
+        setInterventionPending(false);
+      }
+    },
+    [simId],
   );
 
   return {
@@ -276,7 +355,12 @@ export function useSimulationSocket(
     decisionStatus,
     metricsHistory,
     outcome,
-    sendIntervention,
-    sendInterventionRest,
+    interventions,
+    previewIntervention,
+    applyIntervention,
+    undoIntervention,
+    controlSimulation,
+    interventionPending,
+    interventionError,
   };
 }

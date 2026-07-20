@@ -6,6 +6,18 @@ export interface SimulationTimeLabels {
   duration: string;
 }
 
+export function getSimulationStatusLabel(
+  status: string,
+  isConnected: boolean,
+): string {
+  if (status === 'completed') return 'Completed';
+  if (status === 'paused') return 'Paused';
+  if (status === 'running') {
+    return isConnected ? 'Active' : 'Reconnecting';
+  }
+  return isConnected ? 'Ready' : 'Connecting';
+}
+
 export function getSimulationTimeLabels(
   _isDemo: boolean,
 ): SimulationTimeLabels {

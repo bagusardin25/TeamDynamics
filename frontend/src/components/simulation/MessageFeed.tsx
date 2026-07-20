@@ -23,6 +23,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import type {
   Metrics,
   MetricsSnapshot,
+  InterventionReceipt,
   SimMessage,
   SimulationOutcome,
 } from '@/app/simulation/types';
@@ -49,6 +50,7 @@ interface MessageFeedProps {
   outcome: SimulationOutcome | null;
   metricsHistory: MetricsSnapshot[];
   metrics: Metrics;
+  interventions?: InterventionReceipt[];
   initialMessageCount?: number | null;
   onPresentedAgentChange?: (agentName: string | null) => void;
   isDemo?: boolean;
@@ -67,16 +69,21 @@ function OutcomeSummaryCard({
   metrics,
   metricsHistory,
   simId,
+  interventions,
 }: {
   outcome: SimulationOutcome;
   metrics: Metrics;
   metricsHistory: MetricsSnapshot[];
   simId: string | null;
+  interventions: InterventionReceipt[];
 }) {
   const moraleData = metricsHistory.map((snapshot) => snapshot.morale);
   const width = 200;
   const height = 40;
   let sparklinePath = '';
+  const influentialInterventions = interventions.filter(
+    (receipt) => receipt.status === 'applied',
+  );
 
   if (moraleData.length > 1) {
     const max = Math.max(...moraleData, 100);
@@ -134,6 +141,21 @@ function OutcomeSummaryCard({
             </div>
           )}
 
+          {influentialInterventions.length > 0 ? (
+            <div className='flex flex-col gap-2 rounded-xl border border-border p-3'>
+              <p className='font-medium'>Influential interventions</p>
+              {influentialInterventions.slice(-3).map((receipt) => (
+                <div key={receipt.id} className='flex items-start justify-between gap-3'>
+                  <div>
+                    <p>{receipt.command}</p>
+                    <p className='text-muted-foreground'>Target: {receipt.target.label}</p>
+                  </div>
+                  <Badge variant='outline'>{receipt.response_status}</Badge>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <Link href={`/report?id=${simId}`} className='block'>
             <Button className='h-11 w-full font-semibold'>
               View Full Report <ArrowRight className='ml-2 h-4 w-4' />
@@ -155,6 +177,7 @@ export function MessageFeed({
   outcome,
   metricsHistory,
   metrics,
+  interventions = [],
   initialMessageCount,
   onPresentedAgentChange,
   isDemo = false,
@@ -416,7 +439,13 @@ export function MessageFeed({
                 </Badge>
               </div>
               {outcome ? (
-                <OutcomeSummaryCard outcome={outcome} metrics={metrics} metricsHistory={metricsHistory} simId={simId} />
+                <OutcomeSummaryCard
+                  outcome={outcome}
+                  metrics={metrics}
+                  metricsHistory={metricsHistory}
+                  simId={simId}
+                  interventions={interventions}
+                />
               ) : (
                 <div className='flex justify-center py-4'>
                   <Link href={`/report?id=${simId}`}><Button variant='outline'>View Report <ArrowRight className='ml-2 h-4 w-4' /></Button></Link>

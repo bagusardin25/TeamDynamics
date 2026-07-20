@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.input_sanitizer import sanitize_text
 
@@ -37,6 +37,27 @@ class InterventionType(str, Enum):
     PIZZA = "pizza"
     CANCEL_OVERTIME = "cancel_overtime"
     CUSTOM = "custom"
+
+
+class InterventionTargetKind(str, Enum):
+    ALL_TEAM = 'all_team'
+    AGENT = 'agent'
+    PROJECT = 'project'
+    DECISION_PROCESS = 'decision_process'
+
+
+class InterventionCategory(str, Enum):
+    PEOPLE = 'people'
+    TIME_SCOPE = 'time_scope'
+    RESOURCES = 'resources'
+    POLICY = 'policy'
+    INCIDENT = 'incident'
+
+
+class SimulationControl(str, Enum):
+    PAUSE = 'pause'
+    RESUME = 'resume'
+    STEP = 'step'
 
 
 class CrisisScenario(str, Enum):
@@ -201,9 +222,26 @@ class SimulationResponse(BaseModel):
 
 # ── Intervention ──────────────────────────────────────────────────────
 
+class InterventionTarget(BaseModel):
+    kind: InterventionTargetKind
+    id: Optional[str] = Field(default=None, max_length=80)
+
+    @model_validator(mode='after')
+    def validate_agent_target(self) -> 'InterventionTarget':
+        if self.kind == InterventionTargetKind.AGENT and not self.id:
+            raise ValueError('Agent interventions require a target id')
+        if self.kind != InterventionTargetKind.AGENT and self.id is not None:
+            raise ValueError('Only agent interventions accept a target id')
+        return self
+
+
 class InterventionRequest(BaseModel):
     type: InterventionType
     custom_message: Optional[str] = Field(default=None, max_length=2000)
+    category: InterventionCategory
+    target: InterventionTarget
+    preview_token: Optional[str] = Field(default=None, max_length=128)
+    confirmed: bool = False
 
     @field_validator("custom_message", mode="before")
     @classmethod
@@ -213,6 +251,16 @@ class InterventionRequest(BaseModel):
         if not isinstance(value, str):
             return value
         return sanitize_text(value, max_length=2000)
+
+    @model_validator(mode='after')
+    def validate_custom_message(self) -> 'InterventionRequest':
+        if self.type == InterventionType.CUSTOM and not self.custom_message:
+            raise ValueError('Custom interventions require a message')
+        return self
+
+
+class SimulationControlRequest(BaseModel):
+    action: SimulationControl
 
 
 # ── Report ────────────────────────────────────────────────────────────

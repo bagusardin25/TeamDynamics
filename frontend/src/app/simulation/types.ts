@@ -113,3 +113,67 @@ export interface SimulationOutcome {
   title: string;
   description: string;
 }
+
+export type InterventionType = 'bonus' | 'pizza' | 'cancel_overtime' | 'custom';
+export type InterventionTargetKind = 'all_team' | 'agent' | 'project' | 'decision_process';
+export type InterventionCategory = 'people' | 'time_scope' | 'resources' | 'policy' | 'incident';
+export type SimulationControlAction = 'pause' | 'resume' | 'step';
+
+export interface InterventionDraft {
+  type: InterventionType;
+  command: string;
+  category?: InterventionCategory;
+  targetKind?: InterventionTargetKind;
+  targetId?: string;
+}
+
+export interface InterventionEffect {
+  scope: string;
+  scope_label: string;
+  key: string;
+  label: string;
+  before: number | null;
+  delta: number;
+  after: number | null;
+  unit: '%' | 'step';
+}
+
+export interface InterventionTarget {
+  kind: InterventionTargetKind;
+  id?: string;
+  label: string;
+}
+
+export interface InterventionPreview {
+  simulation_id: string;
+  round: number;
+  type: InterventionType;
+  command: string;
+  category: InterventionCategory;
+  target: InterventionTarget;
+  effects: InterventionEffect[];
+  confirmation_required: boolean;
+  semantics: 'preset' | 'category_based';
+  metrics_only: boolean;
+  response_note: string;
+  preview_token: string;
+}
+
+export interface InterventionReceipt {
+  id: string;
+  type: InterventionType;
+  command: string;
+  category: InterventionCategory;
+  target: InterventionTarget;
+  preview_effects: InterventionEffect[];
+  actual_effects: InterventionEffect[];
+  applied_round: number;
+  applied_at: string;
+  status: 'applied' | 'undone';
+  response_status: 'pending' | 'acknowledged' | 'metrics_only';
+  acknowledged_by?: string;
+  confirmation_required: boolean;
+  can_undo: boolean;
+  semantics: 'preset' | 'category_based';
+  response_note?: string;
+}

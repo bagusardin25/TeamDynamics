@@ -16,7 +16,9 @@ from datetime import datetime, timezone
 
 from models.schemas import (
     CreateSimulationRequest, AgentFullState, AgentState, PersonalityTraits,
-    StateChanges, SimulationStatus, InterventionType,
+    StateChanges, SimulationStatus, InterventionType, InterventionRequest,
+    InterventionCategory, InterventionTarget, InterventionTargetKind,
+    SimulationControl,
 )
 from models.agent import apply_state_changes, check_critical_events, apply_intervention, compute_initial_state
 from models.database import (
@@ -31,6 +33,13 @@ from models.database import (
 )
 from services.llm_service import generate_agent_response
 from services.demo_responses import get_demo_agent_response
+from services.interventions import (
+    apply_intervention_preview,
+    build_demo_acknowledgement,
+    build_intervention_preview,
+    can_undo_intervention,
+    public_intervention_receipt,
+)
 from services.demo_simulation import (
     build_demo_world_state,
     get_demo_round_event,
@@ -140,6 +149,9 @@ async def create_simulation(
         "runtime_model": runtime_model,
         "strict_llm": strict_llm,
         "websockets": [],
+        'interventions': [],
+        'pending_intervention_id': None,
+        'step_remaining': 0,
     }
 
     # Initialize world state for this simulation
@@ -195,6 +207,9 @@ def _serialize_sim_state(state: dict) -> dict:
         "mode": state.get("mode", "standard"),
         "runtime_model": state.get("runtime_model"),
         "strict_llm": state.get("strict_llm", False),
+        'interventions': state.get('interventions', []),
+        'pending_intervention_id': state.get('pending_intervention_id'),
+        'step_remaining': state.get('step_remaining', 0),
     }
 
 
@@ -208,6 +223,22 @@ async def _sync_sim_to_redis(sim_id: str):
         await state_manager.set_sim_state(sim_id, serialized)
     except Exception as e:
         logger.debug(f"Redis sync failed for sim {sim_id}: {e}")
+
+
+def _recover_interventions(messages: list[dict]) -> list[dict]:
+    '''Recover public audit receipts embedded in intervention messages.'''
+    recovered: list[dict] = []
+    seen: set[str] = set()
+    for message in messages:
+        changes = message.get('state_changes') or {}
+        receipt = changes.get('_intervention') if isinstance(changes, dict) else None
+        if not isinstance(receipt, dict) or not receipt.get('id'):
+            continue
+        if receipt['id'] in seen:
+            recovered = [item for item in recovered if item.get('id') != receipt['id']]
+        recovered.append(dict(receipt))
+        seen.add(receipt['id'])
+    return recovered
 
 
 async def get_simulation_state(sim_id: str) -> dict | None:
@@ -276,6 +307,17 @@ async def get_simulation_state(sim_id: str) -> dict | None:
             "timestamp": m.get("timestamp"),
         })
 
+    interventions = _recover_interventions(msgs)
+    pending = next(
+        (
+            item.get('id')
+            for item in reversed(interventions)
+            if item.get('status') == 'applied'
+            and item.get('response_status') == 'pending'
+        ),
+        None,
+    )
+
     state = {
         "id": sim_id,
         "status": SimulationStatus(sim_data["status"]),
@@ -291,6 +333,9 @@ async def get_simulation_state(sim_id: str) -> dict | None:
         "runtime_model": None,
         "strict_llm": False,
         "websockets": [],
+        'interventions': interventions,
+        'pending_intervention_id': pending,
+        'step_remaining': 0,
     }
 
     _active_simulations[sim_id] = state
@@ -356,6 +401,9 @@ async def _reconstruct_sim_state(data: dict) -> dict | None:
             "runtime_model": data.get("runtime_model"),
             "strict_llm": data.get("strict_llm", False),
             "websockets": [],
+            'interventions': data.get('interventions', []),
+            'pending_intervention_id': data.get('pending_intervention_id'),
+            'step_remaining': data.get('step_remaining', 0),
         }
     except Exception as e:
         logger.warning(f"Failed to reconstruct sim state from Redis: {e}")
@@ -443,7 +491,7 @@ async def _broadcast_typing(sim_id: str, agent: AgentFullState, ws_broadcast):
         connections.remove(ws)
 
 
-async def _resolve_agent_response(
+async def _base_resolve_agent_response(
     *,
     state: dict,
     agent: dict,
@@ -464,6 +512,84 @@ async def _resolve_agent_response(
     return await generate_agent_response(**llm_request)
 
 
+def _pending_intervention(state: dict) -> dict | None:
+    pending_id = state.get('pending_intervention_id')
+    if not pending_id:
+        return None
+    return next(
+        (
+            record
+            for record in state.get('interventions', [])
+            if record.get('id') == pending_id
+            and record.get('status') == 'applied'
+            and record.get('response_status') == 'pending'
+        ),
+        None,
+    )
+
+
+def _attach_acknowledged_receipt(state: dict, changes: dict) -> dict:
+    acknowledged_id = state.pop('_last_acknowledged_intervention', None)
+    if not acknowledged_id:
+        return changes
+    record = next(
+        (
+            item
+            for item in state.get('interventions', [])
+            if item.get('id') == acknowledged_id
+        ),
+        None,
+    )
+    if record:
+        changes['_intervention'] = public_intervention_receipt(record, state)
+    return changes
+
+
+async def _resolve_agent_response(
+    *,
+    state: dict,
+    agent: dict,
+    round_num: int,
+    exchange_num: int,
+    llm_request: dict,
+) -> dict:
+    record = _pending_intervention(state)
+    request_with_context = dict(llm_request)
+    if record and state.get('mode') != 'demo':
+        request_with_context['intervention'] = (
+            record['command']
+            + ' (target: '
+            + record['target']['label']
+            + ')'
+        )
+
+    response = await _base_resolve_agent_response(
+        state=state,
+        agent=agent,
+        round_num=round_num,
+        exchange_num=exchange_num,
+        llm_request=request_with_context,
+    )
+    if not record:
+        return response
+
+    acknowledgement = build_demo_acknowledgement(
+        record,
+        agent.get('name', 'The next agent'),
+    )
+    response = dict(response)
+    response['public_message'] = (
+        acknowledgement
+        + ' '
+        + response.get('public_message', '')
+    ).strip()
+    record['response_status'] = 'acknowledged'
+    record['acknowledged_by'] = agent.get('name')
+    state['pending_intervention_id'] = None
+    state['_last_acknowledged_intervention'] = record['id']
+    return response
+
+
 def _resolve_round_event(
     *,
     state: dict,
@@ -477,7 +603,23 @@ def _resolve_round_event(
     return roll_random_event(sim_id, current_round, crisis_scenario)
 
 
+async def _wait_for_agent_boundary(state: dict) -> None:
+    while (
+        _simulation_status_value(state) == SimulationStatus.PAUSED.value
+        and state.get('step_remaining', 0) <= 0
+    ):
+        await asyncio.sleep(0.1)
+
+
 async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
+    state_at_boundary = await get_simulation_state(sim_id)
+    if (
+        state_at_boundary
+        and _simulation_status_value(state_at_boundary)
+        == SimulationStatus.PAUSED.value
+        and state_at_boundary.get('step_remaining', 0) <= 0
+    ):
+        return []
     """
     Run a single simulation round. Each agent responds sequentially.
     Now includes: agenda injection, memory system, decision tracking, and outcome system.
@@ -621,6 +763,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         for agent in state["agents"]
     ]
     for exchange_num, agent in agent_turns:
+        await _wait_for_agent_boundary(state)
         if agent.has_resigned:
             continue
 
@@ -746,7 +889,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         msg_id = await save_message(
             sim_id, current_round, agent.id, agent_display_name,
             "public", public_msg, thought=internal_thought,
-            state_changes=changes_dict,
+            state_changes=_attach_acknowledged_receipt(state, changes_dict),
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
 
@@ -828,6 +971,17 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
                 # Resignation affects world state
                 apply_resignation_to_world(world, len(state["agents"]))
 
+        if state.get('step_remaining', 0) > 0:
+            state['step_remaining'] -= 1
+            if state['step_remaining'] == 0:
+                state['status'] = SimulationStatus.PAUSED
+                await update_simulation_status(
+                    sim_id,
+                    SimulationStatus.PAUSED.value,
+                    state.get('current_round', 0),
+                )
+                await _sync_sim_to_redis(sim_id)
+
         # Pacing delay between agent responses
         pacing_delay = {"slow": 3.0, "normal": 1.5, "fast": 0.5}
         await asyncio.sleep(pacing_delay.get(state.get("pacing", "normal"), 1.5))
@@ -908,7 +1062,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     return new_messages
 
 
-async def process_intervention(sim_id: str, intervention_type: InterventionType,
+async def _legacy_process_intervention(sim_id: str, intervention_type: InterventionType,
                                 custom_message: str | None = None,
                                 ws_broadcast=None) -> dict:
     """Process a God Mode intervention."""
@@ -958,6 +1112,297 @@ async def process_intervention(sim_id: str, intervention_type: InterventionType,
         )
 
     return sys_msg
+
+
+def _simulation_status_value(state: dict) -> str:
+    status = state.get('status', SimulationStatus.IDLE)
+    return status.value if hasattr(status, 'value') else str(status)
+
+
+def _ensure_intervention_allowed(state: dict) -> None:
+    if _simulation_status_value(state) == SimulationStatus.COMPLETED.value:
+        raise ValueError('Completed simulations cannot be changed')
+
+
+async def _intervention_world(sim_id: str, state: dict) -> WorldState:
+    if sim_id not in _world_states:
+        await _restore_world_state(sim_id, state)
+    return _world_states[sim_id]
+
+
+def get_public_interventions(state: dict) -> list[dict]:
+    return [
+        public_intervention_receipt(record, state)
+        for record in state.get('interventions', [])
+    ]
+
+
+async def preview_intervention(
+    sim_id: str,
+    request: InterventionRequest,
+) -> dict:
+    state = await get_simulation_state(sim_id)
+    if not state:
+        raise ValueError('Simulation not found')
+    _ensure_intervention_allowed(state)
+    world = await _intervention_world(sim_id, state)
+    return build_intervention_preview(state, world, request)
+
+
+def _legacy_intervention_request(
+    intervention_type: InterventionType,
+    custom_message: str | None,
+) -> InterventionRequest:
+    category = {
+        InterventionType.BONUS: InterventionCategory.RESOURCES,
+        InterventionType.PIZZA: InterventionCategory.PEOPLE,
+        InterventionType.CANCEL_OVERTIME: InterventionCategory.TIME_SCOPE,
+        InterventionType.CUSTOM: InterventionCategory.PEOPLE,
+    }[intervention_type]
+    return InterventionRequest(
+        type=intervention_type,
+        custom_message=(
+            custom_message or 'A new management directive has been issued.'
+            if intervention_type == InterventionType.CUSTOM
+            else None
+        ),
+        category=category,
+        target=InterventionTarget(kind=InterventionTargetKind.ALL_TEAM),
+        confirmed=True,
+    )
+
+
+async def _persist_intervention_state(
+    sim_id: str,
+    state: dict,
+    world: WorldState,
+) -> None:
+    for agent in state.get('agents', []):
+        await update_agent_state(
+            sim_id,
+            agent.id,
+            agent.state.morale,
+            agent.state.stress,
+            agent.state.loyalty,
+            agent.state.productivity,
+            agent.has_resigned,
+            agent.resigned_week,
+        )
+    await db_save_world_state(
+        sim_id,
+        world.to_dict(),
+        get_fired_events(sim_id),
+    )
+    await state_manager.set_world(
+        sim_id,
+        {
+            **world.to_dict(),
+            'fired_events': get_fired_events(sim_id),
+        },
+    )
+    await _sync_sim_to_redis(sim_id)
+
+
+async def _save_intervention_message(
+    sim_id: str,
+    state: dict,
+    record: dict,
+    content: str,
+    ws_broadcast=None,
+) -> dict:
+    receipt = public_intervention_receipt(record, state)
+    changes = {'_intervention': receipt}
+    timestamp = datetime.now(timezone.utc).isoformat()
+    msg_id = await save_message(
+        sim_id,
+        state.get('current_round', 0),
+        None,
+        None,
+        'system',
+        content,
+        state_changes=changes,
+        timestamp=timestamp,
+    )
+    message = {
+        'id': msg_id,
+        'round': state.get('current_round', 0),
+        'agent_id': None,
+        'agent_name': None,
+        'type': 'system',
+        'content': content,
+        'thought': None,
+        'state_changes': changes,
+        'timestamp': timestamp,
+        'event': {
+            'kind': 'intervention',
+            'title': 'Management Intervention',
+            'summary': content,
+            'severity': 'warning',
+            'effects': _intervention_event_effects(
+                receipt.get('actual_effects', []),
+            ),
+        },
+    }
+    state.setdefault('messages', []).append(message)
+    if ws_broadcast:
+        await ws_broadcast(sim_id, message)
+    return message
+
+
+def _intervention_event_effects(effects: list[dict]) -> list[dict]:
+    '''Map receipt effects to the compact typed event presentation contract.'''
+    negative_metrics = {'stress', 'technical_debt'}
+    presented = []
+    for effect in effects:
+        delta = effect.get('delta', 0)
+        sign = '+' if delta > 0 else ''
+        unit = '%' if effect.get('unit') == '%' else ' step'
+        improves_state = (
+            delta < 0
+            if effect.get('key') in negative_metrics
+            else delta > 0
+        )
+        tone = 'neutral' if delta == 0 else (
+            'positive' if improves_state else 'negative'
+        )
+        presented.append({
+            'label': (
+                effect.get('scope_label', effect.get('scope', 'Target'))
+                + ' · '
+                + effect.get('label', effect.get('key', 'Effect'))
+            ),
+            'value': f'{sign}{delta}{unit}',
+            'tone': tone,
+        })
+    return presented
+
+
+async def process_intervention(
+    sim_id: str,
+    intervention_type: InterventionType | None = None,
+    custom_message: str | None = None,
+    ws_broadcast=None,
+    *,
+    request: InterventionRequest | None = None,
+) -> dict:
+    '''Apply a backend-authoritative preview and return its public receipt.'''
+    state = await get_simulation_state(sim_id)
+    if not state:
+        raise ValueError('Simulation not found')
+    _ensure_intervention_allowed(state)
+
+    legacy = request is None
+    if request is None:
+        request = _legacy_intervention_request(
+            intervention_type or InterventionType.CUSTOM,
+            custom_message,
+        )
+
+    world = await _intervention_world(sim_id, state)
+    preview = build_intervention_preview(state, world, request)
+    if legacy:
+        request.preview_token = preview['preview_token']
+    if request.preview_token != preview['preview_token']:
+        raise ValueError('Intervention preview is stale; preview again')
+    if preview['confirmation_required'] and not request.confirmed:
+        raise ValueError('This intervention requires explicit confirmation')
+
+    record = apply_intervention_preview(state, world, preview)
+    content = (
+        'Management intervention applied: '
+        + record['command']
+        + ' — Target: '
+        + record['target']['label']
+        + '.'
+    )
+    await _persist_intervention_state(sim_id, state, world)
+    await _save_intervention_message(
+        sim_id,
+        state,
+        record,
+        content,
+        ws_broadcast,
+    )
+    await _sync_sim_to_redis(sim_id)
+    return public_intervention_receipt(record, state)
+
+
+async def undo_intervention(
+    sim_id: str,
+    intervention_id: str,
+    ws_broadcast=None,
+) -> dict:
+    state = await get_simulation_state(sim_id)
+    if not state:
+        raise ValueError('Simulation not found')
+    _ensure_intervention_allowed(state)
+    record = next(
+        (
+            item
+            for item in state.get('interventions', [])
+            if item.get('id') == intervention_id
+        ),
+        None,
+    )
+    if not record or not can_undo_intervention(state, record):
+        raise ValueError('Intervention can no longer be undone')
+
+    world = await _intervention_world(sim_id, state)
+    rollback = record.get('rollback', {})
+    agents_by_id = {
+        agent.id: agent
+        for agent in state.get('agents', [])
+    }
+    for agent_id, snapshot in rollback.get('agents', {}).items():
+        agent = agents_by_id.get(agent_id)
+        if agent:
+            agent.state = AgentState(**snapshot)
+    for key, value in rollback.get('world', {}).items():
+        setattr(world, key, value)
+
+    record['status'] = 'undone'
+    state['pending_intervention_id'] = None
+    await _persist_intervention_state(sim_id, state, world)
+    await _save_intervention_message(
+        sim_id,
+        state,
+        record,
+        'Management intervention undone: ' + record['command'] + '.',
+        ws_broadcast,
+    )
+    await _sync_sim_to_redis(sim_id)
+    return public_intervention_receipt(record, state)
+
+
+async def control_simulation(
+    sim_id: str,
+    action: SimulationControl,
+) -> dict:
+    state = await get_simulation_state(sim_id)
+    if not state:
+        raise ValueError('Simulation not found')
+    _ensure_intervention_allowed(state)
+
+    if action == SimulationControl.PAUSE:
+        state['status'] = SimulationStatus.PAUSED
+        state['step_remaining'] = 0
+    elif action == SimulationControl.STEP:
+        state['status'] = SimulationStatus.RUNNING
+        state['step_remaining'] = 1
+    else:
+        state['status'] = SimulationStatus.RUNNING
+        state['step_remaining'] = 0
+
+    await update_simulation_status(
+        sim_id,
+        state['status'].value,
+        state.get('current_round', 0),
+    )
+    await _sync_sim_to_redis(sim_id)
+    return {
+        'status': state['status'].value,
+        'step_remaining': state['step_remaining'],
+    }
 
 
 def compute_metrics(agents: list[AgentFullState]) -> dict:

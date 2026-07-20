@@ -3,7 +3,10 @@
 import { FileText, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { getSimulationTimeLabels } from '@/lib/simulation-labels';
+import {
+  getSimulationStatusLabel,
+  getSimulationTimeLabels,
+} from '@/lib/simulation-labels';
 
 interface SimulationNavbarProps {
   status: string;
@@ -34,11 +37,7 @@ export function SimulationNavbar({
 }: SimulationNavbarProps) {
   const runtimeLabel = runtimeModel === 'scripted-mock' ? 'Scripted Mock' : runtimeModel;
   const labels = getSimulationTimeLabels(isDemo);
-  const statusLabel = status === 'completed'
-    ? 'Completed'
-    : status === 'running'
-      ? 'Active'
-      : 'Connecting';
+  const statusLabel = getSimulationStatusLabel(status, isConnected);
 
   return (
     <header className='flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-card/60 px-3 py-2 backdrop-blur-md sm:px-5'>
@@ -63,7 +62,6 @@ export function SimulationNavbar({
           </div>
           <div className='text-[9px] font-mono text-muted-foreground sm:text-[10px]'>
             {labels.shortRound}{currentRound}/{totalRounds}
-            {!isConnected && status === 'running' && <span className='ml-1.5 text-orange-400'>Reconnecting</span>}
           </div>
         </div>
       </div>

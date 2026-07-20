@@ -13,7 +13,7 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from services.simulation_engine import (
     get_simulation_state, run_simulation_round, compute_metrics,
-    get_metrics_history,
+    get_metrics_history, get_public_interventions,
 )
 from services.decision_engine import get_tracker
 from models.schemas import SimulationStatus
@@ -110,6 +110,15 @@ async def broadcast_message(sim_id: str, message: dict):
         "status": state["status"].value if state and isinstance(state["status"], SimulationStatus) else "running",
         "worldState": _get_world_state_data(sim_id),
         "decisionStatus": _get_decision_status(sim_id),
+        'interventions': get_public_interventions(state) if state else [],
+        'control': {
+            'status': (
+                state['status'].value
+                if state and isinstance(state['status'], SimulationStatus)
+                else state.get('status', 'running') if state else 'running'
+            ),
+            'step_remaining': state.get('step_remaining', 0) if state else 0,
+        },
     }
 
     dead = []
@@ -123,6 +132,36 @@ async def broadcast_message(sim_id: str, message: dict):
         connections.remove(ws)
 
     # Publish to Redis pub/sub for cross-worker broadcasting
+    await state_manager.publish_ws_message(sim_id, payload)
+
+
+async def broadcast_control_state(sim_id: str) -> None:
+    '''Broadcast pause, resume, or step state without fabricating a message.'''
+    state = await get_simulation_state(sim_id)
+    if not state:
+        return
+
+    status = state.get('status', SimulationStatus.RUNNING)
+    status_value = status.value if isinstance(status, SimulationStatus) else status
+    payload = {
+        'type': 'control',
+        'control': {
+            'status': status_value,
+            'step_remaining': state.get('step_remaining', 0),
+        },
+        'interventions': get_public_interventions(state),
+    }
+
+    connections = _ws_connections.get(sim_id, [])
+    dead = []
+    for websocket in connections:
+        try:
+            await websocket.send_json(payload)
+        except Exception:
+            dead.append(websocket)
+    for websocket in dead:
+        connections.remove(websocket)
+
     await state_manager.publish_ws_message(sim_id, payload)
 
 
@@ -140,6 +179,12 @@ async def _run_simulation_background(sim_id: str):
             if not current_state:
                 break
             status = current_state["status"]
+            if (
+                status == SimulationStatus.PAUSED
+                or status == SimulationStatus.PAUSED.value
+            ):
+                await asyncio.sleep(0.1)
+                continue
             if isinstance(status, SimulationStatus):
                 if status == SimulationStatus.COMPLETED:
                     break
@@ -248,6 +293,11 @@ async def _run_simulation_background(sim_id: str):
                     "outcome": outcome_data,
                     "metricsHistory": metrics_history,
                     "metrics": compute_metrics(state["agents"]) if state else {},
+                    'interventions': get_public_interventions(state) if state else [],
+                    'control': {
+                        'status': 'completed',
+                        'step_remaining': 0,
+                    },
                 })
             except Exception:
                 dead.append(ws)
@@ -351,6 +401,11 @@ async def simulation_websocket(websocket: WebSocket, sim_id: str):
             "worldState": _get_world_state_data(sim_id),
             "decisionStatus": _get_decision_status(sim_id),
             "metricsHistory": get_metrics_history(sim_id),
+            'interventions': get_public_interventions(state),
+            'control': {
+                'status': current_status,
+                'step_remaining': state.get('step_remaining', 0),
+            },
         })
 
         # Start background simulation if not yet running and not completed

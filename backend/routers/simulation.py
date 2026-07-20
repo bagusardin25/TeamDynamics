@@ -6,16 +6,73 @@ from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from models.schemas import (
     CreateSimulationRequest, SimulationResponse, SimulationMetrics,
     InterventionRequest, SimulationStatus, AgentState, GenerateCrisisRequest,
-    Message, StateChanges,
+    Message, StateChanges, SimulationControlRequest,
 )
 from services.simulation_engine import (
     create_simulation, get_simulation_state, process_intervention, compute_metrics,
+    preview_intervention, undo_intervention, control_simulation,
+    get_public_interventions,
 )
 from services.report_generator import generate_report
 from services.simulation_events import enrich_system_messages
 from routers.auth import get_current_user, require_auth, TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
+
+def _raise_intervention_http(error: ValueError) -> None:
+    detail = str(error)
+    lowered = detail.lower()
+    if 'not found' in lowered:
+        status_code = 404
+    elif 'selected agent' in lowered:
+        status_code = 422
+    else:
+        status_code = 409
+    raise HTTPException(status_code=status_code, detail=detail) from error
+
+
+@router.post('/{sim_id}/interventions/preview')
+async def preview_simulation_intervention(
+    sim_id: str,
+    request: InterventionRequest,
+):
+    try:
+        return await preview_intervention(sim_id, request)
+    except ValueError as error:
+        _raise_intervention_http(error)
+
+
+@router.post('/{sim_id}/interventions/{intervention_id}/undo')
+async def undo_simulation_intervention(
+    sim_id: str,
+    intervention_id: str,
+):
+    try:
+        from routers.websocket import broadcast_message
+
+        return await undo_intervention(
+            sim_id,
+            intervention_id,
+            ws_broadcast=broadcast_message,
+        )
+    except ValueError as error:
+        _raise_intervention_http(error)
+
+
+@router.post('/{sim_id}/control')
+async def update_simulation_control(
+    sim_id: str,
+    request: SimulationControlRequest,
+):
+    try:
+        from routers.websocket import broadcast_control_state
+
+        result = await control_simulation(sim_id, request.action)
+        await broadcast_control_state(sim_id)
+        return result
+    except ValueError as error:
+        _raise_intervention_http(error)
+
 
 # Per-route rate limits for LLM-heavy endpoints
 from services.rate_limiter import limiter
@@ -136,7 +193,7 @@ async def intervene(sim_id: str, request: InterventionRequest):
     from routers.websocket import broadcast_message
 
     msg = await process_intervention(
-        sim_id, request.type, request.custom_message, ws_broadcast=broadcast_message,
+        sim_id, request=request, ws_broadcast=broadcast_message,
     )
 
     # Return updated metrics
