@@ -18,6 +18,7 @@ router = APIRouter(prefix="/api/simulation", tags=["simulation"])
 
 # Per-route rate limits for LLM-heavy endpoints
 from services.rate_limiter import limiter
+from services.demo_simulation import DEMO_RUNTIME_MODEL, build_demo_simulation_request
 
 
 @router.post("/generate-crisis")
@@ -65,6 +66,26 @@ async def create_sim(
             await update_user_credits(current_user.user_id, max(0, user["credits"] - 1))
 
     return {"id": sim_id, "status": "idle"}
+
+
+@router.post("/demo")
+@limiter.limit("3/minute")
+async def create_demo_simulation(request: Request, response: Response):
+    """Create the fixed anonymous Build Week Quick Demo."""
+    body = build_demo_simulation_request()
+    sim_id = await create_simulation(
+        body,
+        user_id=None,
+        mode="demo",
+        runtime_model=DEMO_RUNTIME_MODEL,
+        strict_llm=True,
+    )
+    return {
+        "id": sim_id,
+        "status": "idle",
+        "mode": "demo",
+        "runtime_model": DEMO_RUNTIME_MODEL,
+    }
 
 
 @router.get("/{sim_id}/status")

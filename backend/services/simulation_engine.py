@@ -58,7 +58,14 @@ _world_states: dict[str, WorldState] = {}
 _metrics_history: dict[str, list[dict]] = {}
 
 
-async def create_simulation(request: CreateSimulationRequest, user_id: str | None = None) -> str:
+async def create_simulation(
+    request: CreateSimulationRequest,
+    user_id: str | None = None,
+    *,
+    mode: str = "standard",
+    runtime_model: str | None = None,
+    strict_llm: bool = False,
+) -> str:
     """Create a new simulation and return its ID."""
     sim_id = str(uuid.uuid4())[:8]
 
@@ -123,6 +130,9 @@ async def create_simulation(request: CreateSimulationRequest, user_id: str | Non
         "agents": agents_cache,
         "messages": [],
         "pacing": request.params.pacing.value,
+        "mode": mode,
+        "runtime_model": runtime_model,
+        "strict_llm": strict_llm,
         "websockets": [],
     }
 
@@ -172,6 +182,9 @@ def _serialize_sim_state(state: dict) -> dict:
         "agents": agents_data,
         "messages": state.get("messages", []),
         "pacing": state.get("pacing", "normal"),
+        "mode": state.get("mode", "standard"),
+        "runtime_model": state.get("runtime_model"),
+        "strict_llm": state.get("strict_llm", False),
     }
 
 
@@ -264,6 +277,9 @@ async def get_simulation_state(sim_id: str) -> dict | None:
         "agents": agents,
         "messages": msgs,
         "pacing": sim_data.get("pacing", "normal"),
+        "mode": "standard",
+        "runtime_model": None,
+        "strict_llm": False,
         "websockets": [],
     }
 
@@ -326,6 +342,9 @@ async def _reconstruct_sim_state(data: dict) -> dict | None:
             "agents": agents,
             "messages": data.get("messages", []),
             "pacing": data.get("pacing", "normal"),
+            "mode": data.get("mode", "standard"),
+            "runtime_model": data.get("runtime_model"),
+            "strict_llm": data.get("strict_llm", False),
             "websockets": [],
         }
     except Exception as e:
@@ -602,6 +621,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             hierarchy_desc=get_hierarchy_description(agent.role),
             hidden_agenda=get_hidden_agenda(agent.id),
             action_consequences=action_consequences,
+            strict_llm=state.get("strict_llm", False),
         )
 
         # ── Extract data ──────────────────────────────────────────

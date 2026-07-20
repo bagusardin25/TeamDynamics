@@ -30,6 +30,21 @@ _ws_connections: dict[str, list[WebSocket]] = {}
 _simulation_tasks: dict[str, asyncio.Task] = {}
 
 
+def _runtime_metadata(state: dict) -> dict:
+    """Return public runtime metadata using the frontend field names."""
+    return {
+        "mode": state.get("mode", "standard"),
+        "runtimeModel": state.get("runtime_model"),
+    }
+
+
+def _public_round_error_message(state: dict, error: Exception) -> str:
+    """Hide provider details for the anonymous demo while preserving standard diagnostics."""
+    if state.get("mode") == "demo":
+        return "GPT-5.6 could not complete this round. Retrying..."
+    return f"Round error: {str(error)}. Retrying..."
+
+
 def _get_world_state_data(sim_id: str) -> dict | None:
     """Get world state data for a simulation."""
     from services.simulation_engine import _world_states
@@ -145,7 +160,7 @@ async def _run_simulation_background(sim_id: str):
                     try:
                         await ws.send_json({
                             "type": "error",
-                            "message": f"Round error: {str(e)}. Retrying..."
+                            "message": _public_round_error_message(current_state, e),
                         })
                     except Exception:
                         dead.append(ws)
@@ -316,6 +331,7 @@ async def simulation_websocket(websocket: WebSocket, sim_id: str):
             "metrics": compute_metrics(state["agents"]),
             "status": current_status,
             "company": state["company"],
+            **_runtime_metadata(state),
             "worldState": _get_world_state_data(sim_id),
             "decisionStatus": _get_decision_status(sim_id),
             "metricsHistory": get_metrics_history(sim_id),
