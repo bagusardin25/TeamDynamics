@@ -29,6 +29,8 @@ COST_PER_1K_TOKENS: dict[str, dict[str, float]] = {
     "gpt-4o-mini":      {"input": 0.00015, "output": 0.0006},
     "gpt-4o":           {"input": 0.0025,  "output": 0.01},
     "gpt-4-turbo":      {"input": 0.01,    "output": 0.03},
+    "gpt-5.6":           {"input": 0.005,   "output": 0.03},
+    "gpt-5.6-sol":       {"input": 0.005,   "output": 0.03},
     # Gemini
     "gemini-2.0-flash":  {"input": 0.0,    "output": 0.0},     # Free tier
     "gemini-1.5-pro":    {"input": 0.00125,"output": 0.005},

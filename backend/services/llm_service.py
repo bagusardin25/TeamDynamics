@@ -17,6 +17,7 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 from services.llm_budget import budget_tracker, BudgetExceededError
+from models.llm import AgentLLMResponse, LLMConfigurationError, LLMResponseError
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
 
@@ -335,33 +336,44 @@ def _build_round_user_prompt(round_num: int, total_rounds: int,
 
 # ── LLM Callers ───────────────────────────────────────────────────────
 
-async def _call_openai(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
-    """Call OpenAI API. Returns (result_dict, usage_info)."""
+async def _call_openai(
+    system_prompt: str,
+    user_prompt: str,
+    model: str | None = None,
+    temperature: float = 0.9,
+    max_tokens: int = 600,
+) -> tuple[dict, dict]:
+    """Call OpenAI Responses API with a strict Pydantic output contract."""
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise LLMConfigurationError("OpenAI API is not configured")
 
-    response = await client.chat.completions.create(
+    resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6")
+    client = AsyncOpenAI(api_key=api_key)
+    response = await client.responses.parse(
         model=resolved_model,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format={"type": "json_object"},
+        instructions=system_prompt,
+        input=user_prompt,
+        text_format=AgentLLMResponse,
         temperature=temperature,
-        max_tokens=max_tokens,
+        max_output_tokens=max_tokens,
+        store=False,
     )
 
-    content = response.choices[0].message.content
+    parsed = response.output_parsed
+    if parsed is None:
+        raise LLMResponseError("OpenAI returned no usable structured output")
+
     usage = response.usage
     usage_info = {
         "provider": "openai",
-        "model": resolved_model,
-        "tokens_in": usage.prompt_tokens if usage else 0,
-        "tokens_out": usage.completion_tokens if usage else 0,
+        "model": response.model or resolved_model,
+        "tokens_in": usage.input_tokens if usage else 0,
+        "tokens_out": usage.output_tokens if usage else 0,
     }
-    return json.loads(content), usage_info
+    return parsed.model_dump(), usage_info
 
 
 async def _call_gemini(system_prompt: str, user_prompt: str, model: str | None = None, temperature: float = 0.9, max_tokens: int = 600) -> tuple[dict, dict]:
@@ -445,13 +457,19 @@ async def _dispatch_llm_call(
     model: str | None = None,
     temperature: float = 0.9,
     max_tokens: int = 600,
+    *,
+    allow_model_fallback: bool = True,
 ) -> dict:
     """Route a call to the correct LLM provider with budget enforcement."""
     # Budget gate — blocks if daily cap exceeded
     budget_tracker.check_budget()
 
     resolved_model = model
-    if resolved_model is None and budget_tracker.should_use_fallback_model():
+    if (
+        allow_model_fallback
+        and resolved_model is None
+        and budget_tracker.should_use_fallback_model()
+    ):
         resolved_model = _cheap_model_for_provider(provider)
         if resolved_model:
             logger.warning(
@@ -473,6 +491,8 @@ async def _dispatch_llm_call(
         except BudgetExceededError:
             raise
         except Exception:
+            if not allow_model_fallback:
+                raise
             cheap_model = _cheap_model_for_provider(provider)
             if not cheap_model or cheap_model == resolved_model:
                 raise
@@ -572,6 +592,7 @@ async def generate_agent_response(
     hierarchy_desc: str = "",
     hidden_agenda: str = "",
     action_consequences: str = "",
+    strict_llm: bool = False,
 ) -> dict:
     """
     Generate an agent's response using the configured LLM provider.
@@ -602,7 +623,14 @@ async def generate_agent_response(
         logger.info(
             f"Agent {agent['name']} → provider={provider}, model={model or 'default'}, temp={temperature}"
         )
-        result = await _dispatch_llm_call(system_prompt, user_prompt, provider, model, temperature)
+        result = await _dispatch_llm_call(
+            system_prompt,
+            user_prompt,
+            provider,
+            model,
+            temperature,
+            allow_model_fallback=not strict_llm,
+        )
 
         # Ensure all expected fields exist with defaults
         result.setdefault("public_message", "*stays silent*")
@@ -619,6 +647,11 @@ async def generate_agent_response(
 
     except Exception as e:
         logger.error(f"LLM call failed for {agent['name']} (provider={provider}): {e}")
+
+        if strict_llm:
+            raise LLMResponseError(
+                f"GPT-5.6 could not complete the response for {agent['name']}"
+            ) from e
 
         # Fallback: try global provider if per-agent failed
         if agent_model and provider != LLM_PROVIDER:
