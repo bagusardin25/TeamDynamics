@@ -2,7 +2,7 @@ export interface DemoSimulationResponse {
   id: string;
   status: "idle";
   mode: "demo";
-  runtime_model: "gpt-5.6";
+  runtime_model: "scripted-mock";
 }
 
 interface DemoPayload {
@@ -36,7 +36,7 @@ export async function createDemoSimulation(
     !payload.id ||
     payload.status !== "idle" ||
     payload.mode !== "demo" ||
-    payload.runtime_model !== "gpt-5.6"
+    payload.runtime_model !== "scripted-mock"
   ) {
     throw new Error("Quick Demo returned an invalid response");
   }

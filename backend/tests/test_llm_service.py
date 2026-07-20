@@ -64,6 +64,7 @@ def test_call_openai_uses_responses_parse(monkeypatch):
     assert captured["model"] == "gpt-5.6"
     assert captured["text_format"] is AgentLLMResponse
     assert captured["store"] is False
+    assert "temperature" not in captured
     assert result["action"] == "propose_recovery_plan"
     assert usage == {
         "provider": "openai",

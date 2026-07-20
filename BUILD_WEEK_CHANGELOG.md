@@ -21,17 +21,19 @@ This document separates TeamDynamics' pre-existing work from work completed duri
 ### 2026-07-20
 
 - Documented the repository and submission-readiness audit in `OPENAI_BUILD_WEEK_AUDIT.md`.
-- Approved the design for one explicit GPT-5.6 runtime model and a public, preconfigured Quick Demo.
+- Added OpenAI GPT-5.6 support through the Responses API with strict Pydantic output parsing.
+- Omitted the unsupported `temperature` parameter for GPT-5.6 requests.
+- Added a public, rate-limited `/api/simulation/demo` endpoint and `/demo` experience.
+- Added deterministic mock responses for the public Quick Demo: three fixed agents across three rounds with no external model request or API cost.
+- Kept the real simulation engine, state mutations, decision tracking, persistence, WebSocket streaming, and outcome calculation active for the demo.
+- Fixed the background runner so an aborted simulation cannot emit a false `completed` event.
+- Preserved configured model providers for authenticated custom simulations; mock-only behavior is scoped to `mode="demo"`.
 - Recorded the implementation scope in `docs/superpowers/specs/2026-07-20-gpt56-quick-demo-design.md`.
 
-## Planned Build Week Work
+## Remaining Build Week Work
 
-The following items are not complete until moved into the dated section above with verification evidence:
+The following items remain incomplete until verification evidence is recorded:
 
-- Integrate `gpt-5.6` through the OpenAI Responses API.
-- Add strict structured output and model trace metadata.
-- Add a fixed, rate-limited anonymous demo-creation endpoint.
-- Add the public `/demo` user experience.
 - Add focused backend tests and frontend smoke verification.
 - Deploy and verify the exact Build Week commit.
 

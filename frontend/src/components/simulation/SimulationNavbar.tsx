@@ -30,6 +30,9 @@ export function SimulationNavbar({
   onEndSimulation,
   onExit,
 }: SimulationNavbarProps) {
+  const runtimeLabel =
+    runtimeModel === "scripted-mock" ? "Scripted Mock" : runtimeModel;
+
   return (
     <header className="h-14 border-b border-border bg-card/40 flex items-center justify-between px-6 shrink-0 z-10 backdrop-blur-md">
       <div className="flex items-center gap-3">
@@ -44,7 +47,7 @@ export function SimulationNavbar({
             variant="outline"
             className="border-violet-500/30 bg-violet-500/10 text-violet-400"
           >
-            {runtimeModel}
+            {runtimeLabel}
           </Badge>
         ) : null}
         <span className="font-semibold text-sm text-muted-foreground mr-4">

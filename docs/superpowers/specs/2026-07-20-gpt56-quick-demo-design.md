@@ -2,11 +2,33 @@
 
 **Date:** 2026-07-20  
 **Branch:** `codexbuild`  
-**Status:** Approved in conversation; implementation pending
+**Status:** Implemented with the mock-only amendment below
 
 ## Goal
 
 Extend the existing TeamDynamics simulation with one explicit GPT-5.6 runtime model and add a public Quick Demo that starts a safe, preconfigured simulation without login or manual setup.
+
+## Implementation Amendment: Mock-only Public Demo
+
+After the first runtime attempt exposed a GPT-5.6 parameter error, the user
+explicitly directed that the public demo use mock data. This amendment
+supersedes every conflicting Quick Demo runtime statement later in this
+document:
+
+- `/demo` and `POST /api/simulation/demo` use `runtime_model="scripted-mock"`.
+- Demo dialogue comes from deterministic local fixtures and never invokes an
+  external model.
+- The demo still exercises the production simulation engine, state changes,
+  decision engine, persistence, WebSocket messages, and outcome calculation.
+- The UI labels the experience `Scripted Mock Simulation`; it does not present
+  mock dialogue as GPT-5.6 output.
+- OpenAI Responses API and GPT-5.6 support remain available to non-demo,
+  configured simulations. GPT-5.6 calls omit the unsupported `temperature`
+  request parameter.
+- A runner abort never emits a `completed` WebSocket event.
+
+The original sections below remain as decision history. Where they conflict
+with this amendment, this amendment is authoritative.
 
 ## Approved Product Decisions
 

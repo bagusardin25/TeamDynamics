@@ -71,14 +71,14 @@ async def create_sim(
 @router.post("/demo")
 @limiter.limit("3/minute")
 async def create_demo_simulation(request: Request, response: Response):
-    """Create the fixed anonymous Build Week Quick Demo."""
+    """Create the fixed anonymous Quick Demo backed by local fixtures."""
     body = build_demo_simulation_request()
     sim_id = await create_simulation(
         body,
         user_id=None,
         mode="demo",
         runtime_model=DEMO_RUNTIME_MODEL,
-        strict_llm=True,
+        strict_llm=False,
     )
     return {
         "id": sim_id,

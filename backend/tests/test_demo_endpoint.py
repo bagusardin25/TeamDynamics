@@ -23,8 +23,8 @@ def _serialized_demo_state() -> dict:
         "messages": [],
         "pacing": "fast",
         "mode": "demo",
-        "runtime_model": "gpt-5.6",
-        "strict_llm": True,
+        "runtime_model": "scripted-mock",
+        "strict_llm": False,
     }
 
 
@@ -51,13 +51,13 @@ def test_demo_endpoint_is_public_and_applies_metadata(monkeypatch):
         "id": "demo1234",
         "status": "idle",
         "mode": "demo",
-        "runtime_model": "gpt-5.6",
+        "runtime_model": "scripted-mock",
     }
     assert captured["user_id"] is None
     assert captured["metadata"] == {
         "mode": "demo",
-        "runtime_model": "gpt-5.6",
-        "strict_llm": True,
+        "runtime_model": "scripted-mock",
+        "strict_llm": False,
     }
     assert captured["request"].company.name == "Northstar Labs"
 
@@ -66,8 +66,8 @@ def test_simulation_serialization_keeps_demo_metadata():
     serialized = _serialize_sim_state(_serialized_demo_state())
 
     assert serialized["mode"] == "demo"
-    assert serialized["runtime_model"] == "gpt-5.6"
-    assert serialized["strict_llm"] is True
+    assert serialized["runtime_model"] == "scripted-mock"
+    assert serialized["strict_llm"] is False
 
 
 def test_simulation_reconstruction_restores_demo_metadata():
@@ -75,5 +75,5 @@ def test_simulation_reconstruction_restores_demo_metadata():
 
     assert reconstructed is not None
     assert reconstructed["mode"] == "demo"
-    assert reconstructed["runtime_model"] == "gpt-5.6"
-    assert reconstructed["strict_llm"] is True
+    assert reconstructed["runtime_model"] == "scripted-mock"
+    assert reconstructed["strict_llm"] is False

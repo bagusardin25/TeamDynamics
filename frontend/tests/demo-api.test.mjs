@@ -15,7 +15,7 @@ test("creates the fixed demo with POST", async () => {
         id: "demo1234",
         status: "idle",
         mode: "demo",
-        runtime_model: "gpt-5.6",
+        runtime_model: "scripted-mock",
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
@@ -26,7 +26,7 @@ test("creates the fixed demo with POST", async () => {
   assert.equal(requestedUrl, "http://localhost:8000/api/simulation/demo");
   assert.equal(requestedInit?.method, "POST");
   assert.equal(result.id, "demo1234");
-  assert.equal(result.runtime_model, "gpt-5.6");
+  assert.equal(result.runtime_model, "scripted-mock");
 });
 
 

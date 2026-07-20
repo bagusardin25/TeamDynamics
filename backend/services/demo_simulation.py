@@ -14,7 +14,7 @@ from models.schemas import (
 )
 
 
-DEMO_RUNTIME_MODEL = "gpt-5.6"
+DEMO_RUNTIME_MODEL = "scripted-mock"
 
 DEMO_COMPANY = CompanyProfile(
     name="Northstar Labs",
@@ -40,5 +40,5 @@ def build_demo_simulation_request() -> CreateSimulationRequest:
         company=DEMO_COMPANY,
         agents=agents,
         crisis=CrisisConfig(scenario=CrisisScenario.DB_DELETED),
-        params=SimulationParams(duration_weeks=3, pacing=PacingSpeed.FAST),
+        params=SimulationParams(duration_weeks=3, pacing=PacingSpeed.NORMAL),
     )

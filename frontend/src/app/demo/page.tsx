@@ -51,9 +51,9 @@ const DEMO_AGENTS = [
 ] as const;
 
 const DEMO_STEPS = [
-  "GPT-5.6 responds as each teammate",
-  "Team state changes across three fast rounds",
-  "A report summarizes the synthetic outcome",
+  "18 scripted messages run through the real simulation engine",
+  "Two discussion exchanges unfold in each of three rounds",
+  "A mock report summarizes the calculated outcome",
 ] as const;
 
 
@@ -117,7 +117,7 @@ export default function DemoPage() {
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-70" />
                 <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
               </span>
-              Live GPT-5.6 Simulation
+              Scripted Mock Simulation
             </Badge>
 
             <h1 className="max-w-3xl text-4xl font-black tracking-tight text-foreground sm:text-5xl md:text-6xl">
@@ -127,8 +127,8 @@ export default function DemoPage() {
               </span>
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Northstar Labs, three synthetic teammates, three rounds, and no
-              setup. Watch their decisions, stress, morale, and alliances
+              Northstar Labs, three synthetic teammates, eighteen messages,
+              and no setup. Watch their decisions, stress, morale, and alliances
               change as the incident unfolds.
             </p>
 
@@ -143,7 +143,7 @@ export default function DemoPage() {
               </span>
               <span className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/60 px-3 py-1.5">
                 <Users className="size-4 text-violet-400" />
-                Three AI personas
+                18 agent messages
               </span>
             </div>
 
@@ -244,7 +244,7 @@ export default function DemoPage() {
                       </p>
                     </div>
                     <span className="font-mono text-[10px] uppercase tracking-wider text-violet-400">
-                      GPT-5.6
+                      Mock data
                     </span>
                   </div>
                 ))}
@@ -269,7 +269,8 @@ export default function DemoPage() {
 
         <p className="mx-auto mt-14 max-w-3xl text-center text-xs leading-relaxed text-muted-foreground">
           This is a synthetic decision-rehearsal scenario. It does not diagnose
-          employees or scientifically predict burnout.
+          employees or scientifically predict burnout. Its dialogue is
+          deterministic mock data and makes no external LLM request.
         </p>
       </main>
     </div>

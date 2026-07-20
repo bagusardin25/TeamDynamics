@@ -52,6 +52,7 @@ interface Report {
   crisis_name: string;
   total_rounds: number;
   completed_rounds: number;
+  report_source?: "scripted-mock" | "llm";
   executive_summary: string;
   critical_finding: string;
   simulation_overview: string;
@@ -114,8 +115,9 @@ function ReportContent() {
   const searchParams = useSearchParams();
   const simId = searchParams.get("id");
   const [report, setReport] = useState<Report | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(simId));
   const [error, setError] = useState<string | null>(null);
+  const missingIdError = simId ? null : "Report ID is required. Open a report with a valid simulation id.";
   const [isExporting, setIsExporting] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -217,14 +219,6 @@ function ReportContent() {
       };
 
       // ── Sub-label ──
-      const writeLabel = (text: string) => {
-        checkPage(8);
-        pdf.setFontSize(8);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(...C.muted);
-        pdf.text(text.toUpperCase(), margin, y);
-        y += 5;
-      };
 
       // ═══════════════════════════════════════════════════════
       // COVER / TITLE BLOCK
@@ -533,11 +527,7 @@ function ReportContent() {
   };
 
   useEffect(() => {
-    if (!simId) {
-      setError("Report ID is required. Open a report with a valid simulation id.");
-      setLoading(false);
-      return;
-    }
+    if (!simId) return;
 
     fetch(`${API_BASE}/api/simulation/${simId}/report`)
       .then((res) => {
@@ -560,18 +550,18 @@ function ReportContent() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
-          <p className="text-muted-foreground">Generating professional report with AI insights...</p>
+          <p className="text-muted-foreground">Preparing simulation report...</p>
         </div>
       </div>
     );
   }
 
-  if (error || !report) {
+  if (missingIdError || error || !report) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <AlertTriangle className="w-8 h-8 text-destructive mx-auto" />
-          <p className="text-muted-foreground">{error || "Report not found."}</p>
+          <p className="text-muted-foreground">{missingIdError || error || "Report not found."}</p>
           <Link href="/setup">
             <Button variant="outline">Back to Setup</Button>
           </Link>
@@ -660,7 +650,16 @@ function ReportContent() {
             <span>•</span>
             <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {km?.total_agents || report.agent_reports.length} Agents</span>
           </div>
-          <div className="pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            {report.report_source === "scripted-mock" ? (
+              <Badge
+                variant="outline"
+                className="border-violet-500/30 bg-violet-500/10 text-violet-400"
+              >
+                <FileText className="mr-1 size-3" />
+                Scripted Mock Report
+              </Badge>
+            ) : null}
             <Badge variant="outline" className={`${km?.resignations > 0 ? 'border-red-500/30 text-red-400' : 'border-green-500/30 text-green-400'}`}>
               {km?.resignations > 0 ? `${km.resignations} Resignation(s)` : "No Resignations"}
             </Badge>
@@ -803,7 +802,7 @@ function ReportContent() {
                         contentStyle={{ backgroundColor: 'rgba(10,10,26,0.95)', borderColor: '#333', borderRadius: '12px', padding: '12px' }}
                         itemStyle={{ color: '#fff', fontSize: '12px' }}
                         labelStyle={{ color: '#888', marginBottom: '8px', fontWeight: 600 }}
-                        formatter={(val: any) => [`${val}%`]}
+                        formatter={(value) => [`${value}%`]}
                         labelFormatter={(label) => `Week ${label}`}
                       />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />

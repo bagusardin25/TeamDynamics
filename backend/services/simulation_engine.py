@@ -30,6 +30,7 @@ from models.database import (
     get_metrics_history as db_get_metrics_history,
 )
 from services.llm_service import generate_agent_response
+from services.demo_responses import get_demo_agent_response
 from services.decision_engine import (
     get_tracker, get_tracker_with_restore, persist_tracker,
     process_agent_action, determine_outcome,
@@ -429,6 +430,27 @@ async def _broadcast_typing(sim_id: str, agent: AgentFullState, ws_broadcast):
         connections.remove(ws)
 
 
+async def _resolve_agent_response(
+    *,
+    state: dict,
+    agent: dict,
+    round_num: int,
+    exchange_num: int,
+    llm_request: dict,
+) -> dict:
+    """Resolve a scripted demo turn or preserve the configured LLM path."""
+    if state.get("mode") == "demo":
+        logger.info(
+            "Agent %s -> scripted demo response for round %s, exchange %s",
+            agent["name"],
+            round_num,
+            exchange_num,
+        )
+        return get_demo_agent_response(agent, round_num, exchange_num)
+
+    return await generate_agent_response(**llm_request)
+
+
 async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     """
     Run a single simulation round. Each agent responds sequentially.
@@ -563,7 +585,13 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
                     )
 
     # ── Each agent responds ───────────────────────────────────────
-    for agent in state["agents"]:
+    exchange_count = 2 if state.get("mode") == "demo" else 1
+    agent_turns = [
+        (exchange_num, agent)
+        for exchange_num in range(1, exchange_count + 1)
+        for agent in state["agents"]
+    ]
+    for exchange_num, agent in agent_turns:
         if agent.has_resigned:
             continue
 
@@ -607,21 +635,28 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             memory_list = []
 
         # ── Call LLM ──────────────────────────────────────────────
-        llm_response = await generate_agent_response(
+        llm_request = {
+            "agent": agent_dict,
+            "company": company,
+            "crisis_description": crisis,
+            "round_num": current_round,
+            "total_rounds": state["total_rounds"],
+            "conversation_history": conv_history,
+            "memory": memory_text,
+            "agenda": agenda,
+            "decision_context": decision_context,
+            "world_state_text": world.to_prompt_text(),
+            "hierarchy_desc": get_hierarchy_description(agent.role),
+            "hidden_agenda": get_hidden_agenda(agent.id),
+            "action_consequences": action_consequences,
+            "strict_llm": state.get("strict_llm", False),
+        }
+        llm_response = await _resolve_agent_response(
+            state=state,
             agent=agent_dict,
-            company=company,
-            crisis_description=crisis,
             round_num=current_round,
-            total_rounds=state["total_rounds"],
-            conversation_history=conv_history,
-            memory=memory_text,
-            agenda=agenda,
-            decision_context=decision_context,
-            world_state_text=world.to_prompt_text(),
-            hierarchy_desc=get_hierarchy_description(agent.role),
-            hidden_agenda=get_hidden_agenda(agent.id),
-            action_consequences=action_consequences,
-            strict_llm=state.get("strict_llm", False),
+            exchange_num=exchange_num,
+            llm_request=llm_request,
         )
 
         # ── Extract data ──────────────────────────────────────────

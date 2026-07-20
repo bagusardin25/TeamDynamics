@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from models.schemas import AgentFullState, AgentReport, ReportResponse
 from services.llm_service import generate_report_insights
+from services.demo_report import build_demo_report_insights
 from models.agent import compute_initial_state
 
 logger = logging.getLogger(__name__)
@@ -150,14 +151,6 @@ async def generate_report(sim_state: dict) -> ReportResponse:
         sim_state.get("crisis_scenario", ""), {}
     ).get("name", crisis_desc or "Custom Crisis")
 
-    insights = await generate_report_insights(
-        company=company,
-        crisis=crisis_desc,
-        agents_data=agents_data,
-        messages=messages_data,
-        total_rounds=sim_state.get("total_rounds", 12),
-    )
-
     # Compute structured key metrics
     total_agents = len(agents)
     active_agents = [a for a in agents if not a.has_resigned]
@@ -185,12 +178,33 @@ async def generate_report(sim_state: dict) -> ReportResponse:
         "total_planned_weeks": sim_state.get("total_rounds", 12),
     }
 
+    report_source = "llm"
+    if sim_state.get("mode") == "demo":
+        report_source = "scripted-mock"
+        insights = build_demo_report_insights(
+            company=company,
+            crisis=crisis_desc,
+            agents_data=agents_data,
+            messages=messages_data,
+            total_rounds=sim_state.get("total_rounds", 12),
+            key_metrics=key_metrics,
+        )
+    else:
+        insights = await generate_report_insights(
+            company=company,
+            crisis=crisis_desc,
+            agents_data=agents_data,
+            messages=messages_data,
+            total_rounds=sim_state.get("total_rounds", 12),
+        )
+
     return ReportResponse(
         simulation_id=sim_state["id"],
         company_name=company["name"],
         crisis_name=crisis_name,
         total_rounds=sim_state.get("total_rounds", 12),
         completed_rounds=sim_state.get("current_round", 0),
+        report_source=report_source,
         executive_summary=insights.get("executive_summary", "Simulation completed."),
         critical_finding=insights.get("critical_finding", "No critical findings."),
         simulation_overview=insights.get("simulation_overview", ""),

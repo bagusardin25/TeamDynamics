@@ -7,13 +7,13 @@ def test_demo_request_is_fixed_and_short():
     assert request.company.name == "Northstar Labs"
     assert request.crisis.scenario.value == "rnd4"
     assert request.params.duration_weeks == 3
-    assert request.params.pacing.value == "fast"
+    assert request.params.pacing.value == "normal"
     assert len(request.agents) == 3
 
 
-def test_demo_agents_all_use_gpt56():
+def test_demo_agents_all_use_scripted_mock():
     request = build_demo_simulation_request()
 
-    assert DEMO_RUNTIME_MODEL == "gpt-5.6"
+    assert DEMO_RUNTIME_MODEL == "scripted-mock"
     assert {agent.model for agent in request.agents} == {DEMO_RUNTIME_MODEL}
     assert [agent.name for agent in request.agents] == ["Alex", "Sam", "Jordan"]

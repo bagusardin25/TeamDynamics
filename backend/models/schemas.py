@@ -236,6 +236,7 @@ class ReportResponse(BaseModel):
     crisis_name: str
     total_rounds: int
     completed_rounds: int
+    report_source: str = "llm"
     executive_summary: str
     critical_finding: str
     simulation_overview: str = ""  # Detailed objective & scenario description

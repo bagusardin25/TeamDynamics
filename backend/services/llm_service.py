@@ -352,15 +352,20 @@ async def _call_openai(
 
     resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6")
     client = AsyncOpenAI(api_key=api_key)
-    response = await client.responses.parse(
-        model=resolved_model,
-        instructions=system_prompt,
-        input=user_prompt,
-        text_format=AgentLLMResponse,
-        temperature=temperature,
-        max_output_tokens=max_tokens,
-        store=False,
-    )
+    request_kwargs = {
+        "model": resolved_model,
+        "instructions": system_prompt,
+        "input": user_prompt,
+        "text_format": AgentLLMResponse,
+        "max_output_tokens": max_tokens,
+        "store": False,
+    }
+    # GPT-5.6 rejects the temperature parameter on the Responses API.
+    # Preserve temperature behavior for providers/models that support it.
+    if not resolved_model.lower().startswith("gpt-5.6"):
+        request_kwargs["temperature"] = temperature
+
+    response = await client.responses.parse(**request_kwargs)
 
     parsed = response.output_parsed
     if parsed is None:

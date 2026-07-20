@@ -41,7 +41,7 @@ def _runtime_metadata(state: dict) -> dict:
 def _public_round_error_message(state: dict, error: Exception) -> str:
     """Hide provider details for the anonymous demo while preserving standard diagnostics."""
     if state.get("mode") == "demo":
-        return "GPT-5.6 could not complete this round. Retrying..."
+        return "Quick Demo could not complete this round. Retrying..."
     return f"Round error: {str(error)}. Retrying..."
 
 
@@ -177,15 +177,29 @@ async def _run_simulation_background(sim_id: str):
                             })
                         except Exception:
                             pass
-                    break
+                    return
 
                 await asyncio.sleep(2.0)
                 continue
 
             await asyncio.sleep(1.0)
 
-        # Send completion to all connected clients
+        # Only an engine-confirmed completed state may produce a completed
+        # WebSocket event. Exhausted rounds can also result from a failed round.
         state = await get_simulation_state(sim_id)
+        if not state:
+            return
+
+        completion_status = state["status"]
+        if isinstance(completion_status, SimulationStatus):
+            completion_status = completion_status.value
+        if completion_status != SimulationStatus.COMPLETED.value:
+            logger.warning(
+                "Simulation %s stopped without a completed state; suppressing completion event",
+                sim_id,
+            )
+            return
+
         metrics_history = get_metrics_history(sim_id)
 
         # Build outcome data from the last system message

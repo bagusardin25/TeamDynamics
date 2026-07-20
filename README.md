@@ -27,6 +27,18 @@
 
 TeamDynamics is a **multi-agent AI-powered simulation platform** that lets startup founders, HR leaders, and team managers stress-test their team's resilience under corporate crises. Assemble a virtual team of psychologically-profiled AI agents, inject a real-world crisis scenario, and observe in real-time how your team reacts — predicting burnout cascades, communication breakdowns, and resignation waves before they happen.
 
+### Public Quick Demo
+
+Open `/demo` to run the fixed Northstar Labs crisis without signing in or
+configuring a team. The Quick Demo uses nine deterministic mock responses
+across three agents and three rounds, so it makes **no external LLM request and
+incurs no model cost**. Those responses still pass through the real simulation
+engine, decision tracking, state changes, persistence, WebSocket streaming, and
+outcome generation.
+
+Authenticated custom simulations remain separate and can use OpenAI GPT-5.6,
+Gemini, OpenRouter, or another configured provider.
+
 ### Why TeamDynamics?
 
 | Challenge | How TeamDynamics Solves It |
@@ -183,7 +195,7 @@ Create a `.env` file inside `/backend` based on `.env.example`:
 # ─── LLM Provider (required — at least one) ───
 LLM_PROVIDER=openai                    # openai | gemini | openrouter
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o-mini              # optional, default model
+OPENAI_MODEL=gpt-5.6                  # optional; used by custom simulations
 OPENAI_CHEAP_MODEL=gpt-4o-mini        # used during traffic/cost spikes
 GEMINI_API_KEY=AI...
 GEMINI_MODEL=gemini-2.0-flash         # optional, default model
