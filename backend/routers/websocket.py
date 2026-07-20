@@ -17,6 +17,7 @@ from services.simulation_engine import (
 )
 from services.decision_engine import get_tracker
 from models.schemas import SimulationStatus
+from services.simulation_events import enrich_system_message
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -77,6 +78,7 @@ def _get_decision_status(sim_id: str) -> dict:
 
 
 async def broadcast_message(sim_id: str, message: dict):
+    message = enrich_system_message(message)
     """Broadcast a message to all connected WebSocket clients for a simulation."""
     connections = _ws_connections.get(sim_id, [])
     state = await get_simulation_state(sim_id)

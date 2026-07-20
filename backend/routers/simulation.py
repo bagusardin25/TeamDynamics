@@ -12,6 +12,7 @@ from services.simulation_engine import (
     create_simulation, get_simulation_state, process_intervention, compute_metrics,
 )
 from services.report_generator import generate_report
+from services.simulation_events import enrich_system_messages
 from routers.auth import get_current_user, require_auth, TokenData
 
 router = APIRouter(prefix="/api/simulation", tags=["simulation"])
@@ -312,6 +313,8 @@ async def get_replay_data(sim_id: str):
             "timestamp": m.get("timestamp"),
         })
 
+    all_messages = enrich_system_messages(all_messages)
+
     # Group messages by round
     rounds_map: dict[int, list] = {}
     for msg in all_messages:
@@ -356,6 +359,11 @@ async def get_replay_data(sim_id: str):
 
     return {
         "simulation_id": sim_id,
+        "mode": (
+            "demo"
+            if sim_data.get("user_id") is None and total_rounds == 3
+            else "standard"
+        ),
         "company": {
             "name": sim_data["company_name"],
             "culture": sim_data["company_culture"],

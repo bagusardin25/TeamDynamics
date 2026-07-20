@@ -34,6 +34,7 @@ from services.demo_responses import get_demo_agent_response
 from services.demo_simulation import (
     build_demo_world_state,
     get_demo_round_event,
+    wait_for_demo_typing_state,
 )
 from services.decision_engine import (
     get_tracker, get_tracker_with_restore, persist_tracker,
@@ -638,6 +639,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         # Broadcast typing indicator before LLM call
         if ws_broadcast:
             await _broadcast_typing(sim_id, agent, ws_broadcast)
+            await wait_for_demo_typing_state(state.get("mode", "standard"))
 
         # Build conversation history for context (expanded window for better coherence)
         conv_history = [
@@ -918,13 +920,13 @@ async def process_intervention(sim_id: str, intervention_type: InterventionType,
 
     # Build announcement
     announcements = {
-        InterventionType.BONUS: "💰 Management has announced a surprise bonus for the entire team!",
-        InterventionType.PIZZA: "🍕 The company is throwing a team pizza party to boost morale!",
-        InterventionType.CANCEL_OVERTIME: "🎉 Management has cancelled all mandatory overtime effective immediately!",
+        InterventionType.BONUS: "GOD MODE: Management announced a surprise bonus for the entire team.",
+        InterventionType.PIZZA: "GOD MODE: Management scheduled a team reset to boost morale.",
+        InterventionType.CANCEL_OVERTIME: "GOD MODE: Management cancelled mandatory overtime effective immediately.",
     }
     announcement = announcements.get(
         intervention_type,
-        f"📢 Management Announcement: {custom_message or 'A new directive has been issued.'}"
+        f"GOD MODE: {custom_message or 'A new management directive has been issued.'}"
     )
 
     # Save system message

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from copy import deepcopy
+from collections.abc import Awaitable, Callable
 
 from data.presets import PRESET_AGENTS
 from data.world_state import RandomEvent, WorldState
@@ -16,6 +18,16 @@ from models.schemas import (
 
 
 DEMO_RUNTIME_MODEL = "scripted-mock"
+DEMO_TYPING_DELAY_SECONDS = 0.6
+
+
+async def wait_for_demo_typing_state(
+    mode: str,
+    sleeper: Callable[[float], Awaitable[None]] = asyncio.sleep,
+) -> None:
+    """Keep the scripted typing state visible without delaying real model calls."""
+    if mode == "demo":
+        await sleeper(DEMO_TYPING_DELAY_SECONDS)
 
 _DEMO_RESOLUTION_EVENT = RandomEvent(
     id="client_recovery_escalation",
