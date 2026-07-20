@@ -31,6 +31,10 @@ from models.database import (
 )
 from services.llm_service import generate_agent_response
 from services.demo_responses import get_demo_agent_response
+from services.demo_simulation import (
+    build_demo_world_state,
+    get_demo_round_event,
+)
 from services.decision_engine import (
     get_tracker, get_tracker_with_restore, persist_tracker,
     process_agent_action, determine_outcome,
@@ -138,7 +142,11 @@ async def create_simulation(
     }
 
     # Initialize world state for this simulation
-    world = create_world_state(crisis_scenario, request.params.duration_weeks)
+    world = (
+        build_demo_world_state()
+        if mode == "demo"
+        else create_world_state(crisis_scenario, request.params.duration_weeks)
+    )
     _world_states[sim_id] = world
 
     # Persist initial world state to DB
@@ -370,7 +378,11 @@ async def _restore_world_state(sim_id: str, sim_data: dict):
     else:
         crisis_scenario = sim_data.get("crisis_scenario", "rnd1")
         total_rounds = sim_data.get("total_rounds", 12)
-        _world_states[sim_id] = create_world_state(crisis_scenario, total_rounds)
+        _world_states[sim_id] = (
+            build_demo_world_state()
+            if sim_data.get("mode") == "demo"
+            else create_world_state(crisis_scenario, total_rounds)
+        )
 
 
 async def _restore_metrics_history(sim_id: str):
@@ -451,6 +463,19 @@ async def _resolve_agent_response(
     return await generate_agent_response(**llm_request)
 
 
+def _resolve_round_event(
+    *,
+    state: dict,
+    sim_id: str,
+    current_round: int,
+    crisis_scenario: str,
+):
+    """Use the coherent scripted event for demos and randomness elsewhere."""
+    if state.get("mode") == "demo":
+        return get_demo_round_event(current_round)
+    return roll_random_event(sim_id, current_round, crisis_scenario)
+
+
 async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     """
     Run a single simulation round. Each agent responds sequentially.
@@ -460,6 +485,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
     state = await get_simulation_state(sim_id)
     if not state:
         raise ValueError(f"Simulation {sim_id} not found")
+
 
     current_round = state["current_round"] + 1
     state["current_round"] = current_round
@@ -483,10 +509,7 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
 
     # ── Get or create world state ─────────────────────────────────
     if sim_id not in _world_states:
-        await _restore_world_state(sim_id, {
-            "crisis_scenario": crisis_scenario,
-            "total_rounds": state["total_rounds"],
-        })
+        await _restore_world_state(sim_id, state)
     world = _world_states[sim_id]
 
     # Tick world state (deadline approaches, budget burns, etc.)
@@ -544,7 +567,12 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
             await ws_broadcast(sim_id, phase_msg)
 
     # ── Roll for random event ─────────────────────────────────────
-    random_event = roll_random_event(sim_id, current_round, crisis_scenario)
+    random_event = _resolve_round_event(
+        state=state,
+        sim_id=sim_id,
+        current_round=current_round,
+        crisis_scenario=crisis_scenario,
+    )
     if random_event:
         apply_random_event_to_world(world, random_event)
         event_msg_content = f"🎲 UNEXPECTED EVENT: {random_event.name}\n{random_event.description}"

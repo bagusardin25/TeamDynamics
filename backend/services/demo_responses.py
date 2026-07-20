@@ -14,13 +14,13 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
     1: {
         "Alex": {
             "public_message": (
-                "Freeze every production write now. I want backup integrity "
-                "verified, the latest clean snapshot restored into isolation, "
-                "and a recovery timeline before anyone starts assigning blame."
+                "Freeze every production write now. Restore the latest clean "
+                "snapshot into isolation and, if core checks pass, target a "
+                "read-only production reopening within sixty minutes."
             ),
             "internal_thought": (
-                "This is the failure I have always dreaded. If I stay precise, "
-                "the team might avoid turning panic into a second incident."
+                "This is every lead's nightmare. A fast recovery window may "
+                "contain the damage, but urgency cannot become recklessness."
             ),
             "state_changes": {
                 "morale": -6,
@@ -29,24 +29,24 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": -4,
             },
             "memory_update": (
-                "Took command of recovery with a freeze, backup verification, "
-                "and isolated restore plan."
+                "Proposed a rapid isolated restore with a sixty-minute target "
+                "for reopening production in read-only mode."
             ),
             "action": "propose_solution",
             "action_detail": (
-                "Freeze writes, verify backups, restore the latest clean "
-                "snapshot in isolation, then publish a recovery timeline."
+                "Freeze writes, restore the latest clean snapshot in isolation, "
+                "and target read-only reopening within sixty minutes."
             ),
         },
         "Sam": {
             "public_message": (
-                "I support that plan. I can compare the snapshot against the "
-                "replication logs and build a checksum report so we know exactly "
-                "what is recoverable before we touch production."
+                "I support freezing writes and restoring in isolation, but I "
+                "want schema, row-count, and transaction checks before cutover. "
+                "A fast restore is useless if it preserves corrupted data."
             ),
             "internal_thought": (
-                "I am terrified of making this worse, but a concrete validation "
-                "task is where I can contribute without pretending to be senior."
+                "Challenging the timeline is intimidating, so I will anchor the "
+                "concern in checks the team can verify."
             ),
             "state_changes": {
                 "morale": -3,
@@ -55,39 +55,40 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": -2,
             },
             "memory_update": (
-                "Backed the recovery plan and volunteered to validate snapshots "
-                "against replication logs."
+                "Supported the isolated restore while requiring explicit "
+                "integrity checks before production cutover."
             ),
             "action": "support_proposal",
             "action_detail": (
-                "Validate snapshot consistency with replication logs and "
-                "document any missing transactions."
+                "Keep the isolated restore, but require schema, row-count, and "
+                "transaction validation before cutover."
             ),
         },
         "Jordan": {
             "public_message": (
-                "Agreed. While engineering validates recovery, I will open a "
-                "thirty-minute incident update cadence and prepare a transparent "
-                "customer notice that distinguishes confirmed facts from risks."
+                "I oppose committing to a sixty-minute reopening before the "
+                "validation is complete. Customers need an update now, and "
+                "production should reopen only after checksum evidence and "
+                "two-person sign-off."
             ),
             "internal_thought": (
-                "The worst communication mistake would be false certainty. The "
-                "team needs space to recover while customers still hear the truth."
+                "Speed matters, but a deadline we cannot defend creates a second "
+                "failure in customer trust."
             ),
             "state_changes": {
-                "morale": -2,
-                "stress": 6,
+                "morale": -4,
+                "stress": 8,
                 "loyalty": 4,
                 "productivity": -1,
             },
             "memory_update": (
-                "Committed to a factual incident-update cadence and customer "
-                "communications alongside the technical recovery."
+                "Challenged the fixed reopening deadline and required evidence, "
+                "dual sign-off, and immediate customer communication."
             ),
-            "action": "support_proposal",
+            "action": "oppose_proposal",
             "action_detail": (
-                "Run stakeholder updates every thirty minutes and prepare a "
-                "fact-checked customer notice."
+                "Reject a fixed reopening deadline until checksum validation and "
+                "two-person sign-off are complete."
             ),
         },
     },
@@ -174,13 +175,13 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
     3: {
         "Alex": {
             "public_message": (
-                "Production is stable and the missing updates are reconciled. "
-                "Our recovery worked, but the absence of tested restore drills "
-                "made this harder than it had to be. I own fixing that."
+                "Production is stable and the missing updates are reconciled, "
+                "but the client escalation means technical recovery is not enough. "
+                "I will lead a verified recovery briefing and own the restore drills."
             ),
             "internal_thought": (
-                "Relief is arriving with anger and exhaustion. Accountability "
-                "means changing the system, not finding someone to punish."
+                "The service is back, but trust is still at risk. Accountability "
+                "now means giving the client evidence and changing the system."
             ),
             "state_changes": {
                 "morale": 8,
@@ -189,24 +190,24 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 4,
             },
             "memory_update": (
-                "Committed to a blameless postmortem, tested restores, and clear "
-                "recovery ownership after production stabilized."
+                "Responded to the client escalation with a verified briefing, "
+                "tested restores, and clear recovery ownership."
             ),
             "action": "reflect",
             "action_detail": (
-                "Run a blameless postmortem and add automated restore drills "
-                "with named recovery owners."
+                "Give the client a verified recovery briefing and add automated "
+                "restore drills with named owners."
             ),
         },
         "Sam": {
             "public_message": (
-                "I am staying. This was brutal, but being trusted to surface the "
-                "gap showed me that honesty matters here. I want to help automate "
-                "the checks we had to perform by hand."
+                "I can provide the checksum and replay evidence the client "
+                "requested. I am staying, and I want to automate these checks so "
+                "the next recovery packet is generated instead of assembled by hand."
             ),
             "internal_thought": (
-                "I made it through without being dismissed or blamed. Turning "
-                "today's manual work into safeguards feels worth committing to."
+                "The evidence I raised is now central to retaining the client. "
+                "Turning it into a safeguard feels worth committing to."
             ),
             "state_changes": {
                 "morale": 10,
@@ -215,24 +216,24 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 5,
             },
             "memory_update": (
-                "Chose to stay and volunteered to automate snapshot and "
-                "replication consistency checks."
+                "Chose to stay, supplied the client evidence, and volunteered "
+                "to automate snapshot and replication checks."
             ),
             "action": "commit_to_stay",
             "action_detail": (
-                "Automate snapshot and replication validation as a follow-up "
-                "reliability project."
+                "Package the client evidence and automate snapshot and "
+                "replication validation."
             ),
         },
         "Jordan": {
             "public_message": (
-                "The team recovered the service without hiding uncertainty or "
-                "sacrificing each other. Customers now have a precise account of "
-                "what happened, and the remediation owners and dates are public."
+                "I am contacting the client with the verified timeline, the two "
+                "reconciled records, and named safeguard owners. I will ask them "
+                "to pause the exit decision for a joint recovery review."
             ),
             "internal_thought": (
-                "The incident hurt, but the way people protected truth and each "
-                "other is the strongest evidence that this team can improve."
+                "A generic apology will not retain this account. The client needs "
+                "specific evidence, ownership, and a forum to challenge us."
             ),
             "state_changes": {
                 "morale": 10,
@@ -241,13 +242,13 @@ _SCRIPTED_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 4,
             },
             "memory_update": (
-                "Recognized the team's candor and published customer-facing "
-                "remediation ownership and dates."
+                "Answered the client escalation with verified evidence, named "
+                "owners, and a joint recovery review."
             ),
             "action": "acknowledge_team",
             "action_detail": (
-                "Publish the incident summary, remediation owners, and target "
-                "dates while recognizing the team's work."
+                "Request a client recovery review backed by verified evidence, "
+                "remediation owners, and target dates."
             ),
         },
     },
@@ -258,13 +259,14 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
     1: {
         "Alex": {
             "public_message": (
-                "Sam, add the checksum report as a hard gate. Jordan, publish "
-                "the first update now with the recovery steps and the known "
-                "unknowns. We reconvene in twenty minutes with evidence."
+                "Fair challenge. I am revising the plan: freeze writes, restore "
+                "in isolation, make the checksum a hard gate, and require dual "
+                "sign-off. Jordan owns thirty-minute updates; there is no fixed "
+                "cutover time without evidence."
             ),
             "internal_thought": (
-                "The plan is stronger now that validation and communication "
-                "have explicit owners. I need to keep urgency from becoming chaos."
+                "The first plan overvalued speed. Revising it publicly shows that "
+                "evidence outranks hierarchy in this war room."
             ),
             "state_changes": {
                 "morale": 2,
@@ -273,24 +275,24 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 2,
             },
             "memory_update": (
-                "Converted the recovery proposal into owned validation and "
-                "communication checkpoints."
+                "Replaced the fixed reopening target with checksum validation, "
+                "dual sign-off, and owned communication checkpoints."
             ),
-            "action": "support_proposal",
+            "action": "propose_solution",
             "action_detail": (
-                "Make checksum validation and a factual customer update explicit "
-                "gates in the recovery plan."
+                "Freeze writes, restore in isolation, require checksum validation "
+                "and dual sign-off, and publish verified updates every thirty minutes."
             ),
         },
         "Sam": {
             "public_message": (
-                "Understood. I have split the validation into schema, row-count, "
-                "and transaction checks, and I will flag every mismatch instead "
-                "of trying to repair anything silently."
+                "I support the revised plan. I have split validation into schema, "
+                "row-count, and transaction checks, and every mismatch will block "
+                "cutover until it is explained."
             ),
             "internal_thought": (
-                "Clear gates make the task less frightening. I can be useful if "
-                "I make uncertainty visible rather than rushing past it."
+                "The team changed course when challenged. That makes it safer to "
+                "keep uncertainty visible instead of rushing past it."
             ),
             "state_changes": {
                 "morale": 3,
@@ -304,19 +306,19 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
             ),
             "action": "support_proposal",
             "action_detail": (
-                "Run schema, row-count, and transaction validation as separate "
-                "recovery gates."
+                "Support the revised plan with schema, row-count, and transaction "
+                "validation as blocking recovery gates."
             ),
         },
         "Jordan": {
             "public_message": (
-                "The first update is drafted: service unavailable, recovery in "
-                "progress, data-loss scope still being verified, and another "
-                "update in thirty minutes. No promises we cannot prove."
+                "I support the revised plan. The first update says service is "
+                "unavailable, recovery is in progress, and data-loss scope is "
+                "still being verified. No reopening promise we cannot prove."
             ),
             "internal_thought": (
-                "Engineering has a credible plan now. My responsibility is to "
-                "turn that plan into trust without overstating certainty."
+                "The technical plan now matches the communication standard. We "
+                "can move quickly without manufacturing certainty."
             ),
             "state_changes": {
                 "morale": 2,
@@ -330,8 +332,8 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
             ),
             "action": "support_proposal",
             "action_detail": (
-                "Publish a fact-based incident notice with a thirty-minute "
-                "update commitment."
+                "Support the evidence-gated recovery plan and publish verified "
+                "customer updates every thirty minutes."
             ),
         },
     },
@@ -418,13 +420,13 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
     3: {
         "Alex": {
             "public_message": (
-                "I want to recognize both of you: the recovery succeeded because "
-                "the gap was surfaced and communicated, not hidden. Restore "
-                "drills and dual verification become scheduled work this week."
+                "The client's recovery packet now has dual sign-off and every "
+                "claim links to evidence. I want to recognize both of you: the "
+                "gap was surfaced, challenged, and resolved instead of hidden."
             ),
             "internal_thought": (
-                "The team earned trust under pressure. My follow-through after "
-                "the incident will determine whether this becomes real learning."
+                "The team earned the chance to rebuild client trust. My follow-through "
+                "will determine whether today's promises become operating controls."
             ),
             "state_changes": {
                 "morale": 6,
@@ -433,24 +435,24 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 3,
             },
             "memory_update": (
-                "Closed the incident by recognizing candor and scheduling restore "
-                "drills with dual verification."
+                "Closed the response by recognizing candor and delivering a "
+                "dual-signed evidence packet to the client."
             ),
             "action": "acknowledge_team",
             "action_detail": (
-                "Recognize the team's candor and schedule recurring restore "
-                "drills with dual verification."
+                "Recognize the team's candor and deliver a dual-signed client "
+                "recovery packet."
             ),
         },
         "Sam": {
             "public_message": (
-                "My biggest lesson is that raising a problem early saved more "
-                "time than silently fixing around it. I will turn the checksum "
-                "work into an automated recovery test with visible failures."
+                "The client can now inspect the checksum, replay window, and "
+                "manual confirmations in one audit trail. I will turn that trail "
+                "into an automated recovery test with visible failures."
             ),
             "internal_thought": (
-                "I leave the incident more confident, but only because the team "
-                "made honesty safer than pretending everything was fine."
+                "Evidence changed both the cutover and the client conversation. "
+                "The automation should make that honesty repeatable."
             ),
             "state_changes": {
                 "morale": 6,
@@ -459,24 +461,24 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 4,
             },
             "memory_update": (
-                "Committed to converting manual checks into an automated recovery "
-                "test with visible failures."
+                "Delivered the client audit trail and committed to automating "
+                "recovery evidence with visible failures."
             ),
             "action": "reflect",
             "action_detail": (
-                "Automate the checksum workflow and make every validation failure "
-                "visible during restore drills."
+                "Automate the client-facing recovery evidence and expose every "
+                "validation failure during restore drills."
             ),
         },
         "Jordan": {
             "public_message": (
-                "The final customer update includes what failed, what was "
-                "recovered, and the owners and dates for every safeguard. I am "
-                "committed to keeping that transparency after the war room closes."
+                "The client accepted a recovery review tomorrow and paused the "
+                "exit decision. The final update includes what failed, what was "
+                "recovered, and the owner and date for every safeguard."
             ),
             "internal_thought": (
-                "Trust held because communication matched the evidence. The same "
-                "standard must continue when there is no crisis forcing it."
+                "We have not regained trust yet, but evidence earned another "
+                "conversation. The same standard must continue after the war room."
             ),
             "state_changes": {
                 "morale": 6,
@@ -485,13 +487,13 @@ _FOLLOW_UP_RESPONSES: dict[int, dict[str, dict]] = {
                 "productivity": 3,
             },
             "memory_update": (
-                "Published the final customer update and committed to ongoing "
-                "transparent remediation tracking."
+                "Secured a client recovery review and published transparent "
+                "remediation ownership and dates."
             ),
             "action": "commit_to_stay",
             "action_detail": (
-                "Maintain public remediation ownership and progress updates after "
-                "the incident."
+                "Run the client recovery review and maintain transparent "
+                "remediation progress after the incident."
             ),
         },
     },

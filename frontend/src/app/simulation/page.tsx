@@ -131,6 +131,7 @@ function SimulationContent() {
             outcome={outcome}
             metricsHistory={metricsHistory}
             metrics={metrics}
+            isDemo={isDemo}
           />
           <InterventionPanel status={status} onIntervene={handleIntervene} metrics={metrics} worldState={worldState} />
         </section>
@@ -145,6 +146,7 @@ function SimulationContent() {
           worldState={worldState}
           decisionStatus={decisionStatus}
           metricsHistory={metricsHistory}
+          isDemo={isDemo}
         />
       </main>
 

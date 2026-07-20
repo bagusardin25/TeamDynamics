@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { AlertTriangle, ArrowRight, TrendingDown, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { MessageBubble } from "./MessageBubble";
 import type { SimMessage, SimulationOutcome, MetricsSnapshot, Metrics } from "@/app/simulation/types";
+import { getSimulationTimeLabels } from "@/lib/simulation-labels";
 
 interface MessageFeedProps {
   messages: SimMessage[];
@@ -20,6 +21,7 @@ interface MessageFeedProps {
   outcome: SimulationOutcome | null;
   metricsHistory: MetricsSnapshot[];
   metrics: Metrics;
+  isDemo?: boolean;
 }
 
 const THINKING_PHRASES = [
@@ -153,9 +155,11 @@ function OutcomeSummaryCard({
 export function MessageFeed({
   messages, status, isTyping, typingAgent, connectionError, simId,
   outcome, metricsHistory, metrics,
+  isDemo = false,
 }: MessageFeedProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [phraseIndex, setPhraseIndex] = useState(0);
+  const timeLabels = getSimulationTimeLabels(isDemo);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -227,7 +231,7 @@ export function MessageFeed({
                     variant="secondary"
                     className="bg-card font-medium text-xs text-muted-foreground px-3 py-1"
                   >
-                    📅 Week {msg.round}
+                    📅 {timeLabels.round} {msg.round}
                   </Badge>
                   <div className="flex-1 h-px bg-border/50" />
                 </div>
@@ -331,7 +335,7 @@ export function MessageFeed({
           <>
             <div className="flex items-center justify-center my-6">
               <Badge variant="secondary" className="bg-green-500/10 text-green-500 border-none font-medium">
-                ✅ Simulation Completed — All Rounds Finished
+                ✅ Simulation Completed — {timeLabels.completed}
               </Badge>
             </div>
             {outcome && (

@@ -4,11 +4,12 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  Activity, Users, Heart, Shield, TrendingUp, Zap,
-  DollarSign, Star, Clock, MessageSquare, AlertTriangle, Target, LineChart
+  Activity, Users, Heart, Shield,
+  DollarSign, Star, Clock, MessageSquare, AlertTriangle, Target
 } from "lucide-react";
 import type { Metrics, Agent, WorldState, DecisionStatus, MetricsSnapshot } from "@/app/simulation/types";
 import { RadialGauge } from "./RadialGauge";
+import { getSimulationTimeLabels } from "@/lib/simulation-labels";
 
 interface MetricsDashboardProps {
   metrics: Metrics;
@@ -19,6 +20,7 @@ interface MetricsDashboardProps {
   worldState: WorldState | null;
   decisionStatus: DecisionStatus | null;
   metricsHistory: MetricsSnapshot[];
+  isDemo?: boolean;
 }
 
 function getMetricDelta(metrics: Metrics, prevMetrics: Metrics | null, key: keyof Metrics): number | null {
@@ -96,9 +98,9 @@ function MiniSparkline({ data, color }: { data: number[]; color: string }) {
 export function MetricsDashboard({
   metrics, prevMetrics, status, currentRound, agents,
   worldState, decisionStatus, metricsHistory,
+  isDemo = false,
 }: MetricsDashboardProps) {
-  const moraleChange = getMetricDelta(metrics, prevMetrics, "avgMorale");
-  const productivityChange = getMetricDelta(metrics, prevMetrics, "productivity");
+  const timeLabels = getSimulationTimeLabels(isDemo);
   const loyaltyChange = getMetricDelta(metrics, prevMetrics, "avgLoyalty");
   const cohesionChange = getMetricDelta(metrics, prevMetrics, "teamCohesion");
 
@@ -112,7 +114,7 @@ export function MetricsDashboard({
           <Activity className="w-4 h-4 text-primary" /> Metrics
         </h2>
         <Badge variant="secondary" className="text-[10px]">
-          W{currentRound}
+          {timeLabels.shortRound}{currentRound}
         </Badge>
       </div>
 
@@ -211,9 +213,13 @@ export function MetricsDashboard({
                 <Progress value={worldState.customerSatisfaction} className="h-1.5" />
               </div>
               <div className="flex items-center justify-between text-xs pt-1 border-t border-border/20">
-                <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Deadline</span>
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> {isDemo ? "Response Phase" : "Deadline"}
+                </span>
                 <span className={`font-semibold ${worldState.deadlineWeeksLeft <= 2 ? "text-red-500" : "text-foreground"}`}>
-                  {worldState.deadlineWeeksLeft}w left
+                  {isDemo
+                    ? `${timeLabels.round} ${currentRound}`
+                    : `${worldState.deadlineWeeksLeft}w left`}
                 </span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -329,9 +335,9 @@ export function MetricsDashboard({
                 className={`absolute w-2 h-2 rounded-full -left-[21px] top-1.5 ring-4 ring-background ${status === "completed" ? "bg-green-500" : "bg-orange-500"}`}
               />
               <p className="text-xs text-muted-foreground font-medium mb-0.5">
-                {status === "completed" ? "Completed" : `Week ${currentRound} • In Progress`}
+                {status === "completed" ? "Completed" : `${timeLabels.round} ${currentRound} • In Progress`}
               </p>
-              <p className="text-sm">{status === "completed" ? "All rounds finished" : "Simulation running"}</p>
+              <p className="text-sm">{status === "completed" ? timeLabels.completed : "Simulation running"}</p>
             </div>
             <div className="relative opacity-60">
               <div className="absolute w-2 h-2 bg-primary/40 rounded-full -left-[21px] top-1.5 ring-4 ring-background" />

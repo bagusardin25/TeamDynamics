@@ -25,7 +25,7 @@ def test_demo_response_resolver_never_calls_external_model(monkeypatch):
         )
     )
 
-    assert response["action"] == "support_proposal"
+    assert response["action"] == "propose_solution"
 
 
 def test_standard_response_resolver_preserves_external_model_path(monkeypatch):

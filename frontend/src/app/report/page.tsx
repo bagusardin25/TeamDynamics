@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { getSimulationTimeLabels } from "@/lib/simulation-labels";
 import { toast } from "sonner";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -137,6 +138,8 @@ function ReportContent() {
       let y = margin;
       let pageNum = 1;
       const km = report.key_metrics;
+      const timeLabels = getSimulationTimeLabels(report.report_source === "scripted-mock");
+      const timeUnitPlural = `${timeLabels.round.toLowerCase()}s`;
 
       // ── Color palette ──
       const C = {
@@ -247,7 +250,7 @@ function ReportContent() {
       const meta = [
         ["Company", report.company_name],
         ["Crisis Scenario", report.crisis_name],
-        ["Duration", `${report.completed_rounds} of ${report.total_rounds} weeks completed`],
+        ["Duration", `${report.completed_rounds} of ${report.total_rounds} ${timeUnitPlural} completed`],
         ["Team Size", `${km?.total_agents || report.agent_reports.length} agents`],
         ["Resignations", `${km?.resignations ?? 0}`],
         ["Simulation ID", report.simulation_id],
@@ -328,7 +331,7 @@ function ReportContent() {
         ["Productivity Drop", `-${report.productivity_drop}%`],
         ["Active Agents", `${km?.active_agents ?? report.agent_reports.length} of ${km?.total_agents || report.agent_reports.length}`],
         ["Resignations", `${km?.resignations ?? 0}`],
-        ["Simulation Duration", `${report.completed_rounds} / ${report.total_rounds} weeks`],
+        ["Simulation Duration", `${report.completed_rounds} / ${report.total_rounds} ${timeUnitPlural}`],
       ];
 
       const colWidths = [contentWidth * 0.6, contentWidth * 0.4];
@@ -437,7 +440,7 @@ function ReportContent() {
         // Notes
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(...C.muted);
-        const note = agent.has_resigned ? `Resigned Wk ${agent.resigned_week}` : agent.status_label;
+        const note = agent.has_resigned ? `Resigned ${timeLabels.shortRound}${agent.resigned_week}` : agent.status_label;
         const truncNote = note.length > 30 ? note.slice(0, 28) + ".." : note;
         pdf.text(truncNote, colX, y);
 
@@ -593,13 +596,16 @@ function ReportContent() {
   };
 
   const km = report.key_metrics;
+  const isDemoReport = report.report_source === "scripted-mock";
+  const timeLabels = getSimulationTimeLabels(isDemoReport);
+  const timeUnitPlural = `${timeLabels.round}s`;
 
   return (
     <div className="min-h-screen bg-background">
       {/* Top Navigation Bar */}
       <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border/50">
         <div className="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link href={`/simulation?id=${simId}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Link href={`/simulation?id=${simId}${isDemoReport ? "&demo=1" : ""}`} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors">
             <ChevronLeft className="w-4 h-4 mr-1" /> Back to Simulation
           </Link>
           <div className="flex gap-2">
@@ -646,7 +652,7 @@ function ReportContent() {
           <div className="flex items-center justify-center gap-3 text-sm text-muted-foreground flex-wrap">
             <span className="flex items-center gap-1"><Target className="w-3.5 h-3.5" /> {report.crisis_name}</span>
             <span>•</span>
-            <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {report.completed_rounds}/{report.total_rounds} Weeks Completed</span>
+            <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {report.completed_rounds}/{report.total_rounds} {timeLabels.duration}</span>
             <span>•</span>
             <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {km?.total_agents || report.agent_reports.length} Agents</span>
           </div>
@@ -699,7 +705,7 @@ function ReportContent() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   <div className="bg-background/50 rounded-lg p-3 text-center">
                     <p className="text-xl font-bold">{report.completed_rounds}</p>
-                    <p className="text-xs text-muted-foreground">Weeks Simulated</p>
+                    <p className="text-xs text-muted-foreground">{timeUnitPlural} Simulated</p>
                   </div>
                   <div className="bg-background/50 rounded-lg p-3 text-center">
                     <p className="text-xl font-bold">{km?.total_agents || report.agent_reports.length}</p>
@@ -778,7 +784,7 @@ function ReportContent() {
             />
             <MetricCard
               icon={Clock}
-              label="Weeks Completed"
+              label={timeLabels.duration}
               value={report.completed_rounds}
               suffix={`/${report.total_rounds}`}
               color="bg-amber-500/10 text-amber-500"
@@ -789,21 +795,21 @@ function ReportContent() {
         {/* ─── 4. Simulation Timeline ─── */}
         {report.timeline && report.timeline.length > 0 && (
           <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-            <SectionHeader number="04" icon={Activity} title="Simulation Timeline" subtitle={`Chronological metric trends from Week 0 to ${report.completed_rounds}`} />
+            <SectionHeader number="04" icon={Activity} title="Simulation Timeline" subtitle={`Chronological metric trends from ${timeLabels.timeline} 0 to ${report.completed_rounds}`} />
             <Card className="bg-card/40 border-border/50 shadow-lg">
               <CardContent className="pt-6">
                 <div className="w-full h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={report.timeline} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#888888" opacity={0.15} vertical={false} />
-                      <XAxis dataKey="round" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `W${value}`} />
+                      <XAxis dataKey="round" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${timeLabels.shortRound}${value}`} />
                       <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} />
                       <Tooltip
                         contentStyle={{ backgroundColor: 'rgba(10,10,26,0.95)', borderColor: '#333', borderRadius: '12px', padding: '12px' }}
                         itemStyle={{ color: '#fff', fontSize: '12px' }}
                         labelStyle={{ color: '#888', marginBottom: '8px', fontWeight: 600 }}
                         formatter={(value) => [`${value}%`]}
-                        labelFormatter={(label) => `Week ${label}`}
+                        labelFormatter={(label) => `${timeLabels.timeline} ${label}`}
                       />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                       <Line type="monotone" dataKey="morale" name="Avg Morale" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />
@@ -879,7 +885,7 @@ function ReportContent() {
                     {agent.has_resigned && (
                       <div className="flex items-center gap-2 text-sm text-red-400 mt-2 bg-red-500/10 rounded-lg px-3 py-2">
                         <AlertTriangle className="w-4 h-4" />
-                        Resigned at Week {agent.resigned_week}
+                        Resigned at {timeLabels.timeline} {agent.resigned_week}
                       </div>
                     )}
                   </div>

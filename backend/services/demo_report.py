@@ -64,13 +64,14 @@ def build_demo_report_insights(
         "simulation_overview": (
             f"This scripted exercise tested {total_agents} Northstar Labs team "
             f"members against the scenario: {crisis}. It covered recovery "
-            "strategy, execution setbacks, stakeholder communication, and "
-            "post-incident accountability."
+            "strategy, execution setbacks, a client escalation, evidence-based "
+            "stakeholder communication, and post-incident accountability."
         ),
         "analysis_insights": (
             f"{decision_summary} Alex established technical gates, Sam made the "
             "data gap visible, and Jordan paired transparent communication with "
-            "customer-level verification. The follow-up exchanges show the plan "
+            "customer-level verification. Jordan answered the client escalation "
+            "with an evidence-backed recovery review. The follow-up exchanges show the plan "
             "adapting to evidence instead of hiding uncertainty. Final average "
             f"productivity was {avg_productivity}%, while the team retained a "
             "clear separation between recovery, validation, and communication."
