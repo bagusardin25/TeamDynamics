@@ -26,6 +26,8 @@ interface UseSimulationSocketReturn {
   totalRounds: number;
   status: string;
   companyName: string;
+  mode: string;
+  runtimeModel: string | null;
   isConnected: boolean;
   isTyping: boolean;
   typingAgent: string | null;
@@ -49,6 +51,8 @@ export function useSimulationSocket(
   const [totalRounds, setTotalRounds] = useState(12);
   const [status, setStatus] = useState("idle");
   const [companyName, setCompanyName] = useState("Simulation");
+  const [mode, setMode] = useState("standard");
+  const [runtimeModel, setRuntimeModel] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [typingAgent, setTypingAgent] = useState<string | null>(null);
@@ -111,6 +115,8 @@ export function useSimulationSocket(
           setTotalRounds(payload.totalRounds || 12);
           setStatus(payload.status || "idle");
           setCompanyName(payload.company?.name || "Simulation");
+          setMode(payload.mode || "standard");
+          setRuntimeModel(payload.runtimeModel || null);
           setIsTyping(payload.status !== "completed");
           setTypingAgent(null);
           if (payload.worldState) setWorldState(payload.worldState);
@@ -198,7 +204,7 @@ export function useSimulationSocket(
         wsRef.current.close(1000, "Component unmounting");
       }
     };
-  }, [simId]);
+  }, [simId, playMessageTick, playNotification]);
 
   // Send intervention via WebSocket
   const sendIntervention = useCallback(
@@ -250,6 +256,8 @@ export function useSimulationSocket(
     totalRounds,
     status,
     companyName,
+    mode,
+    runtimeModel,
     isConnected,
     isTyping,
     typingAgent,

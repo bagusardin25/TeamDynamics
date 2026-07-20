@@ -30,6 +30,8 @@ function SimulationContent() {
     totalRounds,
     status,
     companyName,
+    mode,
+    runtimeModel,
     isConnected,
     isTyping,
     typingAgent,
@@ -40,6 +42,8 @@ function SimulationContent() {
     outcome,
     sendIntervention,
   } = useSimulationSocket(simId, soundEnabled);
+
+  const isDemo = searchParams.get("demo") === "1" || mode === "demo";
 
   const handleIntervene = useCallback(
     (type: string, customMsg?: string) => {
@@ -81,13 +85,14 @@ function SimulationContent() {
         <SimulationNavbar
           status={status}
           companyName={companyName}
+          runtimeModel={runtimeModel}
           currentRound={currentRound}
           totalRounds={totalRounds}
           isConnected={isConnected}
           soundEnabled={soundEnabled}
           onToggleSound={() => setSoundEnabled(!soundEnabled)}
           onEndSimulation={handleEndSimulation}
-          onExit={() => router.push("/dashboard")}
+          onExit={() => router.push(isDemo ? "/demo" : "/dashboard")}
         />
       </div>
 

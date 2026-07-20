@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Bot, Users, Activity, MessageSquare, Zap, AlertTriangle, Sun, Moon, LogIn } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -13,13 +13,9 @@ import { useAuth } from "@/contexts/auth-context";
 
 export default function LandingPage() {
   const [pressure, setPressure] = useState([20]);
-  const [mounted, setMounted] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
   const { user } = useAuth();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Dynamic styles based on pressure
   const pressureValue = pressure[0];
@@ -79,11 +75,11 @@ export default function LandingPage() {
               size="icon"
               className="h-9 w-9 text-muted-foreground hover:text-foreground"
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
-              aria-label={mounted ? (isDark ? 'Switch to light theme' : 'Switch to dark theme') : 'Toggle theme'}
+              aria-label="Toggle theme"
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">{mounted ? (isDark ? 'Switch to light theme' : 'Switch to dark theme') : 'Toggle theme'}</span>
+              <span className="sr-only">Toggle theme</span>
             </Button>
             {user ? (
               <Link href="/dashboard">
@@ -186,10 +182,10 @@ export default function LandingPage() {
                   </motion.span>
                 </Button>
               </Link>
-              <Link href="/docs" className="w-full sm:w-auto">
-                <Button size="lg" variant="ghost" className="h-14 px-8 text-base font-semibold w-full rounded-xl hover:bg-secondary/80 group border border-border/40">
+              <Link href="/demo" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold w-full rounded-xl group">
                   <Zap className="mr-2 w-4 h-4 text-orange-500 group-hover:animate-pulse" />
-                  Explore Product Docs
+                  Try Quick Demo
                 </Button>
               </Link>
             </motion.div>
@@ -366,24 +362,6 @@ function FeatureCard({ icon, title, description, highlight = false }: { icon: Re
       </div>
       <h3 className="text-xl font-bold mb-3 tracking-tight">{title}</h3>
       <p className="text-muted-foreground text-base leading-relaxed">{description}</p>
-    </motion.div>
-  );
-}
-
-function FloatingStat({ icon, label, value, color }: { icon: React.ReactNode, label: string, value: number, color: string }) {
-  return (
-    <motion.div 
-      animate={{ x: [0, 5, 0] }}
-      transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-      className="bg-background/80 backdrop-blur-md border border-border/60 p-3 rounded-xl shadow-lg flex items-center gap-3 w-32"
-    >
-      <div className={cn("p-1.5 rounded-lg text-white", color)}>
-        {icon}
-      </div>
-      <div className="flex flex-col">
-        <span className="text-[8px] font-bold uppercase text-muted-foreground">{label}</span>
-        <span className="text-xs font-black tabular-nums">{Math.max(0, Math.round(value))}%</span>
-      </div>
     </motion.div>
   );
 }

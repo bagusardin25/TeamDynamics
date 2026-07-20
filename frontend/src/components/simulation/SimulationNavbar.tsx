@@ -8,6 +8,7 @@ import { Volume2, VolumeX, LogOut } from "lucide-react";
 interface SimulationNavbarProps {
   status: string;
   companyName: string;
+  runtimeModel?: string | null;
   currentRound: number;
   totalRounds: number;
   isConnected: boolean;
@@ -20,6 +21,7 @@ interface SimulationNavbarProps {
 export function SimulationNavbar({
   status,
   companyName,
+  runtimeModel,
   currentRound,
   totalRounds,
   isConnected,
@@ -37,6 +39,14 @@ export function SimulationNavbar({
         >
           {status === "completed" ? "Completed" : status === "running" ? "Active Simulation" : "Connecting..."}
         </Badge>
+        {runtimeModel ? (
+          <Badge
+            variant="outline"
+            className="border-violet-500/30 bg-violet-500/10 text-violet-400"
+          >
+            {runtimeModel}
+          </Badge>
+        ) : null}
         <span className="font-semibold text-sm text-muted-foreground mr-4">
           Project: {companyName}
         </span>
