@@ -209,15 +209,15 @@ Create a `.env` file inside `/backend` based on `.env.example`:
 # ─── LLM Provider (required — at least one) ───
 LLM_PROVIDER=openai                    # openai | gemini | openrouter
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-5.6                  # optional; used by custom simulations
+OPENAI_MODEL=gpt-4o-mini              # cost-conscious default with Structured Outputs
 OPENAI_CHEAP_MODEL=gpt-4o-mini        # used during traffic/cost spikes
 GEMINI_API_KEY=AI...
 GEMINI_MODEL=gemini-2.0-flash         # optional, default model
 GEMINI_CHEAP_MODEL=gemini-2.0-flash
 OPENROUTER_API_KEY=sk-or-...
-OPENROUTER_DEFAULT_MODEL=meta-llama/llama-3.1-8b-instruct:free
-OPENROUTER_CHEAP_MODEL=meta-llama/llama-3.1-8b-instruct:free
-LLM_DAILY_BUDGET_USD=5.00
+OPENROUTER_DEFAULT_MODEL=openrouter/free
+OPENROUTER_CHEAP_MODEL=openrouter/free
+LLM_DAILY_BUDGET_USD=0.25             # local daily safety cap; adjust deliberately
 LLM_FALLBACK_ENABLED=true
 LLM_FALLBACK_BUDGET_THRESHOLD_PCT=80
 LLM_TRAFFIC_SPIKE_ACTIVE_CALLS=10
