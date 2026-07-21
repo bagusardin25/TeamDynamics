@@ -27,6 +27,7 @@ import {
   AGENT_COLORS,
   PERSONALITY_TRAITS,
   POPULAR_MODELS,
+  isValidPersonAgentName,
   type AgentPersonality,
   type PresetAgent,
 } from "@/lib/setup-model";
@@ -92,7 +93,10 @@ export function AgentDialog({
   onPersonalityChange,
   onSave,
 }: AgentDialogProps) {
-  const isValid = Boolean(name.trim() && role.trim() && type.trim());
+  const hasValidPersonName = isValidPersonAgentName(name);
+  const isValid = Boolean(
+    hasValidPersonName && role.trim() && type.trim(),
+  );
   const modelLabel =
     POPULAR_MODELS.find((option) => option.value === model)?.label ||
     (model === "__custom__" ? "Custom model ID" : "Default (Global)");
@@ -132,9 +136,23 @@ export function AgentDialog({
                   placeholder="e.g. Taylor"
                   className="min-h-11"
                   required
+                  aria-invalid={Boolean(name.trim()) && !hasValidPersonName}
+                  aria-describedby="agent-name-help"
                 />
-              </div>
+                <p
+                  id="agent-name-help"
+                  className={cn(
+                    "text-xs",
+                    Boolean(name.trim()) && !hasValidPersonName
+                      ? "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  Use a person&apos;s name, not a status or feeling such as
+                  &quot;kelelahan&quot;.
+                </p>
               <div className="grid gap-2">
+              </div>
                 <label htmlFor="agent-role" className="text-sm font-bold">
                   Role
                 </label>

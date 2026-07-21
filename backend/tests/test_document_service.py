@@ -328,6 +328,33 @@ Arif Nugroho | CTO | Analitis
     ]
 
 
+
+def test_explicit_roster_parser_rejects_status_fragment_without_using_roster_slot():
+    document_text = """Nama | Peran | Karakter
+Maya Pratama | CEO | Visioner
+Arif Nugroho | CTO | Analitis
+Nadia Putri | Product Manager | Kolaboratif
+Raka Wijaya | Engineering Lead | Tegas
+kelelahan. | engineer, dan timeline | status proyek
+Sinta Maheswari | UX Researcher | Empatik
+Dimas Kurniawan | Backend Engineer | Pragmatis
+Laras Ayuningtyas | Customer Success Lead | Diplomatis
+Bima Santoso | People & Culture Lead | Suportif
+"""
+
+    roster = document_service._extract_explicit_documented_roster(document_text)
+
+    assert [row.name for row in roster] == [
+        "Maya Pratama",
+        "Arif Nugroho",
+        "Nadia Putri",
+        "Raka Wijaya",
+        "Sinta Maheswari",
+        "Dimas Kurniawan",
+        "Laras Ayuningtyas",
+        "Bima Santoso",
+    ]
+
 def test_analyze_document_drops_agents_not_in_explicit_roster(monkeypatch):
     document_text = """Nama | Peran | Karakter
 Maya Pratama | CEO | Visioner

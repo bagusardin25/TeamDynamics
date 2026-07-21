@@ -7,6 +7,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
+from services.agent_identity import validate_agent_name
 
 from services.input_sanitizer import sanitize_text
 
@@ -127,6 +128,11 @@ class AgentConfig(BaseModel):
         if not isinstance(value, str):
             return value
         return sanitize_text(value, max_length=1000)
+
+    @field_validator("name")
+    @classmethod
+    def require_person_name(cls, value: str) -> str:
+        return validate_agent_name(value)
 
 
 class AgentFullState(AgentConfig):
@@ -274,6 +280,7 @@ class AgentReport(BaseModel):
     peak_stress: int
     has_resigned: bool
     resigned_week: Optional[int] = None
+    peak_stress_is_estimate: bool = False
     status: str  # "Failed", "Stable", "Thriving"
     status_label: str  # "Resigned • Week 9", "Survived", etc.
 
@@ -286,6 +293,7 @@ class ReportResponse(BaseModel):
     completed_rounds: int
     report_source: str = "llm"
     executive_summary: str
+    report_version: int = 2
     critical_finding: str
     simulation_overview: str = ""  # Detailed objective & scenario description
     key_metrics: dict = {}  # Structured metrics: avg_morale, avg_stress, resignations, etc.

@@ -17,6 +17,7 @@ from models.document import (
     DocumentTeamSource,
 )
 
+from services.agent_identity import is_person_name
 logger = logging.getLogger(__name__)
 
 
@@ -558,6 +559,7 @@ def _extract_explicit_documented_roster(
         name_tokens = set(_semantic_tokens(name))
         role_tokens = set(_semantic_tokens(role))
         if (
+            not is_person_name(name, strict_document_case=True) or
             not name_tokens
             or name_tokens.intersection(_ROLE_TERMINOLOGY)
             or name_tokens.intersection(_ORGANIZATION_NAME_TERMINOLOGY)
@@ -986,6 +988,25 @@ def _without_verified_roster(
 
     return DocumentAnalysisResult.model_validate(payload)
 
+def _without_non_person_agent_names(
+    analysis: DocumentAnalysisResult,
+) -> DocumentAnalysisResult:
+    """Discard invalid AI roster names without failing the whole analysis."""
+    valid_agents = [
+        agent.model_dump()
+        for agent in analysis.suggested_agents
+        if is_person_name(agent.name)
+    ]
+    if len(valid_agents) == len(analysis.suggested_agents):
+        return analysis
+
+    payload = analysis.model_dump()
+    payload["suggested_agents"] = valid_agents
+    if not valid_agents:
+        payload["team_source"] = DocumentTeamSource.NONE
+    return DocumentAnalysisResult.model_validate(payload)
+
+
 
 def _with_corrected_roster(
     initial: DocumentAnalysisResult,
@@ -1112,7 +1133,9 @@ Generate structured analysis. Pay special attention to extracting the company/or
             allow_model_fallback=False,
             response_model=DocumentAnalysisResult,
         )
-        analysis = DocumentAnalysisResult.model_validate(result)
+        analysis = _without_non_person_agent_names(
+            DocumentAnalysisResult.model_validate(result)
+        )
 
         try:
             _validate_documented_agent_evidence(analysis, truncated)
@@ -1152,8 +1175,8 @@ Return the complete corrected structured analysis."""
                 allow_model_fallback=False,
                 response_model=DocumentAnalysisResult,
             )
-            corrected_analysis = DocumentAnalysisResult.model_validate(
-                corrected_result
+            corrected_analysis = _without_non_person_agent_names(
+                DocumentAnalysisResult.model_validate(corrected_result)
             )
             try:
                 _validate_documented_agent_evidence(

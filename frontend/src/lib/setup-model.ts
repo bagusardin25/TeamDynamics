@@ -123,18 +123,26 @@ export const CRISIS_OPTIONS = [
 export const POPULAR_MODELS = [
   { label: "Default (Global)", value: "__default__" },
   { label: "GPT-4o Mini", value: "gpt-4o-mini" },
-  { label: "minimax-m2.5", value: "minimax/minimax-m2.5:free" },
-  { label: "Claude 3 Haiku", value: "anthropic/claude-3-haiku" },
   {
-    label: "Llama 3.1 8B",
-    value: "meta-llama/llama-3.1-8b-instruct:free",
+    label: "OpenRouter Free (Auto)",
+    value: "openrouter/free",
   },
-  { label: "Kimi K2.5", value: "moonshotai/kimi-k2.5" },
   {
-    label: "Mistral 7B",
-    value: "mistralai/mistral-7b-instruct:free",
+    label: "MiniMax M2.5 (Free, availability varies)",
+    value: "minimax/minimax-m2.5:free",
   },
-  { label: "Deepseek-v3.2", value: "deepseek/deepseek-v3.2" },
+  {
+    label: "Claude 3 Haiku (Credits required)",
+    value: "anthropic/claude-3-haiku",
+  },
+  {
+    label: "Kimi K2.5 (Credits required)",
+    value: "moonshotai/kimi-k2.5",
+  },
+  {
+    label: "DeepSeek V3.2 (Credits required)",
+    value: "deepseek/deepseek-v3.2",
+  },
   { label: "Gemini 2.0 Flash", value: "gemini-2.0-flash" },
 ] as const;
 
@@ -185,6 +193,42 @@ export const AGENT_COLORS: Array<{
   },
 ];
 
+const STATUS_OR_FEELING_NAME_TERMS = new Set([
+  "anxious",
+  "burnout",
+  "capek",
+  "cemas",
+  "depressed",
+  "exhausted",
+  "fatigue",
+  "frustrasi",
+  "frustrated",
+  "kelelahan",
+  "kewalahan",
+  "lelah",
+  "marah",
+  "overwhelmed",
+  "panic",
+  "panik",
+  "pressure",
+  "sad",
+  "sedih",
+  "stress",
+  "stressed",
+  "stres",
+  "tertekan",
+  "tired",
+]);
+
+export function isValidPersonAgentName(value: string): boolean {
+  const tokens = value.toLowerCase().match(/[a-z]+/g) || [];
+  return (
+    tokens.length > 0 &&
+    !tokens.some((token) => STATUS_OR_FEELING_NAME_TERMS.has(token))
+  );
+}
+
+
 export const DEFAULT_PERSONALITY: AgentPersonality = {
   empathy: 50,
   ambition: 50,
@@ -209,9 +253,12 @@ export function createDocumentAutofill(
   const contextParts = [analysis.company_culture, analysis.operating_context]
     .map((value) => value.trim())
     .filter((value, index, values) => value && values.indexOf(value) === index);
+  const validSuggestedAgents = analysis.suggested_agents.filter((agent) =>
+    isValidPersonAgentName(agent.name),
+  );
   const shouldReplaceRoster =
-    analysis.team_source !== "none" && analysis.suggested_agents.length > 0;
-  const importedAgents = analysis.suggested_agents
+    analysis.team_source !== "none" && validSuggestedAgents.length > 0;
+  const importedAgents = validSuggestedAgents
     .slice(0, MAX_ROSTER_SIZE)
     .map((agent, index): PresetAgent => ({
       id: documentAgentId(agent.name, index),
@@ -230,7 +277,7 @@ export function createDocumentAutofill(
     selectedAgents: shouldReplaceRoster ? importedAgents : currentAgents,
     rosterWasReplaced: shouldReplaceRoster,
     omittedAgents: shouldReplaceRoster
-      ? Math.max(0, analysis.suggested_agents.length - MAX_ROSTER_SIZE)
+      ? Math.max(0, validSuggestedAgents.length - MAX_ROSTER_SIZE)
       : 0,
     appliedLabels: [
       "company name",
