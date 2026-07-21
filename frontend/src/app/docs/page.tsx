@@ -15,32 +15,26 @@ import {
   Settings,
   FileText,
   ArrowRight,
-  ChevronRight,
   BookOpen,
   Layers,
   Target,
   Lightbulb,
-  Coffee,
-  Send,
   Brain,
   Shield,
   BarChart3,
   Hash,
   ChevronLeft,
-  ExternalLink,
   Copy,
   Check,
   Lock,
   Globe,
   Cpu,
-  Database,
   Dice5,
   Eye,
   FileUp,
   Swords,
   Crown,
   Timer,
-  TrendingUp,
   Workflow,
   KeyRound,
 } from "lucide-react";
@@ -58,6 +52,7 @@ const NAV_SECTIONS = [
     icon: BookOpen,
     items: [
       { id: "overview", label: "Overview" },
+      { id: "build-week", label: "OpenAI Build Week" },
       { id: "quick-start", label: "Quick Start" },
       { id: "architecture", label: "Architecture" },
     ],
@@ -151,6 +146,7 @@ function CodeBlock({
         </pre>
         <button
           onClick={handleCopy}
+          aria-label={copied ? "Code copied" : "Copy code"}
           className="absolute top-3 right-3 p-2 rounded-lg bg-background/50 border border-border/50 text-muted-foreground hover:text-foreground hover:bg-background/80 opacity-0 group-hover:opacity-100 transition-all"
         >
           {copied ? (
@@ -285,7 +281,7 @@ function StepCard({
       <div className="pb-10">
         <div className="flex items-center gap-2 mb-1">
           <Icon className="w-4 h-4 text-primary" />
-          <h4 className="font-semibold">{title}</h4>
+          <h3 className="font-semibold">{title}</h3>
         </div>
         <p className="text-sm text-muted-foreground leading-relaxed">
           {description}
@@ -327,20 +323,20 @@ export default function DocsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background antialiased">
+    <div className="min-h-screen overflow-x-clip bg-background antialiased">
       {/* Background Effects */}
       <div className="fixed inset-0 bg-size-[40px_40px] bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] pointer-events-none" />
       <div className="fixed top-0 right-0 w-[600px] h-[600px] rounded-full blur-[200px] bg-primary/5 pointer-events-none" />
 
       {/* Top Navbar */}
       <header className="fixed top-0 w-full z-50 border-b border-border/40 backdrop-blur-xl bg-background/70">
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between px-6 h-16">
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-3 px-4 sm:px-6 h-16">
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center gap-3 group">
               <div className="relative w-8 h-8 flex items-center justify-center rounded-xl overflow-hidden bg-[#18181b] shadow-lg shadow-violet-500/20 border border-violet-500/30 group-hover:scale-105 transition-transform">
                 <Image src="/logo.svg" alt="TeamDynamics Logo" width={22} height={22} className="object-cover scale-[1.15]" priority />
               </div>
-              <span className="font-bold text-lg tracking-tight">
+              <span className="font-bold text-base sm:text-lg tracking-tight">
                 TeamDynamics
               </span>
             </Link>
@@ -353,11 +349,11 @@ export default function DocsPage() {
                 <BookOpen className="w-3 h-3 mr-1" />
                 Documentation
               </Badge>
-              <span className="text-xs text-muted-foreground ml-2">v1.0</span>
+              <span className="text-xs text-muted-foreground ml-2">Build Week 2026</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <Link href="/" className="hidden sm:block">
               <Button
                 variant="ghost"
                 size="sm"
@@ -370,10 +366,10 @@ export default function DocsPage() {
             <Link href="/setup">
               <Button
                 size="sm"
-                className="shadow-sm rounded-lg font-semibold px-5"
+                className="shadow-sm rounded-lg font-semibold px-3 sm:px-5"
               >
                 Launch App
-                <ArrowRight className="w-4 h-4 ml-1" />
+                <ArrowRight className="hidden sm:block w-4 h-4 ml-1" />
               </Button>
             </Link>
           </div>
@@ -383,7 +379,7 @@ export default function DocsPage() {
       <div className="max-w-[1400px] mx-auto flex pt-16">
         {/* Sidebar Navigation */}
         <aside className="hidden lg:block w-[260px] shrink-0 sticky top-16 h-[calc(100vh-64px)] overflow-y-auto border-r border-border/30">
-          <nav className="p-6 space-y-6">
+          <nav aria-label="Documentation sections" className="p-6 space-y-6">
             {NAV_SECTIONS.map((section) => (
               <div key={section.title}>
                 <div className="flex items-center gap-2 mb-3">
@@ -397,6 +393,7 @@ export default function DocsPage() {
                     <li key={item.id}>
                       <button
                         onClick={() => scrollTo(item.id)}
+                        aria-current={activeSection === item.id ? "location" : undefined}
                         className={cn(
                           "block w-full text-left px-3 py-1.5 rounded-lg text-sm transition-all",
                           activeSection === item.id
@@ -420,11 +417,17 @@ export default function DocsPage() {
             size="icon"
             className="w-14 h-14 rounded-full shadow-2xl shadow-primary/30"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Close documentation navigation" : "Open documentation navigation"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="docs-mobile-navigation"
           >
             <BookOpen className="w-5 h-5" />
           </Button>
           {mobileMenuOpen && (
             <motion.div
+              id="docs-mobile-navigation"
+              role="navigation"
+              aria-label="Documentation sections"
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               className="absolute bottom-16 right-0 w-64 bg-card border border-border rounded-2xl shadow-2xl p-4 max-h-[60vh] overflow-y-auto"
@@ -439,6 +442,7 @@ export default function DocsPage() {
                       <li key={item.id}>
                         <button
                           onClick={() => scrollTo(item.id)}
+                          aria-current={activeSection === item.id ? "location" : undefined}
                           className={cn(
                             "block w-full text-left px-3 py-1.5 rounded-lg text-sm",
                             activeSection === item.id
@@ -472,7 +476,7 @@ export default function DocsPage() {
                 className="bg-primary/20 text-primary border-none mb-4"
               >
                 <Bot className="w-3 h-3 mr-1" />
-                V1 Documentation
+                Build Week Documentation
               </Badge>
               <h1 className="text-3xl md:text-5xl font-black tracking-tighter mb-4 leading-tight">
                 TeamDynamics{" "}
@@ -481,18 +485,23 @@ export default function DocsPage() {
                 </span>
               </h1>
               <p className="text-lg text-muted-foreground max-w-2xl leading-relaxed mb-6">
-                Learn how to build, run, and analyze multi-agent AI simulations
-                that predict team dynamics, breakdowns, and resilience under
-                crisis conditions — complete with world state constraints,
-                hidden agendas, power hierarchies, and dramatic outcomes.
+                Learn how to run multi-agent AI simulations that help teams
+                rehearse difficult decisions, explore plausible reactions, and
+                surface organizational risks under crisis conditions.
               </p>
               <div className="flex flex-wrap gap-3">
+                <Link href="/demo">
+                  <Button className="rounded-xl font-semibold">
+                    Run 2-Minute Demo
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </Button>
+                </Link>
                 <Button
                   onClick={() => scrollTo("quick-start")}
-                  className="rounded-xl font-semibold"
+                  variant="outline"
+                  className="rounded-xl font-semibold border-border/60"
                 >
                   Quick Start
-                  <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
                 <Button
                   variant="outline"
@@ -512,9 +521,9 @@ export default function DocsPage() {
           <p className="text-muted-foreground leading-relaxed mb-4">
             <strong className="text-foreground">TeamDynamics</strong> is a
             multi-agent AI simulation sandbox designed for founders, HR leaders,
-            and organizational strategists. It lets you create a virtual team of
-            AI-driven employees, inject real-world crises, and observe how your
-            team would react—before it happens in real life.
+            and organizational strategists. It is a decision-rehearsal environment:
+            a safe place to explore possible reactions, trade-offs,
+            and failure patterns before making decisions that affect a real team.
           </p>
           <p className="text-muted-foreground leading-relaxed mb-6">
             Each agent has deep psychological profiles including traits like
@@ -556,7 +565,7 @@ export default function DocsPage() {
               },
               {
                 icon: Activity,
-                title: "Burnout Prediction",
+                title: "Burnout Risk Signals",
                 desc: "Identify breaking points with personality-weighted stress absorption and natural recovery.",
               },
             ].map((feature, i) => (
@@ -568,7 +577,7 @@ export default function DocsPage() {
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
                     <feature.icon className="w-5 h-5 text-primary" />
                   </div>
-                  <h4 className="font-semibold text-sm mb-1">{feature.title}</h4>
+                  <h3 className="font-semibold text-sm mb-1">{feature.title}</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     {feature.desc}
                   </p>
@@ -576,6 +585,81 @@ export default function DocsPage() {
               </Card>
             ))}
           </div>
+
+          {/* OpenAI Build Week */}
+          <SectionHeading id="build-week" icon={Cpu}>
+            OpenAI Build Week
+          </SectionHeading>
+          <p className="text-muted-foreground leading-relaxed mb-6">
+            During OpenAI Build Week, TeamDynamics was refined into a clearer,
+            safer decision-rehearsal product with a public demo, intervention
+            previews and receipts, replay, comparison, and improved testing.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
+            <Card className="bg-card/40 border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-primary" />
+                  Runtime Model
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground leading-relaxed">
+                The default OpenAI runtime model is{" "}
+                <code className="text-foreground">gpt-4o-mini</code>. Per-agent
+                overrides and Gemini or OpenRouter provider paths remain available.
+              </CardContent>
+            </Card>
+            <Card className="bg-card/40 border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Workflow className="w-4 h-4 text-primary" />
+                  Development with Codex
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground leading-relaxed">
+                OpenAI Codex supported development with GPT-5.4 and GPT-5.5,
+                progressing to GPT-5.6 for implementation, debugging, testing,
+                and product refinement. These models are not the application runtime API.
+              </CardContent>
+            </Card>
+            <Card className="bg-card/40 border-border/50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Check className="w-4 h-4 text-primary" />
+                  Reliable Judge Experience
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground leading-relaxed">
+                The no-login demo uses deterministic responses for a repeatable
+                two-minute experience while exercising the real engine, state,
+                persistence, WebSocket stream, interventions, and outcomes.
+              </CardContent>
+            </Card>
+          </div>
+
+          <InfoCallout type="tip" title="Testing and recognition">
+            TeamDynamics was developed with Codex-assisted testing and TestSprite.
+            The project also received recognition in a TestSprite hackathon.{" "}
+            <a
+              href="https://x.com/Test_Sprite/status/2048280918125625370?s=20"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary underline underline-offset-4"
+            >
+              View the announcement
+            </a>
+            {" · "}
+            <a
+              href="https://www.instagram.com/p/DZtq4vEAT2y/?utm_source=ig_web_button_share_sheet&igsh=MzRlODBiNWFlZA=="
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-primary underline underline-offset-4"
+            >
+              View university recognition
+            </a>
+            .
+          </InfoCallout>
 
           {/* Quick Start */}
           <SectionHeading id="quick-start" icon={Play}>
@@ -589,14 +673,14 @@ export default function DocsPage() {
           <StepCard
             step={1}
             icon={Lock}
-            title="Sign In or Register"
-            description="Create an account with email/password or sign in with Google OAuth. You start with 10 free simulation credits. Admin users have unlimited credits."
+            title="Try the Demo or Sign In"
+            description="Run the public two-minute demo without an account. For a custom simulation, register with email/password or Google OAuth; new users start with 10 simulation credits."
           />
           <StepCard
             step={2}
             icon={Settings}
             title="Configure Your Company"
-            description="Navigate to the Setup page and define your company name, culture, and context. Optionally upload a document (PDF, DOCX, Excel) for AI-powered requirement extraction and crisis suggestions."
+            description="Navigate to the Setup page and define your company name, culture, and context. Optionally upload a document (PDF, DOCX, TXT, CSV, XLSX) for AI-powered requirement extraction and crisis suggestions."
           />
           <StepCard
             step={3}
@@ -726,7 +810,7 @@ export default function DocsPage() {
               <CardContent className="p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <KeyRound className="w-5 h-5 text-primary" />
-                  <h4 className="font-semibold text-sm">Email + Password</h4>
+                  <h3 className="font-semibold text-sm">Email + Password</h3>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   Register with email, name, and password (min 6 chars). Passwords are hashed with bcrypt. JWT tokens expire after 7 days.
@@ -737,7 +821,7 @@ export default function DocsPage() {
               <CardContent className="p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Globe className="w-5 h-5 text-primary" />
-                  <h4 className="font-semibold text-sm">Google OAuth</h4>
+                  <h3 className="font-semibold text-sm">Google OAuth</h3>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   One-click sign-in with Google. Supports both access token and ID token flows. Auto-creates user accounts for new Google users.
@@ -1345,7 +1429,7 @@ export default function DocsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-4">
             <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20">
-              <h4 className="font-semibold text-sm text-red-400 mb-2">Negative Events</h4>
+              <h3 className="font-semibold text-sm text-red-400 mb-2">Negative Events</h3>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 <li>• Key Client Threatens to Leave</li>
                 <li>• Competitor Poaching Attempt</li>
@@ -1355,7 +1439,7 @@ export default function DocsPage() {
               </ul>
             </div>
             <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
-              <h4 className="font-semibold text-sm text-green-400 mb-2">Positive Events</h4>
+              <h3 className="font-semibold text-sm text-green-400 mb-2">Positive Events</h3>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 <li>• Investor Shows Renewed Confidence</li>
                 <li>• Major Customer Sends Praise</li>
@@ -1364,7 +1448,7 @@ export default function DocsPage() {
               </ul>
             </div>
             <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-              <h4 className="font-semibold text-sm text-yellow-400 mb-2">Mixed Events</h4>
+              <h3 className="font-semibold text-sm text-yellow-400 mb-2">Mixed Events</h3>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 <li>• Emergency Board Meeting Called</li>
                 <li>• New Industry Regulation</li>
@@ -1377,38 +1461,37 @@ export default function DocsPage() {
             God Mode
           </SectionHeading>
           <p className="text-muted-foreground leading-relaxed mb-4">
-            During any active simulation, you have access to{" "}
-            <strong className="text-foreground">God Mode</strong>—a powerful
-            intervention system that lets you alter the course of the simulation
-            in real-time. Interventions are personality-weighted — cynical agents
-            (low agreeableness) benefit less from positive interventions.
+            During an active simulation, <strong className="text-foreground">
+            God Mode</strong> provides a controlled intervention workflow. You can
+            pause the simulation, choose an explicit team or agent target, preview
+            the expected metric effects, and only then apply the intervention.
           </p>
 
-          <SubHeading>Quick Actions</SubHeading>
+          <SubHeading>Preview, Apply, and Audit</SubHeading>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4">
             {[
               {
-                icon: Zap,
-                name: "Give Bonus",
-                desc: "Award a surprise bonus. Morale +15, Stress -5, Loyalty +10 (base values, modified by personality).",
-                color: "text-yellow-500",
-              },
-              {
-                icon: Coffee,
-                name: "Pizza Party",
-                desc: "Lighten the mood. Morale +8, Stress -10, Loyalty +5 (personality-weighted).",
-                color: "text-orange-400",
-              },
-              {
                 icon: Shield,
-                name: "Cancel Overtime",
-                desc: "Revoke mandatory extra hours. Morale +20, Stress -25, but Productivity -10.",
+                name: "Pause & Target",
+                desc: "Pause first, then scope the intervention to the whole team or one selected agent.",
                 color: "text-blue-400",
               },
               {
-                icon: Send,
-                name: "Custom Message",
-                desc: "Type any intervention as a management announcement. Morale +10, Stress -8.",
+                icon: Eye,
+                name: "Impact Preview",
+                desc: "Review the backend-authoritative target, semantics, and expected state changes before confirmation.",
+                color: "text-violet-400",
+              },
+              {
+                icon: FileText,
+                name: "Apply & Record",
+                desc: "Every applied command creates a receipt that records the preview and actual effects.",
+                color: "text-green-400",
+              },
+              {
+                icon: Workflow,
+                name: "Undo When Safe",
+                desc: "Recent reversible interventions can be undone, with the updated receipt broadcast to connected clients.",
                 color: "text-primary",
               },
             ].map((action, i) => (
@@ -1429,11 +1512,16 @@ export default function DocsPage() {
             ))}
           </div>
 
+          <InfoCallout type="info" title="Simulation controls">
+            The control endpoint can pause, resume, or advance an active
+            simulation by one step. Preview tokens and confirmation requirements
+            prevent stale or accidental interventions.
+          </InfoCallout>
+
           <InfoCallout type="warning" title="Use Responsibly">
-            God Mode interventions affect agent states immediately. Cynical agents
-            (low agreeableness) have an effectiveness range of 0.5x–1.3x for
-            interventions. Excessive positive interventions may produce unrealistic
-            results.
+            Interventions change the simulated people or project state. Treat the
+            result as decision-rehearsal evidence, not a prediction of how a real
+            employee will behave.
           </InfoCallout>
 
           {/* Outcomes */}
@@ -1554,8 +1642,8 @@ export default function DocsPage() {
           </SectionHeading>
           <p className="text-muted-foreground leading-relaxed mb-4">
             The AI engine analyzes simulation data to produce actionable
-            recommendations. These insights help leaders understand what went
-            wrong and how to prevent similar outcomes.
+            recommendations. These insights help leaders examine what went wrong,
+            question assumptions, and rehearse responses to similar risks.
           </p>
 
           <Card className="bg-card/40 border-border/50 my-6">
@@ -1606,7 +1694,8 @@ export default function DocsPage() {
           </SectionHeading>
           <p className="text-muted-foreground leading-relaxed mb-6">
             The TeamDynamics backend exposes a RESTful API with WebSocket support.
-            All endpoints return JSON. Authentication uses Bearer JWT tokens.
+            HTTP endpoints return JSON. Authentication requirements vary by route:
+            custom simulations use Bearer JWT tokens, while the Quick Demo is public.
           </p>
 
           <SubHeading>Authentication</SubHeading>
@@ -1631,11 +1720,17 @@ export default function DocsPage() {
           <SubHeading>Simulation</SubHeading>
           <div className="space-y-3 my-4">
             {[
+              { method: "POST", path: "/api/simulation/demo", desc: "Create the anonymous deterministic Quick Demo. No authentication or runtime model cost required.", methodColor: "bg-green-500/20 text-green-400" },
               { method: "POST", path: "/api/simulation/create", desc: "Create a new simulation with company profile, agents, crisis config, and params. Deducts 1 credit.", methodColor: "bg-green-500/20 text-green-400" },
               { method: "POST", path: "/api/simulation/generate-crisis", desc: "AI-generate a tailored crisis based on company name and culture.", methodColor: "bg-green-500/20 text-green-400" },
               { method: "GET", path: "/api/simulation/{id}/status", desc: "Get current simulation status, round, agents, messages, and metrics.", methodColor: "bg-blue-500/20 text-blue-400" },
-              { method: "POST", path: "/api/simulation/{id}/intervene", desc: "Send a God Mode intervention (bonus, pizza, cancel_overtime, custom).", methodColor: "bg-green-500/20 text-green-400" },
+              { method: "POST", path: "/api/simulation/{id}/control", desc: "Pause, resume, or advance the simulation by one step.", methodColor: "bg-green-500/20 text-green-400" },
+              { method: "POST", path: "/api/simulation/{id}/interventions/preview", desc: "Preview a scoped intervention and receive its effects and confirmation token.", methodColor: "bg-green-500/20 text-green-400" },
+              { method: "POST", path: "/api/simulation/{id}/intervene", desc: "Apply a confirmed intervention and return the authoritative receipt.", methodColor: "bg-green-500/20 text-green-400" },
+              { method: "POST", path: "/api/simulation/{id}/interventions/{intervention_id}/undo", desc: "Undo a reversible intervention and broadcast the updated receipt.", methodColor: "bg-green-500/20 text-green-400" },
               { method: "GET", path: "/api/simulation/{id}/report", desc: "Generate and retrieve the full post-simulation report with AI insights.", methodColor: "bg-blue-500/20 text-blue-400" },
+              { method: "POST", path: "/api/simulation/compare", desc: "Compare two completed simulations and their organizational outcomes.", methodColor: "bg-green-500/20 text-green-400" },
+              { method: "GET", path: "/api/simulation/{id}/replay", desc: "Retrieve the persisted timeline for replay and review.", methodColor: "bg-blue-500/20 text-blue-400" },
             ].map((endpoint, i) => (
               <div key={i} className="flex items-start gap-3 p-4 rounded-xl bg-card/40 border border-border/50 hover:border-primary/20 transition-colors">
                 <Badge className={cn("font-mono text-[10px] font-bold border-none shrink-0 mt-0.5", endpoint.methodColor)}>{endpoint.method}</Badge>
@@ -1836,9 +1931,9 @@ interface WebSocketPayload {
               Ready to simulate?
             </h2>
             <p className="text-muted-foreground mb-6 max-w-lg mx-auto">
-              Configure your team, inject a crisis, and discover the breaking
-              point of your organization — complete with hidden agendas, random events,
-              and dramatic outcomes.
+              Configure your team, inject a crisis, and rehearse difficult
+              decisions while reviewing trade-offs, hidden agendas, random events,
+              and organizational risk signals.
             </p>
             <Link href="/setup">
               <Button
