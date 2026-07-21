@@ -21,10 +21,12 @@ import {
   FALLBACK_PRESETS,
   MAX_ROSTER_SIZE,
   POPULAR_MODELS,
+  createDocumentAutofill,
   getPacingValue,
   type AgentPersonality,
   type AgentTemplate,
   type DocumentAnalysis,
+  type DocumentAnalysisPayload,
   type PresetAgent,
   type SetupStepId,
   type SuggestedAgent,
@@ -312,15 +314,7 @@ export default function SetupPage() {
       return;
     }
 
-    const allowedExtensions = [
-      ".pdf",
-      ".docx",
-      ".doc",
-      ".txt",
-      ".csv",
-      ".xlsx",
-      ".xls",
-    ];
+    const allowedExtensions = [".pdf", ".docx", ".txt", ".csv", ".xlsx"];
     const extension = `.${file.name.split(".").pop()?.toLowerCase()}`;
     if (!allowedExtensions.includes(extension)) {
       toast.error(
@@ -330,7 +324,6 @@ export default function SetupPage() {
     }
 
     setIsAnalyzingDocument(true);
-    setDocumentAnalysis(null);
 
     try {
       const formData = new FormData();
@@ -341,83 +334,37 @@ export default function SetupPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.detail || "Analysis failed");
+        throw new Error(
+          `Document analysis request failed with status ${response.status}`,
+        );
       }
 
-      const data = await response.json();
-      setDocumentAnalysis({
-        filename: data.filename,
-        analysis: data.analysis,
-      });
-      toast.success("Document analyzed successfully");
-    } catch (error) {
-      console.error(error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Document analysis failed.",
+      const data = (await response.json()) as {
+        filename: string;
+        analysis: DocumentAnalysisPayload;
+      };
+      const autofill = createDocumentAutofill(data.analysis, selectedAgents);
+
+      setDocumentAnalysis({ filename: data.filename, analysis: data.analysis });
+      setCompanyName(autofill.companyName);
+      setCompanyCulture(autofill.companyCulture);
+      setCrisis(autofill.crisis);
+      setCustomCrisis(autofill.customCrisis);
+      if (autofill.rosterWasReplaced) {
+        setSelectedAgents(autofill.selectedAgents);
+      }
+
+      const omittedMessage = autofill.omittedAgents
+        ? ` ${autofill.omittedAgents} additional members were omitted because the roster limit is eight.`
+        : "";
+      toast.success(
+        `Applied ${autofill.appliedLabels.join(", ")}.${omittedMessage}`,
       );
+    } catch (error) {
+      console.error("Document analysis failed:", error);
+      toast.error("Document analysis failed. Your current setup was not changed.");
     } finally {
       setIsAnalyzingDocument(false);
-    }
-  };
-
-  const applyDocumentSuggestions = () => {
-    if (!documentAnalysis) return;
-
-    const analysis = documentAnalysis.analysis;
-    const applied: string[] = [];
-
-    if (analysis.company_name) {
-      setCompanyName(analysis.company_name);
-      applied.push("company name");
-    }
-    if (analysis.company_culture) {
-      setCompanyCulture(analysis.company_culture);
-      applied.push("company context");
-    }
-    if (analysis.suggested_crisis) {
-      setCrisis("custom");
-      setCustomCrisis(
-        `[${analysis.suggested_crisis.title}]\n\n${analysis.suggested_crisis.description}`,
-      );
-      applied.push("pressure scenario");
-    }
-
-    if (analysis.suggested_agents?.length > 0) {
-      setSelectedAgents((currentAgents) => {
-        const availableSlots = Math.max(
-          0,
-          MAX_ROSTER_SIZE - currentAgents.length,
-        );
-        const newAgents = analysis.suggested_agents
-          .slice(0, availableSlots)
-          .map((suggestedAgent, index): PresetAgent => ({
-            id: `ai-suggested-${Date.now()}-${index}`,
-            name: suggestedAgent.name || `Agent ${index + 1}`,
-            role: suggestedAgent.role,
-            type: suggestedAgent.type,
-            color:
-              AGENT_COLORS[
-                (currentAgents.length + index) % AGENT_COLORS.length
-              ].value,
-            personality:
-              suggestedAgent.personality || { ...DEFAULT_PERSONALITY },
-          }));
-
-        if (newAgents.length > 0) {
-          applied.push(`${newAgents.length} agents`);
-        }
-
-        return [...currentAgents, ...newAgents];
-      });
-    }
-
-    if (applied.length > 0) {
-      toast.success(`Applied ${applied.join(", ")}`);
-    } else {
-      toast.info("No document suggestions were available to apply.");
     }
   };
 
@@ -717,8 +664,6 @@ export default function SetupPage() {
                   isAnalyzingDocument={isAnalyzingDocument}
                   isDocumentDragActive={isDocumentDragActive}
                   documentAnalysis={documentAnalysis}
-                  selectedAgents={selectedAgents}
-                  rosterFull={rosterFull}
                   onCompanyNameChange={setCompanyName}
                   onCompanyCultureChange={setCompanyCulture}
                   onCrisisChange={setCrisis}
@@ -728,8 +673,6 @@ export default function SetupPage() {
                   onDocumentUpload={(file) =>
                     void handleDocumentUpload(file)
                   }
-                  onApplyDocument={applyDocumentSuggestions}
-                  onAddSuggestedAgent={addSuggestedAgent}
                   onContinue={() => setCurrentStep(2)}
                 />
               ) : null}

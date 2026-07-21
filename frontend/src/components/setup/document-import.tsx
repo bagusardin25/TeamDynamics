@@ -9,41 +9,27 @@ import {
   FileUp,
   Lightbulb,
   Loader2,
-  Plus,
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import type {
-  DocumentAnalysis,
-  PresetAgent,
-  SuggestedAgent,
-} from "@/lib/setup-model";
+import type { DocumentAnalysis } from "@/lib/setup-model";
 
 interface DocumentImportProps {
   analysis: DocumentAnalysis | null;
   isAnalyzing: boolean;
   isDragActive: boolean;
-  selectedAgents: PresetAgent[];
-  rosterFull: boolean;
   onDragActiveChange: (active: boolean) => void;
   onUpload: (file: File) => void;
-  onApplyAll: () => void;
-  onAddSuggestedAgent: (agent: SuggestedAgent, index: number) => void;
 }
 
 export function DocumentImport({
   analysis,
   isAnalyzing,
   isDragActive,
-  selectedAgents,
-  rosterFull,
   onDragActiveChange,
   onUpload,
-  onApplyAll,
-  onAddSuggestedAgent,
 }: DocumentImportProps) {
   const handleDrop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
@@ -60,7 +46,7 @@ export function DocumentImport({
         <input
           id="company-context-document"
           type="file"
-          accept=".pdf,.docx,.doc,.txt,.csv,.xlsx,.xls"
+          accept=".pdf,.docx,.txt,.csv,.xlsx"
           aria-label="Upload company context document"
           className="sr-only"
           disabled={isAnalyzing}
@@ -99,7 +85,7 @@ export function DocumentImport({
               {isAnalyzing ? "Analyzing document" : "Choose a file or drop it here"}
             </span>
             <span className="mt-1 block text-xs text-muted-foreground">
-              PDF, DOCX, TXT, CSV, or Excel up to 10MB
+              PDF, DOCX, TXT, CSV, or XLSX up to 10MB
             </span>
           </span>
         </label>
@@ -115,11 +101,23 @@ export function DocumentImport({
               <CheckCircle2 aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h3 id="document-analysis-title" className="font-bold">
-                Analysis ready
-              </h3>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 id="document-analysis-title" className="font-bold">
+                  Analysis ready
+                </h3>
+                <Badge variant="outline">
+                  {result.team_source === "documented"
+                    ? "Documented roster"
+                    : result.team_source === "inferred"
+                      ? "AI-inferred roster"
+                      : "No roster changes"}
+                </Badge>
+              </div>
               <p className="truncate text-sm text-muted-foreground">
                 {analysis.filename}
+              </p>
+              <p className="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                Applied automatically to the setup. You can edit every value.
               </p>
             </div>
           </div>
@@ -213,12 +211,6 @@ export function DocumentImport({
               </h4>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 {result.suggested_agents.map((agent, index) => {
-                  const isAdded = selectedAgents.some(
-                    (selected) =>
-                      selected.name === agent.name &&
-                      selected.role === agent.role,
-                  );
-
                   return (
                     <article
                       key={`${agent.name}-${agent.role}-${index}`}
@@ -233,23 +225,9 @@ export function DocumentImport({
                             {agent.role}
                           </p>
                         </div>
-                        {isAdded ? (
-                          <Badge variant="secondary">Added</Badge>
-                        ) : (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            className="size-11 shrink-0"
-                            aria-label={`Add ${agent.name} to roster`}
-                            disabled={rosterFull}
-                            onClick={() =>
-                              onAddSuggestedAgent(agent, index)
-                            }
-                          >
-                            <Plus aria-hidden="true" />
-                          </Button>
-                        )}
+                        {result.team_source !== "none" ? (
+                          <Badge variant="secondary">Added to Step 2</Badge>
+                        ) : null}
                       </div>
                       <Badge variant="outline" className="mt-3">
                         {agent.type}
@@ -263,15 +241,6 @@ export function DocumentImport({
               </div>
             </div>
           ) : null}
-
-          <Button
-            type="button"
-            className="min-h-11 w-full sm:w-auto sm:justify-self-end"
-            onClick={onApplyAll}
-          >
-            <Sparkles data-icon="inline-start" aria-hidden="true" />
-            Apply all suggestions
-          </Button>
         </section>
       ) : null}
     </div>

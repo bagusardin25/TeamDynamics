@@ -33,8 +33,6 @@ import {
   CRISIS_OPTIONS,
   getCrisisLabel,
   type DocumentAnalysis,
-  type PresetAgent,
-  type SuggestedAgent,
 } from "@/lib/setup-model";
 
 import { DocumentImport } from "./document-import";
@@ -48,8 +46,6 @@ interface ContextStepProps {
   isAnalyzingDocument: boolean;
   isDocumentDragActive: boolean;
   documentAnalysis: DocumentAnalysis | null;
-  selectedAgents: PresetAgent[];
-  rosterFull: boolean;
   onCompanyNameChange: (value: string) => void;
   onCompanyCultureChange: (value: string) => void;
   onCrisisChange: (value: string) => void;
@@ -57,8 +53,6 @@ interface ContextStepProps {
   onGenerateCrisis: () => void;
   onDocumentDragActiveChange: (active: boolean) => void;
   onDocumentUpload: (file: File) => void;
-  onApplyDocument: () => void;
-  onAddSuggestedAgent: (agent: SuggestedAgent, index: number) => void;
   onContinue: () => void;
 }
 
@@ -71,8 +65,6 @@ export function ContextStep({
   isAnalyzingDocument,
   isDocumentDragActive,
   documentAnalysis,
-  selectedAgents,
-  rosterFull,
   onCompanyNameChange,
   onCompanyCultureChange,
   onCrisisChange,
@@ -80,8 +72,6 @@ export function ContextStep({
   onGenerateCrisis,
   onDocumentDragActiveChange,
   onDocumentUpload,
-  onApplyDocument,
-  onAddSuggestedAgent,
   onContinue,
 }: ContextStepProps) {
   return (
@@ -256,12 +246,8 @@ export function ContextStep({
           analysis={documentAnalysis}
           isAnalyzing={isAnalyzingDocument}
           isDragActive={isDocumentDragActive}
-          selectedAgents={selectedAgents}
-          rosterFull={rosterFull}
           onDragActiveChange={onDocumentDragActiveChange}
           onUpload={onDocumentUpload}
-          onApplyAll={onApplyDocument}
-          onAddSuggestedAgent={onAddSuggestedAgent}
         />
       </details>
 

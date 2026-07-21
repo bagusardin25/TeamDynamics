@@ -34,22 +34,36 @@ export interface SuggestedAgent {
   personality: AgentPersonality;
 }
 
+export type DocumentTeamSource = "documented" | "inferred" | "none";
+
+export interface DocumentAnalysisPayload {
+  company_name: string;
+  company_culture: string;
+  operating_context: string;
+  summary: string;
+  key_requirements: string[];
+  team_risks: string[];
+  suggested_crisis: { title: string; description: string };
+  team_source: DocumentTeamSource;
+  suggested_agents: SuggestedAgent[];
+  suggested_team_rules: string[];
+  actionable_insights: string[];
+}
+
 export interface DocumentAnalysis {
   filename: string;
-  analysis: {
-    company_name: string;
-    company_culture: string;
-    summary: string;
-    key_requirements: string[];
-    team_risks: string[];
-    suggested_crisis: {
-      title: string;
-      description: string;
-    };
-    suggested_agents: SuggestedAgent[];
-    suggested_team_rules: string[];
-    actionable_insights: string[];
-  };
+  analysis: DocumentAnalysisPayload;
+}
+
+export interface DocumentAutofill {
+  companyName: string;
+  companyCulture: string;
+  crisis: "custom";
+  customCrisis: string;
+  selectedAgents: PresetAgent[];
+  rosterWasReplaced: boolean;
+  omittedAgents: number;
+  appliedLabels: string[];
 }
 
 export interface AgentTemplate {
@@ -178,6 +192,54 @@ export const DEFAULT_PERSONALITY: AgentPersonality = {
   agreeableness: 50,
   assertiveness: 50,
 };
+
+function documentAgentId(name: string, index: number): string {
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || `agent-${index + 1}`;
+  return `document-${index}-${slug}`;
+}
+
+export function createDocumentAutofill(
+  analysis: DocumentAnalysisPayload,
+  currentAgents: PresetAgent[],
+): DocumentAutofill {
+  const contextParts = [analysis.company_culture, analysis.operating_context]
+    .map((value) => value.trim())
+    .filter((value, index, values) => value && values.indexOf(value) === index);
+  const shouldReplaceRoster =
+    analysis.team_source !== "none" && analysis.suggested_agents.length > 0;
+  const importedAgents = analysis.suggested_agents
+    .slice(0, MAX_ROSTER_SIZE)
+    .map((agent, index): PresetAgent => ({
+      id: documentAgentId(agent.name, index),
+      name: agent.name.trim() || `Agent ${index + 1}`,
+      role: agent.role.trim() || "Team Member",
+      type: agent.type.trim() || "Versatile",
+      color: AGENT_COLORS[index % AGENT_COLORS.length].value,
+      personality: { ...DEFAULT_PERSONALITY, ...agent.personality },
+    }));
+
+  return {
+    companyName: analysis.company_name.trim(),
+    companyCulture: contextParts.join("\n\n"),
+    crisis: "custom",
+    customCrisis: `[${analysis.suggested_crisis.title.trim()}]\n\n${analysis.suggested_crisis.description.trim()}`,
+    selectedAgents: shouldReplaceRoster ? importedAgents : currentAgents,
+    rosterWasReplaced: shouldReplaceRoster,
+    omittedAgents: shouldReplaceRoster
+      ? Math.max(0, analysis.suggested_agents.length - MAX_ROSTER_SIZE)
+      : 0,
+    appliedLabels: [
+      "company name",
+      "culture and operating context",
+      "pressure scenario",
+      ...(shouldReplaceRoster ? [`${importedAgents.length} team members`] : []),
+    ],
+  };
+}
 
 export const PERSONALITY_TRAITS = [
   {
