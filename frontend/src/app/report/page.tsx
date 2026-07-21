@@ -28,6 +28,7 @@ interface AgentReport {
   starting_morale: number;
   ending_morale: number;
   peak_stress: number;
+  peak_stress_is_estimate?: boolean;
   has_resigned: boolean;
   resigned_week: number | null;
   status: string;
@@ -324,8 +325,8 @@ function ReportContent() {
 
       const metricsData = [
         ["Metric", "Value"],
-        ["Average Morale", `${km?.avg_morale ?? 50}%`],
-        ["Average Stress", `${km?.avg_stress ?? 50}%`],
+        ["Final Avg. Morale", `${km?.avg_morale ?? 50}%`],
+        ["Final Avg. Stress", `${km?.avg_stress ?? 50}%`],
         ["Average Productivity", `${km?.avg_productivity ?? 50}%`],
         ["Average Loyalty", `${km?.avg_loyalty ?? 50}%`],
         ["Productivity Drop", `-${report.productivity_drop}%`],
@@ -378,7 +379,7 @@ function ReportContent() {
 
       // Table header
       const agentCols = [35, 30, 24, 24, 22, contentWidth - 135];
-      const agentHeaders = ["Name", "Role", "Morale", "Peak Stress", "Status", "Notes"];
+      const agentHeaders = ["Name", "Role", "Morale", "Peak / Est. Stress", "Status", "Notes"];
       checkPage(10);
 
       pdf.setFillColor(...C.accent);
@@ -428,7 +429,7 @@ function ReportContent() {
         // Peak Stress
         const stressColor: [number, number, number] = agent.peak_stress > 80 ? C.danger : agent.peak_stress > 60 ? [180, 130, 30] : C.body;
         pdf.setTextColor(...stressColor);
-        pdf.text(`${agent.peak_stress}%`, colX, y);
+        pdf.text(`${agent.peak_stress_is_estimate ? "~" : ""}${agent.peak_stress}%`, colX, y);
         colX += agentCols[3];
 
         // Status
@@ -731,7 +732,7 @@ function ReportContent() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             <MetricCard
               icon={Shield}
-              label="Avg. Morale"
+              label="Final Avg. Morale"
               value={km?.avg_morale ?? 50}
               suffix="%"
               trend={km?.avg_morale >= 60 ? "up" : km?.avg_morale < 40 ? "down" : "neutral"}
@@ -739,7 +740,7 @@ function ReportContent() {
             />
             <MetricCard
               icon={Zap}
-              label="Avg. Stress"
+              label="Final Avg. Stress"
               value={km?.avg_stress ?? 50}
               suffix="%"
               trend={km?.avg_stress > 60 ? "down" : km?.avg_stress < 40 ? "up" : "neutral"}
@@ -865,9 +866,9 @@ function ReportContent() {
                     {/* Peak Stress bar */}
                     <div>
                       <div className="flex justify-between text-sm mb-1.5">
-                        <span className="text-muted-foreground">Peak Stress</span>
+                        <span className="text-muted-foreground">{agent.peak_stress_is_estimate ? "Estimated Peak Stress" : "Peak Stress"}</span>
                         <span className={`font-medium ${agent.peak_stress > 80 ? 'text-red-400' : agent.peak_stress > 60 ? 'text-orange-400' : 'text-foreground'}`}>
-                          {agent.peak_stress}%
+                          {agent.peak_stress_is_estimate ? "~" : ""}{agent.peak_stress}%
                         </span>
                       </div>
                       <div className="w-full bg-secondary/50 rounded-full h-2">

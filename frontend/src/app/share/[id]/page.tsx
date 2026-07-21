@@ -27,6 +27,7 @@ interface AgentReport {
   starting_morale: number;
   ending_morale: number;
   peak_stress: number;
+  peak_stress_is_estimate?: boolean;
   has_resigned: boolean;
   resigned_week: number | null;
   status: string;
@@ -295,8 +296,8 @@ export default function SharedReportPage() {
       writeSection("3", "Key Performance Metrics");
       const metricsData = [
         ["Metric", "Value"],
-        ["Average Morale", `${km?.avg_morale ?? 50}%`],
-        ["Average Stress", `${km?.avg_stress ?? 50}%`],
+        ["Final Avg. Morale", `${km?.avg_morale ?? 50}%`],
+        ["Final Avg. Stress", `${km?.avg_stress ?? 50}%`],
         ["Average Productivity", `${km?.avg_productivity ?? 50}%`],
         ["Average Loyalty", `${km?.avg_loyalty ?? 50}%`],
         ["Productivity Drop", `-${report.productivity_drop}%`],
@@ -331,7 +332,7 @@ export default function SharedReportPage() {
       // 4. Agent Performance Table
       writeSection("4", "Agent Performance Summary");
       const agentCols = [35, 30, 24, 24, 22, contentWidth - 135];
-      const agentHeaders = ["Name", "Role", "Morale", "Peak Stress", "Status", "Notes"];
+      const agentHeaders = ["Name", "Role", "Morale", "Peak / Est. Stress", "Status", "Notes"];
       checkPage(10);
       pdf.setFillColor(...C.accent);
       pdf.rect(margin, y - 4.5, contentWidth, 7, "F");
@@ -352,7 +353,7 @@ export default function SharedReportPage() {
         const moraleColor: [number, number, number] = agent.ending_morale < 30 ? C.danger : agent.ending_morale < 50 ? [180, 130, 30] : [40, 140, 70];
         pdf.setTextColor(...moraleColor); pdf.text(`${agent.starting_morale} > ${agent.ending_morale}%`, colX, y); colX += agentCols[2];
         const stressColor: [number, number, number] = agent.peak_stress > 80 ? C.danger : agent.peak_stress > 60 ? [180, 130, 30] : C.body;
-        pdf.setTextColor(...stressColor); pdf.text(`${agent.peak_stress}%`, colX, y); colX += agentCols[3];
+        pdf.setTextColor(...stressColor); pdf.text(`${agent.peak_stress_is_estimate ? "~" : ""}${agent.peak_stress}%`, colX, y); colX += agentCols[3];
         pdf.setFont("helvetica", "bold"); pdf.setTextColor(...C.dark); pdf.text(agent.status, colX, y); colX += agentCols[4];
         pdf.setFont("helvetica", "normal"); pdf.setTextColor(...C.muted);
         const note = agent.has_resigned ? `Resigned Wk ${agent.resigned_week}` : agent.status_label;
@@ -593,8 +594,8 @@ export default function SharedReportPage() {
         <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <SectionHeader number="03" icon={BarChart3} title="Key Metrics" subtitle="Quantitative performance indicators" />
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            <MetricCard icon={Shield} label="Avg. Morale" value={km?.avg_morale ?? 50} suffix="%" trend={km?.avg_morale >= 60 ? "up" : km?.avg_morale < 40 ? "down" : "neutral"} color="bg-emerald-500/10 text-emerald-500" />
-            <MetricCard icon={Zap} label="Avg. Stress" value={km?.avg_stress ?? 50} suffix="%" trend={km?.avg_stress > 60 ? "down" : km?.avg_stress < 40 ? "up" : "neutral"} color="bg-red-500/10 text-red-500" />
+            <MetricCard icon={Shield} label="Final Avg. Morale" value={km?.avg_morale ?? 50} suffix="%" trend={km?.avg_morale >= 60 ? "up" : km?.avg_morale < 40 ? "down" : "neutral"} color="bg-emerald-500/10 text-emerald-500" />
+            <MetricCard icon={Zap} label="Final Avg. Stress" value={km?.avg_stress ?? 50} suffix="%" trend={km?.avg_stress > 60 ? "down" : km?.avg_stress < 40 ? "up" : "neutral"} color="bg-red-500/10 text-red-500" />
             <MetricCard icon={Activity} label="Avg. Productivity" value={km?.avg_productivity ?? 50} suffix="%" trend={km?.avg_productivity >= 60 ? "up" : km?.avg_productivity < 40 ? "down" : "neutral"} color="bg-blue-500/10 text-blue-500" />
             <MetricCard icon={TrendingDown} label="Productivity Drop" value={report.productivity_drop} suffix="%" trend="down" color="bg-orange-500/10 text-orange-500" />
             <MetricCard icon={Users} label="Active Agents" value={km?.active_agents ?? report.agent_reports.length} color="bg-violet-500/10 text-violet-500" />
@@ -620,7 +621,7 @@ export default function SharedReportPage() {
                         contentStyle={{ backgroundColor: 'rgba(10,10,26,0.95)', borderColor: '#333', borderRadius: '12px', padding: '12px' }}
                         itemStyle={{ color: '#fff', fontSize: '12px' }}
                         labelStyle={{ color: '#888', marginBottom: '8px', fontWeight: 600 }}
-                        formatter={(val: any) => [`${val}%`]}
+                        formatter={(val) => [String(val) + "%"]}
                         labelFormatter={(label) => `Week ${label}`}
                       />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
@@ -675,9 +676,9 @@ export default function SharedReportPage() {
                     </div>
                     <div>
                       <div className="flex justify-between text-sm mb-1.5">
-                        <span className="text-muted-foreground">Peak Stress</span>
+                        <span className="text-muted-foreground">{agent.peak_stress_is_estimate ? "Estimated Peak Stress" : "Peak Stress"}</span>
                         <span className={`font-medium ${agent.peak_stress > 80 ? 'text-red-400' : agent.peak_stress > 60 ? 'text-orange-400' : 'text-foreground'}`}>
-                          {agent.peak_stress}%
+                          {agent.peak_stress_is_estimate ? "~" : ""}{agent.peak_stress}%
                         </span>
                       </div>
                       <div className="w-full bg-secondary/50 rounded-full h-2">

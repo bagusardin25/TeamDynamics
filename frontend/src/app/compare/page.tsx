@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, CheckCircle2, Loader2, Users, BarChart3,
   AlertTriangle, Trophy, Shield, Zap, Activity, TrendingDown,
-  ArrowUpRight, ArrowDownRight, Minus, GitCompareArrows,
+  ArrowUpRight, ArrowDownRight, GitCompareArrows,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -343,8 +343,8 @@ function CompareContent() {
                       </thead>
                       <tbody>
                         {([
-                          { key: "avg_morale" as const, label: "Avg. Morale", icon: Shield, suffix: "%", higherBetter: true },
-                          { key: "avg_stress" as const, label: "Avg. Stress", icon: Zap, suffix: "%", higherBetter: false },
+                          { key: "avg_morale" as const, label: "Final Morale", icon: Shield, suffix: "%", higherBetter: true },
+                          { key: "avg_stress" as const, label: "Final Stress", icon: Zap, suffix: "%", higherBetter: false },
                           { key: "avg_productivity" as const, label: "Avg. Productivity", icon: Activity, suffix: "%", higherBetter: true },
                           { key: "avg_loyalty" as const, label: "Avg. Loyalty", icon: Shield, suffix: "%", higherBetter: true },
                           { key: "resignations" as const, label: "Resignations", icon: AlertTriangle, suffix: "", higherBetter: false },
