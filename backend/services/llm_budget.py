@@ -79,7 +79,7 @@ class LLMBudgetTracker:
     """
 
     def __init__(self):
-        self._daily_cap = float(os.getenv("LLM_DAILY_BUDGET_USD", "5.00"))
+        self._daily_cap = float(os.getenv("LLM_DAILY_BUDGET_USD", "0.25"))
         self._fallback_threshold_pct = float(os.getenv("LLM_FALLBACK_BUDGET_THRESHOLD_PCT", "80"))
         self._traffic_spike_active_calls = int(os.getenv("LLM_TRAFFIC_SPIKE_ACTIVE_CALLS", "10"))
         self._active_calls = 0

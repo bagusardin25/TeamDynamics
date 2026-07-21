@@ -56,3 +56,37 @@ def test_standard_response_resolver_preserves_external_model_path(monkeypatch):
         "agent": {"name": "Alex"},
         "strict_llm": False,
     }
+
+def test_metrics_snapshot_persists_exact_per_agent_state():
+    from models.schemas import AgentFullState, AgentState
+
+    sim_id = "exact-agent-snapshot"
+    agent = AgentFullState(
+        id="agent-1",
+        name="Maya Pratama",
+        role="CEO",
+        type="Driver",
+        personality={},
+        state=AgentState(
+            morale=42,
+            stress=88,
+            loyalty=51,
+            productivity=63,
+        ),
+    )
+
+    try:
+        simulation_engine._metrics_history.pop(sim_id, None)
+        simulation_engine.record_metrics_snapshot(sim_id, 4, [agent])
+
+        snapshot = simulation_engine.get_metrics_history(sim_id)[0]
+        assert snapshot["agent_states"]["agent-1"] == {
+            "morale": 42,
+            "stress": 88,
+            "loyalty": 51,
+            "productivity": 63,
+            "has_resigned": False,
+            "resigned_week": None,
+        }
+    finally:
+        simulation_engine._metrics_history.pop(sim_id, None)

@@ -253,6 +253,15 @@ async def _run_simulation_background(sim_id: str):
         outcome_data = None
         if state:
             for msg in reversed(state.get("messages", [])):
+                changes = msg.get("state_changes") or {}
+                structured = (
+                    changes.get("outcome")
+                    if isinstance(changes, dict)
+                    else None
+                )
+                if isinstance(structured, dict) and structured.get("title"):
+                    outcome_data = structured
+                    break
                 content = msg.get("content", "")
                 if "SIMULATION OUTCOME:" in content:
                     # Parse outcome from the message

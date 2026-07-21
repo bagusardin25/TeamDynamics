@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import logging
+import time
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
@@ -18,9 +19,62 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 from services.llm_budget import budget_tracker, BudgetExceededError
-from models.llm import AgentLLMResponse, LLMConfigurationError, LLMResponseError
+from models.llm import AgentLLMResponse, LLMConfigurationError, LLMResponseError, ReportInsights
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+_OPENROUTER_MODEL_CIRCUIT: dict[str, float] = {}
+_OPENROUTER_CIRCUIT_STATUSES = {402, 404, 429}
+
+
+def _error_status_code(error: Exception) -> int | None:
+    status_code = getattr(error, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code
+    response = getattr(error, "response", None)
+    response_status = getattr(response, "status_code", None)
+    return response_status if isinstance(response_status, int) else None
+
+
+def _openrouter_circuit_ttl(status_code: int) -> float:
+    default_seconds = 60 if status_code == 429 else 900
+    raw_value = os.getenv(
+        "OPENROUTER_CIRCUIT_TTL_SECONDS",
+        str(default_seconds),
+    )
+    try:
+        return max(1.0, float(raw_value))
+    except ValueError:
+        return float(default_seconds)
+
+
+def _mark_openrouter_model_unavailable(
+    model: str | None,
+    error: Exception,
+) -> None:
+    status_code = _error_status_code(error)
+    if not model or status_code not in _OPENROUTER_CIRCUIT_STATUSES:
+        return
+    _OPENROUTER_MODEL_CIRCUIT[model] = (
+        time.monotonic() + _openrouter_circuit_ttl(status_code)
+    )
+    logger.warning(
+        "OpenRouter circuit opened for model=%s status=%s",
+        model,
+        status_code,
+    )
+
+
+def _is_openrouter_model_unavailable(model: str | None) -> bool:
+    if not model:
+        return False
+    expires_at = _OPENROUTER_MODEL_CIRCUIT.get(model)
+    if expires_at is None:
+        return False
+    if expires_at <= time.monotonic():
+        _OPENROUTER_MODEL_CIRCUIT.pop(model, None)
+        return False
+    return True
+
 
 
 def _cheap_model_for_provider(provider: str) -> str | None:
@@ -30,7 +84,7 @@ def _cheap_model_for_provider(provider: str) -> str | None:
     if provider == "gemini":
         return os.getenv("GEMINI_CHEAP_MODEL", "gemini-2.0-flash")
     if provider == "openrouter":
-        return os.getenv("OPENROUTER_CHEAP_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+        return os.getenv("OPENROUTER_CHEAP_MODEL", "openrouter/free")
     return None
 
 # ── Provider / Model resolution ───────────────────────────────────────
@@ -254,6 +308,11 @@ NEVER state your hidden agenda in your public_message. It should only show in in
     morale_hi = 15 if empathy_val > 60 else 8
 
     return f"""You are roleplaying as {agent['name']}, a {agent['role']} at {company['name']}.
+IDENTITY LOCK:
+- Your immutable name is {agent['name']} and your immutable role is {agent['role']}.
+- Never invent, rename, or impersonate a team member.
+- A status, feeling, project condition, or sentence fragment is never a person's name.
+
 
 COMPANY CONTEXT: {company['culture']}
 
@@ -281,6 +340,15 @@ CRISIS: {crisis}
 {agenda_section}
 {decision_section}
 {consequences_section}
+
+RESPONSE QUALITY GATES:
+- NOVEL CONTRIBUTION: add a new decision, constraint, trade-off, owner, or timebox.
+- SPECIFIC REACTION: address a named proposal, consequence, or current metric when available.
+- ROLE GROUNDING: use the authority and expertise of {agent['role']}; do not give generic corporate advice.
+- CONTINUITY: extend, revise, or challenge your earlier position instead of paraphrasing it.
+- STATE-CHANGE GROUNDING: every non-zero change must follow from this week's evidence; use zero when nothing clearly changed.
+- Do not use empty agreement such as "I agree, let's collaborate" without an operational decision.
+- Keep names exactly as provided; never turn emotions or status text into people.
 
 RULES:
 1. Your personality numbers DIRECTLY control your speech style. Follow your COMMUNICATION DNA above exactly.
@@ -315,23 +383,65 @@ Respond ONLY with valid JSON in this exact format:
 }}"""
 
 
-def _build_round_user_prompt(round_num: int, total_rounds: int,
-                             conversation_history: list[dict],
-                             intervention: str | None = None) -> str:
-    """Build the user prompt for a round."""
-    history_text = ""
-    for msg in conversation_history[-20:]:  # Last 20 msgs for broader context
+def _build_round_user_prompt(
+    round_num: int,
+    total_rounds: int,
+    conversation_history: list[dict],
+    intervention: str | None = None,
+    *,
+    agent_name: str | None = None,
+) -> str:
+    """Build a focused round prompt that rewards progress over repetition."""
+    recent_messages = conversation_history[-20:]
+    history_lines: list[str] = []
+    for msg in recent_messages:
         if msg.get("type") == "system":
-            history_text += f"[SYSTEM] {msg['content']}\n"
+            history_lines.append(f"[SYSTEM] {msg.get('content', '')}")
         elif msg.get("type") == "public":
-            history_text += f"{msg.get('agent_name', 'Unknown')}: {msg['content']}\n"
+            history_lines.append(
+                f"{msg.get('agent_name', 'Unknown')}: {msg.get('content', '')}"
+            )
+
+    own_position = next(
+        (
+            msg.get("content", "")
+            for msg in reversed(recent_messages)
+            if msg.get("type") == "public"
+            and agent_name
+            and msg.get("agent_name") == agent_name
+        ),
+        "",
+    )
+    teammate_position = next(
+        (
+            msg.get("content", "")
+            for msg in reversed(recent_messages)
+            if msg.get("type") == "public"
+            and (not agent_name or msg.get("agent_name") != agent_name)
+        ),
+        "",
+    )
 
     prompt = f"This is Week {round_num} of {total_rounds}.\n\n"
-    if history_text:
-        prompt += f"RECENT CONVERSATION:\n{history_text}\n"
+    if history_lines:
+        prompt += "RECENT CONVERSATION:\n" + "\n".join(history_lines) + "\n"
+    if own_position:
+        prompt += (
+            f"\nYOUR MOST RECENT PUBLIC POSITION:\n{own_position}\n"
+            "Do not merely restate it. Extend, revise, or challenge it using "
+            "new evidence from this week.\n"
+        )
+    if teammate_position:
+        prompt += (
+            f"\nLATEST TEAMMATE CONTRIBUTION:\n{teammate_position}\n"
+            "Respond to its concrete proposal, risk, or trade-off.\n"
+        )
     if intervention:
         prompt += f"\nNEW MANAGEMENT INTERVENTION: {intervention}\n"
-    prompt += "\nRespond in character. Remember to output ONLY valid JSON."
+    prompt += (
+        "\nProduce one decision-relevant contribution in character. "
+        "Output ONLY valid JSON matching the required schema."
+    )
     return prompt
 
 
@@ -353,7 +463,7 @@ async def _call_openai(
     if not api_key:
         raise LLMConfigurationError("OpenAI API is not configured")
 
-    resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-5.6")
+    resolved_model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     client = AsyncOpenAI(api_key=api_key)
     request_kwargs = {
         "model": resolved_model,
@@ -432,7 +542,7 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
         },
     )
 
-    resolved_model = model or os.getenv("OPENROUTER_DEFAULT_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+    resolved_model = model or os.getenv("OPENROUTER_DEFAULT_MODEL", "openrouter/free")
 
     response = await client.chat.completions.create(
         model=resolved_model,
@@ -449,7 +559,7 @@ async def _call_openrouter(system_prompt: str, user_prompt: str, model: str | No
     usage = response.usage
     usage_info = {
         "provider": "openrouter",
-        "model": resolved_model,
+        "model": getattr(response, "model", None) or resolved_model,
         "tokens_in": usage.prompt_tokens if usage else 0,
         "tokens_out": usage.completion_tokens if usage else 0,
     }
@@ -474,6 +584,31 @@ async def _dispatch_llm_call(
     budget_tracker.check_budget()
 
     resolved_model = model
+    if provider == "openrouter" and resolved_model is None:
+        resolved_model = os.getenv(
+            "OPENROUTER_DEFAULT_MODEL",
+            "openrouter/free",
+        )
+    if provider == "openrouter" and _is_openrouter_model_unavailable(
+        resolved_model
+    ):
+        fallback_model = _cheap_model_for_provider(provider)
+        if (
+            allow_model_fallback
+            and fallback_model
+            and fallback_model != resolved_model
+            and not _is_openrouter_model_unavailable(fallback_model)
+        ):
+            logger.warning(
+                "Skipping unavailable OpenRouter model=%s; using model=%s",
+                resolved_model,
+                fallback_model,
+            )
+            resolved_model = fallback_model
+        else:
+            raise LLMResponseError(
+                f"OpenRouter model is temporarily unavailable: {resolved_model}"
+            )
     if (
         allow_model_fallback
         and resolved_model is None
@@ -506,7 +641,8 @@ async def _dispatch_llm_call(
                 )
         except BudgetExceededError:
             raise
-        except Exception:
+        except Exception as error:
+            _mark_openrouter_model_unavailable(resolved_model, error)
             if not allow_model_fallback:
                 raise
             cheap_model = _cheap_model_for_provider(provider)
@@ -517,7 +653,13 @@ async def _dispatch_llm_call(
             if provider == "gemini":
                 result, usage = await _call_gemini(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
             elif provider == "openrouter":
-                result, usage = await _call_openrouter(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
+                try:
+                    result, usage = await _call_openrouter(
+                        system_prompt, user_prompt, cheap_model, temperature, max_tokens
+                    )
+                except Exception as fallback_error:
+                    _mark_openrouter_model_unavailable(cheap_model, fallback_error)
+                    raise
             else:
                 result, usage = await _call_openai(
                     system_prompt,
@@ -637,7 +779,8 @@ async def generate_agent_response(
         action_consequences=action_consequences,
     )
     user_prompt = _build_round_user_prompt(
-        round_num, total_rounds, conversation_history, intervention
+        round_num, total_rounds, conversation_history, intervention,
+        agent_name=agent["name"],
     )
 
     # Resolve per-agent provider/model
@@ -656,6 +799,7 @@ async def generate_agent_response(
             model,
             temperature,
             allow_model_fallback=not strict_llm,
+            response_model=AgentLLMResponse,
         )
 
         # Ensure all expected fields exist with defaults
@@ -683,13 +827,21 @@ async def generate_agent_response(
         if agent_model and provider != LLM_PROVIDER:
             try:
                 logger.warning(f"Falling back to global provider '{LLM_PROVIDER}' for {agent['name']}")
-                result = await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER, None, temperature)
+                result = await _dispatch_llm_call(
+                    system_prompt,
+                    user_prompt,
+                    LLM_PROVIDER,
+                    None,
+                    temperature,
+                    response_model=AgentLLMResponse,
+                )
                 result.setdefault("public_message", "*stays silent*")
                 result.setdefault("internal_thought", "...")
                 result.setdefault("state_changes", {})
                 result.setdefault("memory_update", "")
                 result.setdefault("action", "do_nothing")
                 result.setdefault("action_detail", "")
+                result = _validate_agent_response(result, agent, agenda)
                 return result
             except Exception as fallback_err:
                 logger.error(f"Fallback also failed for {agent['name']}: {fallback_err}")
@@ -703,6 +855,152 @@ async def generate_agent_response(
             "action": "do_nothing",
             "action_detail": "",
         }
+
+
+def _build_metric_grounded_report(
+    company: dict,
+    crisis: str,
+    agents_data: list[dict],
+    total_rounds: int,
+    outcome: dict | None,
+) -> dict:
+    """Build a complete report when the provider output cannot be trusted."""
+    total_agents = len(agents_data)
+    active_agents = [
+        agent for agent in agents_data if not agent.get("has_resigned")
+    ]
+    resigned_agents = [
+        agent for agent in agents_data if agent.get("has_resigned")
+    ]
+    measured_agents = active_agents or agents_data
+
+    def average(metric: str, default: int = 0) -> int:
+        if not measured_agents:
+            return default
+        return sum(
+            int(agent.get("state", {}).get(metric, default))
+            for agent in measured_agents
+        ) // len(measured_agents)
+
+    avg_morale = average("morale")
+    avg_stress = average("stress")
+    avg_productivity = average("productivity")
+    avg_loyalty = average("loyalty")
+    lowest_morale_agent = min(
+        measured_agents,
+        key=lambda agent: agent.get("state", {}).get("morale", 100),
+        default=None,
+    )
+    highest_stress_agent = max(
+        agents_data,
+        key=lambda agent: agent.get("state", {}).get("stress", 0),
+        default=None,
+    )
+    outcome_title = (outcome or {}).get("title", "Unclassified Outcome")
+    outcome_description = (outcome or {}).get(
+        "description",
+        "The final team state requires review.",
+    )
+    resigned_names = ", ".join(
+        agent.get("name", "Unknown")
+        for agent in resigned_agents
+    )
+
+    critical_parts = [
+        f"Active-team morale ended at {avg_morale}% and stress at {avg_stress}%."
+    ]
+    if lowest_morale_agent:
+        critical_parts.append(
+            f"{lowest_morale_agent.get('name', 'The lowest-morale agent')} "
+            f"finished at {lowest_morale_agent.get('state', {}).get('morale', 0)}% morale."
+        )
+    if resigned_names:
+        critical_parts.append(
+            f"{resigned_names} resigned during the simulation."
+        )
+
+    analysis_parts = [
+        f"Final active-team productivity was {avg_productivity}% and loyalty was {avg_loyalty}%.",
+        outcome_description,
+    ]
+    if highest_stress_agent:
+        analysis_parts.append(
+            f"{highest_stress_agent.get('name', 'The highest-stress agent')} "
+            f"recorded the highest final stress at "
+            f"{highest_stress_agent.get('state', {}).get('stress', 0)}%."
+        )
+    if resigned_agents:
+        weeks = ", ".join(
+            f"{agent.get('name', 'Unknown')} in Week {agent.get('resigned_week', '?')}"
+            for agent in resigned_agents
+        )
+        analysis_parts.append(f"Recorded resignations: {weeks}.")
+
+    recommendations: list[str] = []
+    if avg_morale < 40 and lowest_morale_agent:
+        recommendations.append(
+            f"Within 7 days, assign the People lead to a recovery plan for "
+            f"{lowest_morale_agent.get('name')} and raise active-team morale from {avg_morale}%."
+        )
+    if avg_stress > 60 and highest_stress_agent:
+        recommendations.append(
+            f"Cap work in progress immediately for {highest_stress_agent.get('name')}, "
+            f"whose final stress reached {highest_stress_agent.get('state', {}).get('stress', 0)}%."
+        )
+    if resigned_agents:
+        recommendations.append(
+            f"Complete documented exit and retention reviews for {resigned_names} "
+            "before the next crisis exercise."
+        )
+    if avg_productivity < 70:
+        recommendations.append(
+            f"Create a two-week recovery backlog with one accountable owner to improve "
+            f"productivity from the final {avg_productivity}% baseline."
+        )
+    if avg_loyalty < 50:
+        recommendations.append(
+            f"Run weekly decision follow-through reviews until active-team loyalty "
+            f"improves from {avg_loyalty}%."
+        )
+    recommendations.append(
+        "At every weekly checkpoint, record the decision owner, deadline, trade-off, "
+        "and observed morale and stress impact."
+    )
+    recommendations.append(
+        "Repeat the scenario after corrective actions and compare the same final-state metrics."
+    )
+
+    unique_recommendations = list(dict.fromkeys(recommendations))[:5]
+    while len(unique_recommendations) < 5:
+        unique_recommendations.append(
+            f"Review Week {len(unique_recommendations) + 1} decisions against the "
+            f"{avg_morale}% morale and {avg_stress}% stress baselines."
+        )
+
+    result = {
+        "executive_summary": (
+            f"{company.get('name', 'The company')} completed a {total_rounds}-week "
+            f"simulation of {crisis}. The outcome was {outcome_title}, with "
+            f"{len(active_agents)} of {total_agents} agents active, final active-team "
+            f"morale at {avg_morale}%, and stress at {avg_stress}%."
+        ),
+        "critical_finding": " ".join(critical_parts),
+        "simulation_overview": (
+            f"The exercise tested {total_agents} team members over {total_rounds} weeks "
+            f"against the scenario: {crisis}. It measured behavioral decisions, retention, "
+            "morale, stress, loyalty, and productivity under pressure."
+        ),
+        "analysis_insights": " ".join(analysis_parts),
+        "conclusion": (
+            f"The team finished with the {outcome_title} outcome. With morale at "
+            f"{avg_morale}%, stress at {avg_stress}%, and {len(resigned_agents)} "
+            "resignation(s), the team should not be considered resilient until the "
+            "metric-specific corrective actions are verified in a repeat exercise."
+        ),
+        "recommendations": unique_recommendations,
+    }
+    return ReportInsights.model_validate(result).model_dump(mode="json")
+
 
 
 async def generate_report_insights(
@@ -746,8 +1044,11 @@ async def generate_report_insights(
     # Compute quick stats for the prompt
     total_agents = len(agents_data)
     resigned_count = sum(1 for a in agents_data if a.get("has_resigned"))
-    avg_morale = sum(a.get("state", {}).get("morale", 50) for a in agents_data) // max(1, total_agents)
-    avg_stress = sum(a.get("state", {}).get("stress", 50) for a in agents_data) // max(1, total_agents)
+    active_agents = [a for a in agents_data if not a.get("has_resigned")]
+    measured_agents = active_agents or agents_data
+    measured_count = max(1, len(measured_agents))
+    avg_morale = sum(a.get("state", {}).get("morale", 50) for a in measured_agents) // measured_count
+    avg_stress = sum(a.get("state", {}).get("stress", 50) for a in measured_agents) // measured_count
 
     system_prompt = """You are a senior organizational psychologist and management consultant writing a professional post-simulation analysis report.
 
@@ -758,6 +1059,10 @@ Output Requirements (STRICT):
 - Avoid long unstructured paragraphs — use concise, impactful sentences
 - Each section must add unique value — no repetition across sections
 - Output must be clean and ready for rendering
+- Every section is required and must be non-empty.
+- Recommendations must be five unique actions tied to a named agent, metric, owner, or timeframe.
+- Treat supplied metrics and outcome as authoritative; never contradict them.
+- Never describe a low-morale, high-stress, or resignation outcome as successful.
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -787,35 +1092,45 @@ KEY CONVERSATION MOMENTS (chronological):
 
 Analyze this simulation comprehensively and generate a professional report. Be specific — reference agent names, weeks, and metrics where relevant."""
 
-    try:
-        result = await _dispatch_llm_call(system_prompt, user_prompt, LLM_PROVIDER)
-        # Ensure all expected fields
-        result.setdefault("executive_summary", "The simulation completed successfully.")
-        result.setdefault("critical_finding", "No critical findings identified.")
-        result.setdefault("simulation_overview", "")
-        result.setdefault("analysis_insights", "")
-        result.setdefault("conclusion", "")
-        result.setdefault("recommendations", [])
-        # Ensure at least 3 recommendations
-        while len(result["recommendations"]) < 3:
-            result["recommendations"].append("Review the simulation transcript for additional insights.")
-        return result
-    except Exception as e:
-        logger.error(f"Report generation failed: {e}")
-        return {
-            "executive_summary": "The simulation completed but report generation encountered an error.",
-            "critical_finding": "Unable to generate automated insights.",
-            "simulation_overview": f"A {total_rounds}-week crisis simulation was conducted for {company.get('name', 'Unknown')} with {total_agents} team members, testing team resilience under the scenario: {crisis}",
-            "analysis_insights": "Automated analysis was unavailable. Manual review of agent states and conversation history is recommended to identify behavioral patterns, stress responses, and team dynamics.",
-            "conclusion": "The simulation data has been captured successfully. A manual review is recommended to extract actionable insights from the recorded interactions and metric changes.",
-            "recommendations": [
-                "Review the simulation transcript manually for behavioral patterns.",
-                "Analyze agent morale and stress trends across all rounds.",
-                "Identify leadership dynamics and communication breakdowns.",
-                "Consider targeted intervention strategies for future scenarios.",
-                "Implement regular stress-check protocols for high-pressure situations.",
-            ],
-        }
+    fallback_report = _build_metric_grounded_report(
+        company,
+        crisis,
+        agents_data,
+        total_rounds,
+        outcome,
+    )
+    last_error: Exception | None = None
+    for attempt in range(2):
+        current_user_prompt = user_prompt
+        if attempt:
+            current_user_prompt += (
+                "\n\nCORRECTIVE RETRY: The previous response was incomplete or invalid. "
+                "Return every required field, five unique recommendations, and no "
+                "placeholder or generic review text. Output JSON only."
+            )
+        try:
+            result = await _dispatch_llm_call(
+                system_prompt,
+                current_user_prompt,
+                LLM_PROVIDER,
+                temperature=0.3,
+                max_tokens=1800,
+                response_model=ReportInsights,
+            )
+            return ReportInsights.model_validate(result).model_dump(mode="json")
+        except Exception as error:
+            last_error = error
+            if attempt == 0:
+                logger.warning(
+                    "Report output invalid; requesting one corrective retry: %s",
+                    error,
+                )
+
+    logger.error(
+        "Report generation failed after corrective retry: %s",
+        last_error,
+    )
+    return fallback_report
 
 
 async def generate_tailored_crisis(company_name: str, company_culture: str) -> dict:

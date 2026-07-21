@@ -152,3 +152,28 @@ def test_demo_story_finishes_as_team_triumph_with_improved_customer_trust():
         assert world.customer_satisfaction >= 40
     finally:
         cleanup_tracker(sim_id)
+
+def test_team_fracture_description_matches_morale_driven_failure():
+    sim_id = "morale-driven-fracture"
+    agents = [
+        SimpleNamespace(
+            has_resigned=index == 0,
+            state=SimpleNamespace(morale=8 if index == 0 else 9),
+        )
+        for index in range(8)
+    ]
+
+    try:
+        outcome = determine_outcome(
+            sim_id,
+            agents,
+            total_rounds=12,
+            current_round=12,
+        )
+
+        assert outcome.id == "team_fracture"
+        assert "9%" in outcome.description
+        assert "1 of 8" in outcome.description
+        assert "too many members walked away" not in outcome.description
+    finally:
+        cleanup_tracker(sim_id)

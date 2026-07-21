@@ -98,3 +98,107 @@ def test_standard_report_preserves_external_insight_generator(monkeypatch):
     assert report.report_source == "llm"
     assert report.executive_summary == "Provider-backed summary."
     assert len(calls) == 1
+
+def test_standard_report_uses_exact_initial_metrics_and_state_snapshots(
+    monkeypatch,
+):
+    calls = []
+
+    async def fake_insights(**kwargs):
+        calls.append(kwargs)
+        return {
+            "executive_summary": "Grounded summary.",
+            "critical_finding": "Grounded finding.",
+            "simulation_overview": "Grounded overview.",
+            "analysis_insights": "Grounded analysis.",
+            "conclusion": "Grounded conclusion.",
+            "recommendations": ["One", "Two", "Three"],
+        }
+
+    monkeypatch.setattr(
+        report_generator,
+        "generate_report_insights",
+        fake_insights,
+    )
+    state = _simulation_state(mode="standard")
+    first_agent = state["agents"][0]
+    state["messages"].append(
+        {
+            "round": 3,
+            "agent_id": None,
+            "agent_name": None,
+            "type": "system",
+            "content": "SIMULATION OUTCOME: TEAM FRACTURE",
+            "state_changes": {
+                "outcome": {
+                    "id": "team_fracture",
+                    "title": "Team Fracture",
+                    "description": "Final morale collapsed despite one resignation.",
+                    "emoji": "broken-heart",
+                }
+            },
+        }
+    )
+    state["metrics_history"] = [
+        {
+            "round": 0,
+            "agent_states": {
+                agent.id: agent.state.model_dump()
+                for agent in state["agents"]
+            },
+        },
+        {
+            "round": 2,
+            "agent_states": {
+                **{
+                    agent.id: agent.state.model_dump()
+                    for agent in state["agents"]
+                },
+                first_agent.id: {
+                    **first_agent.state.model_dump(),
+                    "stress": 91,
+                },
+            },
+        },
+    ]
+
+    report = asyncio.run(report_generator.generate_report(state))
+    first_report = next(
+        agent_report
+        for agent_report in report.agent_reports
+        if agent_report.id == first_agent.id
+    )
+    expected_initial = report_generator.compute_initial_state(
+        first_agent.personality.model_dump(by_alias=True)
+    )
+
+    assert first_report.starting_morale == expected_initial["morale"]
+    assert first_report.peak_stress == 91
+    assert first_report.peak_stress_is_estimate is False
+    assert calls[0]["outcome"]["title"] == "Team Fracture"
+
+
+def test_legacy_report_marks_peak_stress_as_estimated(monkeypatch):
+    async def fake_insights(**kwargs):
+        return {
+            "executive_summary": "Grounded summary.",
+            "critical_finding": "Grounded finding.",
+            "simulation_overview": "Grounded overview.",
+            "analysis_insights": "Grounded analysis.",
+            "conclusion": "Grounded conclusion.",
+            "recommendations": ["One", "Two", "Three"],
+        }
+
+    monkeypatch.setattr(
+        report_generator,
+        "generate_report_insights",
+        fake_insights,
+    )
+    state = _simulation_state(mode="standard")
+
+    report = asyncio.run(report_generator.generate_report(state))
+
+    assert all(
+        agent_report.peak_stress_is_estimate
+        for agent_report in report.agent_reports
+    )

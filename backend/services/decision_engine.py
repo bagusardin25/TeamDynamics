@@ -436,7 +436,26 @@ def determine_outcome(
 
     # Team fracture: >50% resigned or avg morale < 20
     if resigned_count > total_agents / 2 or avg_morale < 20:
-        return OUTCOMES["team_fracture"]
+        if resigned_count > total_agents / 2:
+            description = (
+                f"{resigned_count} of {total_agents} team members resigned, "
+                f"leaving the active team at {int(round(avg_morale))}% morale. "
+                "Recovery requires both staffing and trust repair."
+            )
+        else:
+            description = (
+                f"Active-team morale collapsed to {int(round(avg_morale))}% "
+                f"while {resigned_count} of {total_agents} team members resigned. "
+                "The fracture was driven primarily by morale collapse, not "
+                "the number of departures."
+            )
+        base_outcome = OUTCOMES["team_fracture"]
+        return SimulationOutcome(
+            id=base_outcome.id,
+            emoji=base_outcome.emoji,
+            title=base_outcome.title,
+            description=description,
+        )
 
     # Stalemate: no proposals and world is deteriorating
     if not has_proposals and current_round >= total_rounds:

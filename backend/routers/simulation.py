@@ -11,7 +11,7 @@ from models.schemas import (
 from services.simulation_engine import (
     create_simulation, get_simulation_state, process_intervention, compute_metrics,
     preview_intervention, undo_intervention, control_simulation,
-    get_public_interventions,
+    get_public_interventions, get_metrics_history,
 )
 from services.report_generator import generate_report
 from services.simulation_events import enrich_system_messages
@@ -229,12 +229,16 @@ async def get_report(sim_id: str):
     # Check for a previously saved report first
     saved = await get_saved_report(sim_id)
     if saved:
-        return json.loads(saved)
+        saved_report = json.loads(saved)
+        if saved_report.get("report_version", 1) >= 2:
+            return saved_report
 
     # No saved report; generate it fresh
     state = await get_simulation_state(sim_id)
     if not state:
         raise HTTPException(status_code=404, detail="Simulation not found")
+    state = dict(state)
+    state["metrics_history"] = get_metrics_history(sim_id)
 
     report = await generate_report(state)
     report_dict = report.model_dump()

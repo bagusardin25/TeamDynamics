@@ -154,6 +154,21 @@ async def create_simulation(
         'step_remaining': 0,
     }
 
+    _metrics_history[sim_id] = []
+    record_metrics_snapshot(sim_id, 0, agents_cache)
+    try:
+        await db_save_metrics_history(
+            sim_id,
+            json.dumps(_metrics_history[sim_id]),
+        )
+    except Exception as error:
+        logger.warning(
+            "Failed to persist initial metrics for %s: %s",
+            sim_id,
+            error,
+        )
+
+
     # Initialize world state for this simulation
     world = (
         build_demo_world_state()
@@ -1002,17 +1017,24 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
 
         outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round, world)
         outcome_msg = build_outcome_message(outcome, world)
+        outcome_data = {
+            "id": outcome.id,
+            "emoji": outcome.emoji,
+            "title": outcome.title,
+            "description": outcome.description,
+        }
 
         end_msg_id = await save_message(
             sim_id, current_round, None, None, "system",
-            outcome_msg, timestamp=datetime.now(timezone.utc).isoformat(),
+            outcome_msg, state_changes={"outcome": outcome_data},
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
         end_msg = {
             "id": end_msg_id, "round": current_round,
             "agent_id": None, "agent_name": None,
             "type": "system",
             "content": outcome_msg,
-            "thought": None, "state_changes": None,
+            "thought": None, "state_changes": {"outcome": outcome_data},
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         state["messages"].append(end_msg)
@@ -1036,16 +1058,23 @@ async def run_simulation_round(sim_id: str, ws_broadcast=None) -> list[dict]:
         outcome = determine_outcome(sim_id, state["agents"], state["total_rounds"], current_round, world)
         outcome_msg = build_outcome_message(outcome, world)
 
+        outcome_data = {
+            "id": outcome.id,
+            "emoji": outcome.emoji,
+            "title": outcome.title,
+            "description": outcome.description,
+        }
         end_msg_id = await save_message(
             sim_id, current_round, None, None, "system",
-            outcome_msg, timestamp=datetime.now(timezone.utc).isoformat(),
+            outcome_msg, state_changes={"outcome": outcome_data},
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
         end_msg = {
             "id": end_msg_id, "round": current_round,
             "agent_id": None, "agent_name": None,
             "type": "system",
             "content": outcome_msg,
-            "thought": None, "state_changes": None,
+            "thought": None, "state_changes": {"outcome": outcome_data},
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         state["messages"].append(end_msg)
@@ -1450,6 +1479,14 @@ def record_metrics_snapshot(sim_id: str, round_num: int, agents: list[AgentFullS
         "productivity": metrics["productivity"],
         "loyalty": metrics["avgLoyalty"],
         "cohesion": metrics["teamCohesion"],
+        "agent_states": {
+            agent.id: {
+                **agent.state.model_dump(),
+                "has_resigned": agent.has_resigned,
+                "resigned_week": agent.resigned_week,
+            }
+            for agent in agents
+        },
     })
 
 
