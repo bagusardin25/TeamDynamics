@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://teamdynamics.vercel.app/demo"><img src="https://img.shields.io/badge/Launch_Live_Demo-6C63FF?style=for-the-badge&logo=vercel&logoColor=white" alt="Launch Live Demo" /></a>
-  <a href="https://youtu.be/k7WHuGo-e30"><img src="https://img.shields.io/badge/Watch_Demo-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" /></a>
+  <a href="https://youtu.be/1jz-taBZvDw"><img src="https://img.shields.io/badge/Watch_Demo-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" /></a>
   <a href="#running-the-project"><img src="https://img.shields.io/badge/Production_Ready-16A34A?style=for-the-badge" alt="Production Ready" /></a>
 </p>
 
@@ -504,7 +504,7 @@ TeamDynamics/
 
 ## 🎬 Demo Video
 
-> 📺 **[Watch the Demo on YouTube](https://youtu.be/k7WHuGo-e30)**
+> 📺 **[Watch the Demo on YouTube](https://youtu.be/1jz-taBZvDw)**
 
 ---
 
