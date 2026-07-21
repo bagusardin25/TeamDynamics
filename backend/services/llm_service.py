@@ -12,6 +12,7 @@ import json
 import os
 import logging
 from dotenv import load_dotenv
+from pydantic import BaseModel
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -342,6 +343,8 @@ async def _call_openai(
     model: str | None = None,
     temperature: float = 0.9,
     max_tokens: int = 600,
+    *,
+    response_model: type[BaseModel] = AgentLLMResponse,
 ) -> tuple[dict, dict]:
     """Call OpenAI Responses API with a strict Pydantic output contract."""
     from openai import AsyncOpenAI
@@ -356,7 +359,7 @@ async def _call_openai(
         "model": resolved_model,
         "instructions": system_prompt,
         "input": user_prompt,
-        "text_format": AgentLLMResponse,
+        "text_format": response_model,
         "max_output_tokens": max_tokens,
         "store": False,
     }
@@ -464,6 +467,7 @@ async def _dispatch_llm_call(
     max_tokens: int = 600,
     *,
     allow_model_fallback: bool = True,
+    response_model: type[BaseModel] | None = None,
 ) -> dict:
     """Route a call to the correct LLM provider with budget enforcement."""
     # Budget gate — blocks if daily cap exceeded
@@ -492,7 +496,14 @@ async def _dispatch_llm_call(
             elif provider == "openrouter":
                 result, usage = await _call_openrouter(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
             else:
-                result, usage = await _call_openai(system_prompt, user_prompt, resolved_model, temperature, max_tokens)
+                result, usage = await _call_openai(
+                    system_prompt,
+                    user_prompt,
+                    resolved_model,
+                    temperature,
+                    max_tokens,
+                    response_model=response_model or AgentLLMResponse,
+                )
         except BudgetExceededError:
             raise
         except Exception:
@@ -508,8 +519,18 @@ async def _dispatch_llm_call(
             elif provider == "openrouter":
                 result, usage = await _call_openrouter(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
             else:
-                result, usage = await _call_openai(system_prompt, user_prompt, cheap_model, temperature, max_tokens)
+                result, usage = await _call_openai(
+                    system_prompt,
+                    user_prompt,
+                    cheap_model,
+                    temperature,
+                    max_tokens,
+                    response_model=response_model or AgentLLMResponse,
+                )
 
+
+        if response_model is not None:
+            result = response_model.model_validate(result).model_dump(mode="json")
         # Log usage for tracking
         budget_tracker.log_usage(
             provider=usage["provider"],

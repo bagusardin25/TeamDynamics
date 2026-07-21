@@ -2,13 +2,24 @@
 Document upload & analysis routes.
 """
 
+import logging
+
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from services.document_service import extract_text_from_file, analyze_document
+
+from models.document import DocumentAnalysisError
+from services.document_service import (
+    DocumentExtractionError,
+    analyze_document,
+    extract_text_from_file,
+)
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/api/document", tags=["document"])
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".csv", ".xlsx", ".xls"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".csv", ".xlsx"}
 
 
 @router.post("/analyze")
@@ -56,7 +67,17 @@ async def upload_and_analyze(file: UploadFile = File(...)):
             "analysis": analysis,
         }
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+    except HTTPException:
+        raise
+    except DocumentExtractionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except DocumentAnalysisError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected document processing failure")
+        raise HTTPException(
+            status_code=500,
+            detail="Document processing failed. Please try again.",
+        ) from exc

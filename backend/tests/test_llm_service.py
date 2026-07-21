@@ -5,10 +5,15 @@ from types import SimpleNamespace
 
 import openai
 import pytest
+from pydantic import BaseModel
 
 from models.llm import AgentLLMResponse, LLMResponseError
 from services import llm_service
 from services.llm_budget import _estimate_cost
+
+
+class TinyDocumentResponse(BaseModel):
+    company_name: str
 
 
 def _valid_parsed_response() -> AgentLLMResponse:
@@ -74,6 +79,37 @@ def test_call_openai_uses_responses_parse(monkeypatch):
     }
 
 
+
+
+def test_call_openai_accepts_a_document_response_model(monkeypatch):
+    captured = {}
+
+    class FakeResponses:
+        async def parse(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                output_parsed=TinyDocumentResponse(company_name="Northstar Labs"),
+                model="gpt-4o-mini",
+                usage=SimpleNamespace(input_tokens=20, output_tokens=5),
+            )
+
+    class FakeClient:
+        responses = FakeResponses()
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(openai, "AsyncOpenAI", lambda **kwargs: FakeClient())
+
+    result, _ = asyncio.run(
+        llm_service._call_openai(
+            "analyze document",
+            "document text",
+            model="gpt-4o-mini",
+            response_model=TinyDocumentResponse,
+        )
+    )
+
+    assert captured["text_format"] is TinyDocumentResponse
+    assert result == {"company_name": "Northstar Labs"}
 def test_strict_dispatch_does_not_try_cheap_model(monkeypatch):
     calls = []
 
