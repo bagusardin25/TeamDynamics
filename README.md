@@ -11,8 +11,8 @@
 
 <p align="center">
   <a href="https://teamdynamics.vercel.app/demo"><img src="https://img.shields.io/badge/Launch_Live_Demo-6C63FF?style=for-the-badge&logo=vercel&logoColor=white" alt="Launch Live Demo" /></a>
-  <a href="https://youtu.be/f7nNENWoRI4"><img src="https://img.shields.io/badge/Watch_Demo-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" /></a>
-  <a href="#-quick-start"><img src="https://img.shields.io/badge/Production_Ready-16A34A?style=for-the-badge" alt="Production Ready" /></a>
+  <a href="https://youtu.be/k7WHuGo-e30"><img src="https://img.shields.io/badge/Watch_Demo-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo" /></a>
+  <a href="#running-the-project"><img src="https://img.shields.io/badge/Production_Ready-16A34A?style=for-the-badge" alt="Production Ready" /></a>
 </p>
 
 <p align="center">
@@ -61,6 +61,65 @@ without external model spend.
 | A scripted conversation | A stateful crisis where dialogue, team health, and company metrics affect one another |
 | A magic action button | Previewed, scoped, confirmable interventions with receipts and safe undo |
 | A static result | A live decision journey ending in an executive-grade diagnosis |
+
+---
+
+## What We Added During OpenAI Build Week
+
+TeamDynamics entered OpenAI Build Week with an existing multi-agent simulation
+foundation. During the event, the project was extended into a clearer,
+judge-ready end-to-end experience:
+
+- A public, rate-limited Quick Demo that requires no account or API key
+- A deterministic three-agent demo story that still runs through the real
+  simulation engine, persistence, WebSocket stream, decisions, and outcomes
+- Document-assisted setup that extracts grounded company context, risks,
+  crisis suggestions, and agent recommendations from uploaded files
+- God Mode interventions with preview, scoped targets, confirmation, auditable
+  receipts, and safe undo behavior
+- More readable live conversations, structured events, and clearer report
+  metrics so users can follow cause and effect
+- Reliability improvements for aborted simulations, malformed agent output,
+  agent identity validation, and report generation
+- A more polished judge path across the landing page, guided setup, simulation,
+  intervention workflow, and final executive report
+
+These additions preserve the original Premeditatio Malorum-inspired idea while
+making the complete decision-rehearsal journey easier to experience and
+evaluate.
+
+## How We Used GPT-5.6
+
+GPT-5.6 was used as a **development reasoning model through OpenAI Codex**, not
+as TeamDynamics' deployed inference API. The application's current default
+OpenAI runtime model remains **`gpt-4o-mini`**, while the public Quick Demo uses
+deterministic responses to provide a reliable, zero-key judge experience.
+
+Within Codex, GPT-5.6 helped reason across the full stack: tracing simulation
+state, reviewing agent and report behavior, identifying reliability and
+security risks, refining user flows, and checking whether frontend presentation
+matched backend behavior. This continued an earlier development path that used
+GPT-5.4 and GPT-5.5 before moving to GPT-5.6.
+
+## How We Used OpenAI Codex
+
+Codex was used throughout TeamDynamics as an agentic engineering collaborator,
+not only as code completion. It helped to:
+
+- Explore and audit the existing Next.js, FastAPI, PostgreSQL, and WebSocket
+  architecture before making changes
+- Turn product requirements into scoped implementations across the setup,
+  simulation, intervention, and report flows
+- Trace failures across frontend and backend boundaries and implement focused
+  fixes
+- Run linting, type checks, unit tests, backend tests, and build verification
+- Review reliability, security, documentation, and judge-facing clarity
+- Work with TestSprite evidence in a build-test-inspect-fix-verify loop
+
+TestSprite exercised real product journeys and exposed behavioral failures;
+Codex helped inspect those failures, identify root causes, implement fixes, and
+verify the affected flows again. Product direction, architecture, trade-offs,
+and final validation remained human-owned.
 
 ---
 
@@ -142,7 +201,13 @@ Mix and match **LLM providers** (OpenAI, Google Gemini, OpenRouter) per-agent fo
 
 ---
 
-## 🚀 Quick Start
+## Running the Project
+
+The fastest way to evaluate TeamDynamics is the
+**[public Quick Demo](https://teamdynamics.vercel.app/demo)**. It requires no
+account, API key, or local setup.
+
+For local development, follow the steps below.
 
 ### Prerequisites
 
@@ -198,6 +263,59 @@ npm run dev
 ### 4. Launch
 
 Navigate to [https://teamdynamics.vercel.app](https://teamdynamics.vercel.app) — create an account, set up a team, trigger a crisis, and watch the chaos unfold!
+
+---
+
+## Testing Instructions
+
+### Backend Tests
+
+From the repository root:
+
+```bash
+cd backend
+python -m pip install pytest
+python -m pytest -q
+```
+
+The backend suite covers the demo engine and endpoint, simulation events,
+WebSocket completion behavior, document analysis, interventions, report
+generation, agent identity validation, and LLM-provider behavior. Model calls
+are mocked in focused tests, so the suite does not require spending API credit.
+
+### Frontend Quality Gates
+
+```bash
+cd frontend
+npm install
+npm run lint
+npm run test:unit
+npx tsc --noEmit
+npm run build
+```
+
+The committed unit-test command covers the public demo API contract and
+simulation labels. Linting, TypeScript checking, and the production build catch
+broader integration and rendering regressions.
+
+### TestSprite End-to-End Evidence
+
+TeamDynamics was iteratively tested with TestSprite from early development.
+Generated plans, browser tests, and the HTML report are preserved under
+[`testsprite_tests/`](testsprite_tests/), including 35 named product journeys.
+
+To replay a safe, unauthenticated local browser flow after starting both the
+backend and frontend:
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+python testsprite_tests/TC012_Redirect_to_login_when_visiting_dashboard_unauthenticated.py
+```
+
+Some generated scenarios exercise registration or authenticated data. Review a
+test file before replaying it and use dedicated test credentials rather than a
+personal or production account.
 
 ---
 
@@ -386,7 +504,7 @@ TeamDynamics/
 
 ## 🎬 Demo Video
 
-> 📺 **[Watch the Demo on YouTube](https://youtu.be/f7nNENWoRI4)**
+> 📺 **[Watch the Demo on YouTube](https://youtu.be/k7WHuGo-e30)**
 
 ---
 
